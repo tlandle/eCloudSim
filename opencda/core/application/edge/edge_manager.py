@@ -56,6 +56,7 @@ class EdgeManager(object):
         self.tv = None
         self.v = None
         self.target_velocities = None
+        self.Traffic_Tracker = None
 
         self.cav_world = weakref.ref(cav_world)()
 
@@ -65,6 +66,10 @@ class EdgeManager(object):
           self.spawn_y.append(vehicle_manager.vehicle.get_location().y)
           self.spawn_v.append(vehicle_manager.vehicle.get_velocity())
           vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
+      dt = .200
+      numlanes = 4
+      numcars = 4
+      Traffic_Tracker = Traffic(dt,numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
 
 
     def add_member(self, vehicle_manager, leader=False):

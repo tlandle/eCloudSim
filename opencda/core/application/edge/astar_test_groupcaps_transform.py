@@ -2,8 +2,8 @@ import math
 
 import matplotlib.pyplot as plt
 
-from collab_sandbox import Traffic
-from collab_sandbox import Car
+from opencda.core.application.edge.collab_sandbox import Traffic
+from opencda.core.application.edge.collab_sandbox import Car
 
 import numpy as np 
 import itertools
@@ -18,11 +18,11 @@ from sklearn.cluster import AgglomerativeClustering
 
 from k_means_constrained import KMeansConstrained
 
-from transform_utils import transform_processor
+from opencda.core.application.edge.transform_utils import transform_processor
 
 import pickle
 import carla
-from tools.carla_data_provider import *
+from opencda.core.application.edge.tools.carla_data_provider import *
 show_animation = True
 
 #class AStarPlannerClient:
