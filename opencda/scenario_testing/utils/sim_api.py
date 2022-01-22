@@ -21,6 +21,8 @@ from opencda.core.application.platooning.platooning_manager import \
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.utils.customized_map_api import \
     load_customized_world, bcolors
+from opencda.core.application.edge.edge_manager import \
+    EdgeManager
 
 
 def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
@@ -372,6 +374,81 @@ class ScenarioManager:
             platoon_list.append(platoon_manager)
 
         return platoon_list
+
+
+    def create_edge_manager(self, map_helper=None, data_dump=False):
+        """
+        Create a list of edges.
+
+        Parameters
+        ----------
+        map_helper : function
+            A function to help spawn vehicle on a specific position in a
+            specific map.
+
+        data_dump : bool
+            Whether to dump sensor data.
+
+        Returns
+        -------
+        single_cav_list : list
+            A list contains all single CAVs' vehicle manager.
+        """
+        print('Creating edge vehicles/')
+        edge_list = []
+        self.cav_world = CavWorld(self.apply_ml)
+
+        # we use lincoln as default choice since our UCLA mobility lab use the
+        # same car
+        default_model = 'vehicle.lincoln.mkz2017' \
+            if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
+
+        cav_vehicle_bp = \
+            self.world.get_blueprint_library().find(default_model)
+
+        # create edges
+        for i, edge in enumerate(
+                self.scenario_params['scenario']['edge_list']):
+            edge_manager = EdgeManager(edge, self.cav_world)
+            for j, cav in enumerate(edge['members']):
+                if 'spawn_special' not in cav:
+                    spawn_transform = carla.Transform(
+                        carla.Location(
+                            x=cav['spawn_position'][0],
+                            y=cav['spawn_position'][1],
+                            z=cav['spawn_position'][2]),
+                        carla.Rotation(
+                            pitch=cav['spawn_position'][5],
+                            yaw=cav['spawn_position'][4],
+                            roll=cav['spawn_position'][3]))
+                else:
+                    spawn_transform = map_helper(self.carla_version,
+                                                 *cav['spawn_special'])
+
+                cav_vehicle_bp.set_attribute('color', '0, 0, 255')
+                vehicle = self.world.spawn_actor(cav_vehicle_bp,
+                                                 spawn_transform)
+
+                # create vehicle manager for each cav
+                vehicle_manager = VehicleManager(
+                    vehicle, cav, ['edge'],
+                    self.carla_map, self.cav_world,
+                    current_time=self.scenario_params['current_time'],
+                    data_dumping=data_dump)
+
+                # add the vehicle manager to platoon
+                edge_manager.add_member(vehicle_manager)
+
+            self.world.tick()
+            destination = carla.Location(x=edge['destination'][0],
+                                         y=edge['destination'][1],
+                                         z=edge['destination'][2])
+
+            edge_manager.set_destination(destination)
+            edge_list.append(edge_manager)
+
+        return edge_list
+
 
     def spawn_vehicles_by_list(self, tm, traffic_config, bg_list):
         """
