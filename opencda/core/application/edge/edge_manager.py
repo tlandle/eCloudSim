@@ -57,14 +57,23 @@ class EdgeManager(object):
         self.v = None
         self.target_velocities = None
         self.Traffic_Tracker = None
-
+        self.waypoints_dict = {}
         self.cav_world = weakref.ref(cav_world)()
 
     def start_edge(self):
+      self.waypoints_dict = self.get_four_lane_waypoints_dict
+      processor = transform_processor(self.waypoints_dict)
+      _, _ = processor.process_waypoints_bidirectional(0)
+      inverted = processor.process_forward(0)
       for vehicle_manager in self.vehicle_manager_list:
-          self.spawn_x.append(vehicle_manager.vehicle.get_location().x)
-          self.spawn_y.append(vehicle_manager.vehicle.get_location().y)
-          self.spawn_v.append(vehicle_manager.vehicle.get_velocity())
+          #self.spawn_x.append(vehicle_manager.vehicle.get_location().x)
+          #self.spawn_y.append(vehicle_manager.vehicle.get_location().y)
+          #self.spawn_v.append(vehicle_manager.vehicle.get_velocity())
+          ## THIS IS TEMPORARY ##
+          self.spawn_x.append(inverted[i][0,0])
+          self.spawn_v.append(5*(i+1))
+          self.spawn_y.append(inverted[i][1,0])
+
           vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
       dt = .200
       numlanes = 4
@@ -72,7 +81,6 @@ class EdgeManager(object):
       Traffic_Tracker = Traffic(dt,numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
     def get_four_lane_waypoints_dict(self):
       grp = GlobalRoutePlanner(self.world.get_map(), 2)
-      waypoints_dict = {}
       waypoints = self.world.get_map().generate_waypoints(10)
       a = carla.Location(waypoints[343].transform.location)
       b = carla.Location(waypoints[1116].transform.location)
@@ -87,35 +95,35 @@ class EdgeManager(object):
       w2 = grp.trace_route(c, d) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
       w3 = grp.trace_route(e, f) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
       w4 = grp.trace_route(g, j) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
-      waypoints_dict[1] = {}
-      waypoints_dict[2] = {}
-      waypoints_dict[3] = {}
-      waypoints_dict[4] = {}
-      waypoints_dict[1]['x'] = []
-      waypoints_dict[2]['x'] = []
-      waypoints_dict[3]['x'] = []
-      waypoints_dict[4]['x'] = []
-      waypoints_dict[1]['y'] = []
-      waypoints_dict[2]['y'] = []
-      waypoints_dict[3]['y'] = []
-      waypoints_dict[4]['y'] = []
+      self.waypoints_dict[1] = {}
+      self.waypoints_dict[2] = {}
+      self.waypoints_dict[3] = {}
+      self.waypoints_dict[4] = {}
+      self.waypoints_dict[1]['x'] = []
+      self.waypoints_dict[2]['x'] = []
+      self.waypoints_dict[3]['x'] = []
+      self.waypoints_dict[4]['x'] = []
+      self.waypoints_dict[1]['y'] = []
+      self.waypoints_dict[2]['y'] = []
+      self.waypoints_dict[3]['y'] = []
+      self.waypoints_dict[4]['y'] = []
 
 
       for waypoint in w1:
-        waypoints_dict[1]['x'].append(waypoint[0].transform.location.x)
-        waypoints_dict[1]['y'].append(waypoint[0].transform.location.y)
+        self.waypoints_dict[1]['x'].append(waypoint[0].transform.location.x)
+        self.waypoints_dict[1]['y'].append(waypoint[0].transform.location.y)
 
       for waypoint in w2:
-        waypoints_dict[2]['x'].append(waypoint[0].transform.location.x)
-        waypoints_dict[2]['y'].append(waypoint[0].transform.location.y)
+        self.waypoints_dict[2]['x'].append(waypoint[0].transform.location.x)
+        self.waypoints_dict[2]['y'].append(waypoint[0].transform.location.y)
 
       for waypoint in w3:
-        waypoints_dict[3]['x'].append(waypoint[0].transform.location.x)
-        waypoints_dict[3]['y'].append(waypoint[0].transform.location.y)
+        self.waypoints_dict[3]['x'].append(waypoint[0].transform.location.x)
+        self.waypoints_dict[3]['y'].append(waypoint[0].transform.location.y)
 
       for waypoint in w4:
-        waypoints_dict[4]['x'].append(waypoint[0].transform.location.x)
-        waypoints_dict[4]['y'].append(waypoint[0].transform.location.y)
+        self.waypoints_dict[4]['x'].append(waypoint[0].transform.location.x)
+        self.waypoints_dict[4]['y'].append(waypoint[0].transform.location.y)
 
 
 
@@ -134,7 +142,7 @@ class EdgeManager(object):
         self.vehicle_manager_list.append(vehicle_manager)
 
     def get_route_waypoints(self, destination):
-      self.start_waypoint = self._map.get_waypoint(start_location)
+        self.start_waypoint = self._map.get_waypoint(start_location)
 
         # make sure the start waypoint is behind the vehicle
         if self._ego_pos:
@@ -154,9 +162,6 @@ class EdgeManager(object):
 
         route_trace = self._trace_route(self.start_waypoint, end_waypoint)
 
-    def get_map_waypoints(self):
-      
-      
 
     def set_destination(self, destination):
         """
