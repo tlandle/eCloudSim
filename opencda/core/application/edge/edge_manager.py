@@ -67,18 +67,28 @@ class EdgeManager(object):
         self.grid_size = 1.0
         self.robot_radius = 1.0
 
+        self.secondary_offset=0
+
     def start_edge(self):
       self.get_four_lane_waypoints_dict()
       processor = transform_processor(self.waypoints_dict)
       _, _ = processor.process_waypoints_bidirectional(0)
       inverted = processor.process_forward(0)
       i = 0
+
+      for k in inverted:
+          if k[0,0] <= 0 and k[0,0] < -self.secondary_offset:
+            print("Current indice is: ", k[0,0])
+            self.secondary_offset = -k[0,0]
+
       for vehicle_manager in self.vehicle_manager_list:
           #self.spawn_x.append(vehicle_manager.vehicle.get_location().x)
           #self.spawn_y.append(vehicle_manager.vehicle.get_location().y)
           #self.spawn_v.append(vehicle_manager.vehicle.get_velocity())
           ## THIS IS TEMPORARY ##
-          self.spawn_x.append(inverted[i][0,0])
+          print("inverted is: ", inverted[i][0,0])
+          print("revised x is: ", self.secondary_offset)
+          self.spawn_x.append(inverted[i][0,0]+self.secondary_offset)
           self.spawn_v.append(5*(i+1))
           self.spawn_y.append(inverted[i][1,0])
           i += 1
@@ -88,6 +98,7 @@ class EdgeManager(object):
       self.numlanes = 4
       self.numcars = 4
       self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+    
     def get_four_lane_waypoints_dict(self):
       world = self.vehicle_manager_list[0].vehicle.get_world()
       dao = GlobalRoutePlannerDAO(world.get_map(), 2)
@@ -235,15 +246,24 @@ class EdgeManager(object):
         self.ycars = np.hstack((self.ycars, y_states))
         self.target_velocities = np.hstack((self.target_velocities,tv))
         self.velocities = np.hstack((self.velocities,v))
+
+        print("Returned X: ", self.xcars)
+        print("Returned Y: ", self.ycars)
+
+        self.xcars = self.xcars - self.secondary_offset
+
+        print("Revised Returned X: ", self.xcars)
+
         ###########################################
- 
+
         waypoints_rev = {1 : np.empty((2,0)), 2 : np.empty((2,0)), 3 : np.empty((2,0)), 4 : np.empty((2,0))}
-        for i in range(1,self.xcars.shape[1]):
+        for i in range(0,self.xcars.shape[1]):
           processed_array = []
           for j in range(0,self.numcars):
             x_res = self.xcars[j,i]
             y_res = self.ycars[j,i]
             processed_array.append(np.array([[x_res],[y_res]]))
+            print("Appending to waypoints_rev")
           back = processor.process_back(processed_array)
           waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
           waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
@@ -253,15 +273,11 @@ class EdgeManager(object):
         print(waypoints_rev)
         car_locations = {1 : [], 2 : [], 3 : [], 4 : []}
 
-
         for car, car_array in waypoints_rev.items():
           for i in range(0,len(car_array[0])):
             location = carla.Transform(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0), carla.Rotation())
             self.locations.append(location)
 
-
-
- 
     def run_step(self):
         """
         Run one control step for each vehicles.
