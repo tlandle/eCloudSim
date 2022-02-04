@@ -59,6 +59,7 @@ class EdgeManager(object):
         self.v = None
         self.target_velocities = None
         self.Traffic_Tracker = None
+        self.numcars = 0
         self.waypoints_dict = {}
         self.cav_world = weakref.ref(cav_world)()
 
@@ -79,10 +80,10 @@ class EdgeManager(object):
           i += 1
 
           vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
-      dt = .200
-      numlanes = 4
-      numcars = 4
-      self.Traffic_Tracker = Traffic(dt,numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+      self.dt = .200
+      self.numlanes = 4
+      self.numcars = 4
+      self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
     def get_four_lane_waypoints_dict(self):
       world = self.vehicle_manager_list[0].vehicle.get_world()
       dao = GlobalRoutePlannerDAO(world.get_map(), 2)
@@ -191,7 +192,7 @@ class EdgeManager(object):
     def algorithm_step(self):
         self.locations = []
         print("started Algo step")
-        slice_list, vel_array, lanechange_command = get_slices_clustered(self.Traffic_Tracker, numcars)
+        slice_list, vel_array, lanechange_command = get_slices_clustered(self.Traffic_Tracker, self.numcars)
 
         for i in range(len(slice_list)-1,-1,-1): #Iterate through all slices
             if len(slice_list[i]) >= 2: #If the slice has more than one vehicle, run the graph planner. Else it'll move using existing
@@ -235,7 +236,7 @@ class EdgeManager(object):
         waypoints_rev = {1 : np.empty((2,0)), 2 : np.empty((2,0)), 3 : np.empty((2,0)), 4 : np.empty((2,0))}
         for i in range(1,xcars.shape[1]):
           processed_array = []
-          for j in range(0,numcars):
+          for j in range(0,self.numcars):
             x_res = xcars[j,i]
             y_res = ycars[j,i]
             processed_array.append(np.array([[x_res],[y_res]]))
