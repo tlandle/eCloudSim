@@ -127,13 +127,13 @@ scenario:
       destination: [630, 131.39, 0.3]
       members:
         - <<: *vehicle_base
-          spawn_position: [47.7194, 143.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-39.52, -22.79, 0.3, 0, 0, 0]
+          destination: [-147.759079, -22.39, 0]
           sensing:
             <<: *base_sensing
             perception:
               <<: *base_perception
-              activate: true
+              activate: false
               camera_visualize: 1
               camera_num: 3
               lidar_visualize: true
@@ -155,13 +155,13 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [111.7194, 139.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-39.52, -19.292, 0.3, 0, 0, 0]
+          destination: [-147.74, -18.89, 0]
           sensing:
             <<: *base_sensing
             perception:
               <<: *base_perception
-              activate: true
+              activate: false
               camera_visualize: 1
               camera_num: 1
               lidar_visualize: true
@@ -183,13 +183,13 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [91.7194, 139.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-39.52, -15.79, 0.3, 0, 0, 0]
+          destination: [-147.73, -15.79, 0]
           sensing:
             <<: *base_sensing
             perception:
               <<: *base_perception
-              activate: true
+              activate: false
               camera_visualize: 1
               camera_num: 1
               lidar_visualize: true
@@ -211,13 +211,13 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [101.7194, 139.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-39.60, -12.29, 0.3, 0, 0, 0]
+          destination: [-147.72, -12.29, 0]
           sensing:
             <<: *base_sensing
             perception:
               <<: *base_perception
-              activate: true
+              activate: false
               camera_visualize: 1
               camera_num: 1
               lidar_visualize: true

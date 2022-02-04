@@ -445,6 +445,7 @@ class ScenarioManager:
                                          z=edge['destination'][2])
 
             edge_manager.set_destination(destination)
+            edge_manager.start_edge()
             edge_list.append(edge_manager)
 
         return edge_list
