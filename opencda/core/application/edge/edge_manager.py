@@ -51,17 +51,21 @@ class EdgeManager(object):
         self.spawn_x = []
         self.spawn_y = []
         self.spawn_v = [] # probably 0s but can be target vel too
-        self.xcars = None
-        self.ycars = None
+        self.xcars = np.empty((4, 0))
+        self.ycars = np.empty((4, 0))
         self.x_states = None
         self.y_states = None
         self.tv = None
         self.v = None
-        self.target_velocities = None
+        self.target_velocities = np.empty((4, 0))
+        self.velocities = np.empty((4,0))
         self.Traffic_Tracker = None
         self.numcars = 0
         self.waypoints_dict = {}
         self.cav_world = weakref.ref(cav_world)()
+        self.ov, self.oy = generate_limits_grid()
+        self.grid_size = 1.0
+        self.robot_radius = 1.0
 
     def start_edge(self):
       self.get_four_lane_waypoints_dict()
@@ -200,7 +204,7 @@ class EdgeManager(object):
             #Somewhat suboptimal, ideally the other vehicle would be
             #folded into existing groups. No easy way to do that yet.
                 print("Slicing")
-                a_star = AStarPlanner(slice_list[i], ov, oy, grid_size, robot_radius, self.Traffic_Tracker.cars_on_road, i)
+                a_star = AStarPlanner(slice_list[i], self.ov, self.oy, self.grid_size, self.robot_radius, self.Traffic_Tracker.cars_on_road, i)
                 rv, ry, rx_tracked = a_star.planning()
                 if len(ry) >= 2: #If there is some planner result, then we move ahead on using it
                     lanechange_command[i] = ry[-2]
@@ -227,18 +231,18 @@ class EdgeManager(object):
 
         #Recording location and state
         x_states, y_states, tv, v = self.Traffic_Tracker.ret_car_locations()
-        xcars = np.hstack((xcars, x_states))
-        ycars = np.hstack((ycars, y_states))
-        target_velocities = np.hstack((target_velocities,tv))
-        velocities = np.hstack((velocities,v))
+        self.xcars = np.hstack((self.xcars, x_states))
+        self.ycars = np.hstack((self.ycars, y_states))
+        self.target_velocities = np.hstack((self.target_velocities,tv))
+        self.velocities = np.hstack((self.velocities,v))
         ###########################################
  
         waypoints_rev = {1 : np.empty((2,0)), 2 : np.empty((2,0)), 3 : np.empty((2,0)), 4 : np.empty((2,0))}
-        for i in range(1,xcars.shape[1]):
+        for i in range(1,self.xcars.shape[1]):
           processed_array = []
           for j in range(0,self.numcars):
-            x_res = xcars[j,i]
-            y_res = ycars[j,i]
+            x_res = self.xcars[j,i]
+            y_res = self.ycars[j,i]
             processed_array.append(np.array([[x_res],[y_res]]))
           back = processor.process_back(processed_array)
           waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
@@ -248,6 +252,7 @@ class EdgeManager(object):
 
         print(waypoints_rev)
         car_locations = {1 : [], 2 : [], 3 : [], 4 : []}
+
 
         for car, car_array in waypoints_rev.items():
           for i in range(0,len(car_array[0])):
@@ -272,10 +277,11 @@ class EdgeManager(object):
         print("completed Algorithm Step")
         # output algorithm waypoints to waypoint buffer of each vehicle
         i = 0
-        for vehicle_manager in vehicle_manager_list:
+        for vehicle_manager in self.vehicle_manager_list:
+          print(i)
           waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
           waypoint_buffer.clear()
-          waypoint_buffer.append(waypoints_rev[i])
+          waypoint_buffer.append(self.locations[i])
           i += 1
           
 
