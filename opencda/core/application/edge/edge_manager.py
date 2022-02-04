@@ -15,6 +15,8 @@ import numpy as np
 
 import opencda.core.plan.drive_profile_plotting as open_plt
 from opencda.core.application.edge.astar_test_groupcaps_transform import *
+from opencda.core.plan.global_route_planner import GlobalRoutePlanner
+from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 
 class EdgeManager(object):
     """
@@ -61,10 +63,11 @@ class EdgeManager(object):
         self.cav_world = weakref.ref(cav_world)()
 
     def start_edge(self):
-      self.waypoints_dict = self.get_four_lane_waypoints_dict
+      self.get_four_lane_waypoints_dict()
       processor = transform_processor(self.waypoints_dict)
       _, _ = processor.process_waypoints_bidirectional(0)
       inverted = processor.process_forward(0)
+      i = 0
       for vehicle_manager in self.vehicle_manager_list:
           #self.spawn_x.append(vehicle_manager.vehicle.get_location().x)
           #self.spawn_y.append(vehicle_manager.vehicle.get_location().y)
@@ -73,15 +76,19 @@ class EdgeManager(object):
           self.spawn_x.append(inverted[i][0,0])
           self.spawn_v.append(5*(i+1))
           self.spawn_y.append(inverted[i][1,0])
+          i += 1
 
           vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
       dt = .200
       numlanes = 4
       numcars = 4
-      Traffic_Tracker = Traffic(dt,numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+      self.Traffic_Tracker = Traffic(dt,numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
     def get_four_lane_waypoints_dict(self):
-      grp = GlobalRoutePlanner(self.world.get_map(), 2)
-      waypoints = self.world.get_map().generate_waypoints(10)
+      world = self.vehicle_manager_list[0].vehicle.get_world()
+      dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+      grp = GlobalRoutePlanner(dao)
+      grp.setup()
+      waypoints = world.get_map().generate_waypoints(10)
       a = carla.Location(waypoints[343].transform.location)
       b = carla.Location(waypoints[1116].transform.location)
       c = carla.Location(waypoints[344].transform.location)
@@ -184,7 +191,7 @@ class EdgeManager(object):
     def algorithm_step(self):
         self.locations = []
         print("started Algo step")
-        slice_list, vel_array, lanechange_command = get_slices_clustered(Traffic_Tracker, numcars)
+        slice_list, vel_array, lanechange_command = get_slices_clustered(self.Traffic_Tracker, numcars)
 
         for i in range(len(slice_list)-1,-1,-1): #Iterate through all slices
             if len(slice_list[i]) >= 2: #If the slice has more than one vehicle, run the graph planner. Else it'll move using existing
@@ -192,7 +199,7 @@ class EdgeManager(object):
             #Somewhat suboptimal, ideally the other vehicle would be
             #folded into existing groups. No easy way to do that yet.
                 print("Slicing")
-                a_star = AStarPlanner(slice_list[i], ov, oy, grid_size, robot_radius, Traffic_Tracker.cars_on_road, i)
+                a_star = AStarPlanner(slice_list[i], ov, oy, grid_size, robot_radius, self.Traffic_Tracker.cars_on_road, i)
                 rv, ry, rx_tracked = a_star.planning()
                 if len(ry) >= 2: #If there is some planner result, then we move ahead on using it
                     lanechange_command[i] = ry[-2]
@@ -213,12 +220,12 @@ class EdgeManager(object):
                     car.v = vel_array[i][carnum]
                     carnum += 1
 
-        Traffic_Tracker.time_tick(mode='Graph') #Tick the simulation
+        self.Traffic_Tracker.time_tick(mode='Graph') #Tick the simulation
 
         print("Success capsule")
 
         #Recording location and state
-        x_states, y_states, tv, v = Traffic_Tracker.ret_car_locations()
+        x_states, y_states, tv, v = self.Traffic_Tracker.ret_car_locations()
         xcars = np.hstack((xcars, x_states))
         ycars = np.hstack((ycars, y_states))
         target_velocities = np.hstack((target_velocities,tv))
