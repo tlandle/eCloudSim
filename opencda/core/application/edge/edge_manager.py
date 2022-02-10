@@ -118,6 +118,33 @@ class EdgeManager(object):
       w2 = grp.trace_route(c, d) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
       w3 = grp.trace_route(e, f) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
       w4 = grp.trace_route(g, j) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
+      i = 0
+      for w in w1:
+        #print(w)
+        mark=str(i)
+        if i % 10 == 0:
+            world.debug.draw_string(w[0].transform.location,mark, draw_shadow=False, color=carla.Color(r=255, g=0, b=0), life_time=120.0, persistent_lines=True)
+        else:
+            world.debug.draw_string(w[0].transform.location, mark, draw_shadow=False,
+            color = carla.Color(r=0, g=0, b=255), life_time=1000.0,
+            persistent_lines=True)
+        i += 1
+      i = 0
+      for w in w2:
+        #print(w)
+        mark=str(i)
+        if i % 10 == 0:
+            world.debug.draw_string(w[0].transform.location,mark, draw_shadow=False, color=carla.Color(r=255, g=0, b=0), life_time=120.0, persistent_lines=True)
+        else:
+            world.debug.draw_string(w[0].transform.location, mark, draw_shadow=False,
+            color = carla.Color(r=0, g=0, b=255), life_time=1000.0,
+            persistent_lines=True)
+        i += 1
+      i = 0
+
+      while True:
+        world.tick()
+         
       self.waypoints_dict[1] = {}
       self.waypoints_dict[2] = {}
       self.waypoints_dict[3] = {}
