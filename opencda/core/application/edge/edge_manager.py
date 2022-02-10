@@ -17,7 +17,7 @@ import opencda.core.plan.drive_profile_plotting as open_plt
 from opencda.core.application.edge.astar_test_groupcaps_transform import *
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
-
+from opencda.core.plan.local_planner_behavior import RoadOption
 class EdgeManager(object):
     """
     Edge manager. Used to manage all vehicle managers under control of the edge
@@ -44,7 +44,7 @@ class EdgeManager(object):
 
         self.edgeid = str(uuid.uuid1())
         self.vehicle_manager_list = []
-        #self.target_speed = config_yaml['target_speed']`
+        self.target_speed = config_yaml['target_speed']
       #self.locations = []
         self.destination = None
         # Query the vehicle locations and velocities + target velocities
@@ -66,14 +66,14 @@ class EdgeManager(object):
         self.ov, self.oy = generate_limits_grid()
         self.grid_size = 1.0
         self.robot_radius = 1.0
-
+        self.processor = None
         self.secondary_offset=0
 
     def start_edge(self):
       self.get_four_lane_waypoints_dict()
-      processor = transform_processor(self.waypoints_dict)
-      _, _ = processor.process_waypoints_bidirectional(0)
-      inverted = processor.process_forward(0)
+      self.processor = transform_processor(self.waypoints_dict)
+      _, _ = self.processor.process_waypoints_bidirectional(0)
+      inverted = self.processor.process_forward(0)
       i = 0
 
       for k in inverted:
@@ -101,8 +101,8 @@ class EdgeManager(object):
     
     def get_four_lane_waypoints_dict(self):
       world = self.vehicle_manager_list[0].vehicle.get_world()
-      dao = GlobalRoutePlannerDAO(world.get_map(), 2)
-      grp = GlobalRoutePlanner(dao)
+      self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+      grp = GlobalRoutePlanner(self._dao)
       grp.setup()
       waypoints = world.get_map().generate_waypoints(10)
       a = carla.Location(waypoints[343].transform.location)
@@ -264,7 +264,7 @@ class EdgeManager(object):
             y_res = self.ycars[j,i]
             processed_array.append(np.array([[x_res],[y_res]]))
             print("Appending to waypoints_rev")
-          back = processor.process_back(processed_array)
+          back = self.processor.process_back(processed_array)
           waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
           waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
           waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
@@ -275,7 +275,7 @@ class EdgeManager(object):
 
         for car, car_array in waypoints_rev.items():
           for i in range(0,len(car_array[0])):
-            location = carla.Transform(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0), carla.Rotation())
+            location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
             self.locations.append(location)
 
     def run_step(self):
@@ -296,8 +296,10 @@ class EdgeManager(object):
         for vehicle_manager in self.vehicle_manager_list:
           print(i)
           waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+          print(waypoint_buffer)
           waypoint_buffer.clear()
-          waypoint_buffer.append(self.locations[i])
+          waypoint_buffer.append((self.locations[i], RoadOption.STRAIGHT))
+          print(waypoint_buffer)
           i += 1
           
 

@@ -106,6 +106,7 @@ edge_base: &edge_base
   change_leader_speed: true # whether to assign leader multiple speed to follow
   leader_speeds_profile: [ 85, 95 ] # different speed for leader to follow
   stage_duration: 10 # how long should the leader keeps in the current velocity stag
+  target_speed: 55
 # define the background traffic control by carla
 carla_traffic_manager:
   sync_mode: true # has to be same as the world setting
