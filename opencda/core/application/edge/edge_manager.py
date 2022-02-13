@@ -18,6 +18,9 @@ from opencda.core.application.edge.astar_test_groupcaps_transform import *
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.local_planner_behavior import RoadOption
+import sys
+sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/") 
+
 class EdgeManager(object):
     """
     Edge manager. Used to manage all vehicle managers under control of the edge
@@ -76,10 +79,10 @@ class EdgeManager(object):
       inverted = self.processor.process_forward(0)
       i = 0
 
-      for k in inverted:
-          if k[0,0] <= 0 and k[0,0] < -self.secondary_offset:
-            print("Current indice is: ", k[0,0])
-            self.secondary_offset = -k[0,0]
+      # for k in inverted:
+      #     if k[0,0] <= 0 and k[0,0] < -self.secondary_offset:
+      #       print("Current indice is: ", k[0,0])
+      #       self.secondary_offset = -k[0,0]
 
       for vehicle_manager in self.vehicle_manager_list:
           #self.spawn_x.append(vehicle_manager.vehicle.get_location().x)
@@ -105,19 +108,32 @@ class EdgeManager(object):
       grp = GlobalRoutePlanner(self._dao)
       grp.setup()
       waypoints = world.get_map().generate_waypoints(10)
-      a = carla.Location(waypoints[343].transform.location)
-      b = carla.Location(waypoints[1116].transform.location)
-      c = carla.Location(waypoints[344].transform.location)
-      d = carla.Location(waypoints[1117].transform.location)
-      e = carla.Location(waypoints[345].transform.location)
-      f = carla.Location(waypoints[1118].transform.location)
-      g = carla.Location(waypoints[346].transform.location)
-      j = carla.Location(waypoints[1119].transform.location)
+
+      indices_source = np.load('Indices_start.npy')
+      indices_dest = np.load('Indices_dest.npy')
+
+      indices_source = indices_source.astype(int)
+      indices_dest = indices_dest.astype(int)
+
+      a = carla.Location(waypoints[indices_source[0,1]].transform.location)
+      b = carla.Location(waypoints[indices_dest[0,1]].transform.location)
+      c = carla.Location(waypoints[indices_source[1,1]].transform.location)
+      d = carla.Location(waypoints[indices_dest[1,1]].transform.location)
+      e = carla.Location(waypoints[indices_source[2,1]].transform.location)
+      f = carla.Location(waypoints[indices_dest[2,1]].transform.location)
+      g = carla.Location(waypoints[indices_source[3,1]].transform.location)
+      j = carla.Location(waypoints[indices_dest[3,1]].transform.location)
 
       w1 = grp.trace_route(a, b) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
       w2 = grp.trace_route(c, d) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
       w3 = grp.trace_route(e, f) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
       w4 = grp.trace_route(g, j) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
+
+      print(a)
+      print(b)
+      print(c)
+      print(d)
+
       i = 0
       for w in w1:
         #print(w)
@@ -140,10 +156,10 @@ class EdgeManager(object):
             color = carla.Color(r=0, g=0, b=255), life_time=1000.0,
             persistent_lines=True)
         i += 1
-      i = 0
+      # i = 0
 
-      while True:
-        world.tick()
+      # while True:
+      #   world.tick()
          
       self.waypoints_dict[1] = {}
       self.waypoints_dict[2] = {}

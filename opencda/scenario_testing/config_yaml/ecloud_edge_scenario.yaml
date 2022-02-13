@@ -128,7 +128,7 @@ scenario:
       destination: [630, 131.39, 0.3]
       members:
         - <<: *vehicle_base
-          spawn_position: [-39.52, -22.79, 0.3, 0, 0, 0]
+          spawn_position: [-39.52, -22.79, 0.3, 0, 180, 0]
           destination: [-147.759079, -22.39, 0]
           sensing:
             <<: *base_sensing
@@ -156,7 +156,7 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [-39.52, -19.292, 0.3, 0, 0, 0]
+          spawn_position: [-39.52, -19.292, 0.3, 0, 180, 0]
           destination: [-147.74, -18.89, 0]
           sensing:
             <<: *base_sensing
@@ -184,7 +184,7 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [-39.52, -15.79, 0.3, 0, 0, 0]
+          spawn_position: [-39.52, -15.79, 0.3, 0, 180, 0]
           destination: [-147.73, -15.79, 0]
           sensing:
             <<: *base_sensing
@@ -212,7 +212,7 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [-39.60, -12.29, 0.3, 0, 0, 0]
+          spawn_position: [-39.60, -12.29, 0.3, 0, 180, 0]
           destination: [-147.72, -12.29, 0]
           sensing:
             <<: *base_sensing
