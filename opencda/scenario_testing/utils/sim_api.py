@@ -15,7 +15,7 @@ from random import shuffle
 import carla
 import numpy as np
 
-from opencda.core.common.vehicle_manager import VehicleManager
+from opencda.core.common.vehicle_manager_proxy import VehicleManagerProxy
 from opencda.core.application.platooning.platooning_manager import \
     PlatooningManager
 from opencda.core.common.cav_world import CavWorld
@@ -139,9 +139,11 @@ class ScenarioManager:
                  carla_version,
                  xodr_path=None,
                  town=None,
-                 cav_world=None):
+                 cav_world=None,
+                 config_file=None):
         self.scenario_params = scenario_params
         self.carla_version = carla_version
+        self.config_file = config_file
 
         simulation_config = scenario_params['world']
 
@@ -242,55 +244,37 @@ class ScenarioManager:
             A list contains all single CAVs' vehicle manager.
         """
         print('Creating single CAVs.')
-        # By default, we use lincoln as our cav model.
-        default_model = 'vehicle.lincoln.mkz2017' \
-            if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
-
-        cav_vehicle_bp = \
-            self.world.get_blueprint_library().find(default_model)
         single_cav_list = []
 
         for i, cav_config in enumerate(
                 self.scenario_params['scenario']['single_cav_list']):
 
-            # if the spawn position is a single scalar, we need to use map
-            # helper to transfer to spawn transform
-            if 'spawn_special' not in cav_config:
-                spawn_transform = carla.Transform(
-                    carla.Location(
-                        x=cav_config['spawn_position'][0],
-                        y=cav_config['spawn_position'][1],
-                        z=cav_config['spawn_position'][2]),
-                    carla.Rotation(
-                        pitch=cav_config['spawn_position'][5],
-                        yaw=cav_config['spawn_position'][4],
-                        roll=cav_config['spawn_position'][3]))
-            else:
-                spawn_transform = map_helper(self.carla_version,
-                                             *cav_config['spawn_special'])
-
-            cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-            vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
 
             # create vehicle manager for each cav
-            vehicle_manager = VehicleManager(
-                vehicle, cav_config, application,
+            vehicle_manager = VehicleManagerProxy(
+                i, self.config_file, application,
                 self.carla_map, self.cav_world,
                 current_time=self.scenario_params['current_time'],
-                data_dumping=data_dump)
+                data_dumping=data_dump, carla_version=self.carla_version)
+            print("eCloud debug: finished creating VehiceManagerProxy")
 
             self.world.tick()
+            print("eCloud debug: ticked world")
 
             vehicle_manager.v2x_manager.set_platoon(None)
+            print("eCloud debug: set platoon on vehicle manager")
 
             destination = carla.Location(x=cav_config['destination'][0],
                                          y=cav_config['destination'][1],
                                          z=cav_config['destination'][2])
+            print("eCloud debug: get location of destination")
             vehicle_manager.update_info()
+            print("eCloud debug: update info")
             vehicle_manager.set_destination(
                 vehicle_manager.vehicle.get_location(),
                 destination,
                 clean=True)
+            print("eCloud debug: set destination")
 
             single_cav_list.append(vehicle_manager)
 
@@ -350,7 +334,7 @@ class ScenarioManager:
                                                  spawn_transform)
 
                 # create vehicle manager for each cav
-                vehicle_manager = VehicleManager(
+                vehicle_manager = VehicleManagerProxy(
                     vehicle, cav, ['platooning'],
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
@@ -372,6 +356,35 @@ class ScenarioManager:
             platoon_list.append(platoon_manager)
 
         return platoon_list
+
+    def create_rsu_manager(self, data_dump):
+        """
+        Create a list of RSU.
+
+        Parameters
+        ----------
+        data_dump : bool
+            Whether to dump sensor data.
+
+        Returns
+        -------
+        rsu_list : list
+            A list contains all rsu managers..
+        """
+        print('Creating RSU.')
+        rsu_list = []
+        for i, rsu_config in enumerate(
+                self.scenario_params['scenario']['rsu_list']):
+
+            rsu_manager = RSUManager(self.world, rsu_config,
+                                     self.carla_map,
+                                     self.cav_world,
+                                     self.scenario_params['current_time'],
+                                     data_dump)
+
+            rsu_list.append(rsu_manager)
+
+        return rsu_list
 
     def spawn_vehicles_by_list(self, tm, traffic_config, bg_list):
         """
