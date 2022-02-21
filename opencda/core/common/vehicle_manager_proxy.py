@@ -8,6 +8,7 @@ Basic class of CAV
 import uuid
 import subprocess
 import random
+import zmq
 
 import carla
 import numpy as np
@@ -98,19 +99,20 @@ class VehicleManagerProxy(object):
         self.vid = str(uuid.uuid1())
         self.carla_map = carla_map
 
-        print("About to spawn process...")
-        self.client_process = subprocess.Popen(f"python3 -u ./opencda/core/common/vehicle_manager.py -t {config_file} -i {vehicle_index} -a {application} -v {carla_version} --vid {self.vid}", stdout=subprocess.PIPE, stdin=subprocess.PIPE, bufsize=1, shell=True)
+        self._context = zmq.Context()
+        self._socket = self._context.socket(zmq.REQ)
+        self._socket.connect("tcp://localhost:5555")
+        self._socket.send(b"START")
 
-        temp = ""
-        while temp.lower() != "start":
-            temp = self.client_process.stdout.readline().decode().strip()
-        print("received start message from vehicle....")
-        actor_id = int(self.client_process.stdout.readline().decode().strip())
-        print(f"actor_id is {actor_id}")
+        print("OpenCDA: Spawning process...")
+        self.client_process = subprocess.Popen(f"python3 -u ./opencda/core/common/vehicle_manager.py -t {config_file} -i {vehicle_index} -a {application} -v {carla_version} --vid {self.vid}", shell=True)
+
+        message = self._socket.recv()
+        actor_id = int(message)
+        print(f"OpenCDA: actor_id is {actor_id}")
 
         vehicle = self.world.get_actor(actor_id)
         self.vehicle = vehicle
-        print("vehicle id is %d" % self.vehicle.id)
 
         # retrieve the configure for different modules
         sensing_config = cav_config['sensing']
@@ -169,6 +171,11 @@ class VehicleManagerProxy(object):
         Returns
         -------
         """
+        message = f"set_destination {start_location} {end_location} {clean} {end_reset}"
+        print("OpenCDA: %s" % message)
+        self._socket.send(message.encode())
+        self._socket.recv()
+        return
 
         self.agent.set_destination(
             start_location, end_location, clean, end_reset)
@@ -178,6 +185,11 @@ class VehicleManagerProxy(object):
         Call perception and localization module to
         retrieve surrounding info an ego position.
         """
+
+        print("OpenCDA: update_info called")
+        self._socket.send(b"update_info")
+        self._socket.recv()
+        return 
         # localization
         self.localizer.localize()
 

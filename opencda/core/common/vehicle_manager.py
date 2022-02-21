@@ -9,6 +9,7 @@ import argparse
 import os
 import sys
 import random
+import zmq
 
 from opencda.version import __version__
 
@@ -94,7 +95,11 @@ class VehicleManager(object):
             data_dumping=False):
 
         # TODO eCloud Inititialize Carla objects needed in separate process
-        print("start")
+        self._context = zmq.Context()
+        self._socket = self._context.socket(zmq.REP)
+        self._socket.bind("tcp://*:5555")
+        message = self._socket.recv()
+        print("Vehicle: %s" % message.decode())
 
         self.vid = vid
 
@@ -130,7 +135,6 @@ class VehicleManager(object):
 
         cav_vehicle_bp.set_attribute('color', '0, 0, 255')
         self.vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
-        print("%d\n" % self.vehicle.id)
 
         # retrieve the configure for different modules
         sensing_config = cav_config['sensing']
@@ -172,7 +176,12 @@ class VehicleManager(object):
         else:
             self.data_dumper = None
 
+        print(f"Sending vehicle to OpenCDA: {self.vehicle.id}")
+        self._socket.send(b"%d" % self.vehicle.id)
+
         cav_world.update_vehicle_manager(self)
+
+        print("Vehicle: Exiting VehicleManager constructor")
 
     def initialize_process(self):
         simulation_config = self.scenario_params['world']
@@ -305,10 +314,19 @@ def main():
 
     # run scenario testing
     while(True):
-        vehicle_manager.update_info()
-        control = vehicle_manager.run_step()
-        vehicle_manager.apply_control(control)
-        vehicle_manager.world.wait_for_tick()
+        message = vehicle_manager._socket.recv().decode()
+        print("Vehicle: received %s" % message)
+        if message == "update_info":
+            vehicle_manager.update_info()
+            vehicle_manager._socket.send(b"DONE")
+            print("Vehicle: After update_info")
+        elif message[:15] == "set_destination":
+            print("Vehicle: received set_destination")
+            vehicle_manager._socket.send(b"DONE")
+
+        #control = vehicle_manager.run_step()
+        #vehicle_manager.apply_control(control)
+        #vehicle_manager.world.wait_for_tick()
 
 
 if __name__ == '__main__':
