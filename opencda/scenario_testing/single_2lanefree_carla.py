@@ -72,9 +72,11 @@ def run_scenario(opt, config_yaml):
                     90)))
 
             for i, single_cav in enumerate(single_cav_list):
-                single_cav.update_info()
-                control = single_cav.run_step()
-                single_cav.apply_control(control)
+                single_cav._socket.send(b"TICK")
+                single_cav._socket.recv()
+                #single_cav.update_info()
+                #control = single_cav.run_step()
+                #single_cav.apply_control(control)
 
     finally:
         eval_manager.evaluate()

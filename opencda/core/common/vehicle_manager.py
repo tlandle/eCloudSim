@@ -320,13 +320,23 @@ def main():
             vehicle_manager.update_info()
             vehicle_manager._socket.send(b"DONE")
             print("Vehicle: After update_info")
-        elif message[:15] == "set_destination":
-            print("Vehicle: received set_destination")
+        elif message == "set_destination":
+            vehicle_manager._socket.send(b"START")
+            destination = vehicle_manager._socket.recv_pyobj()
+            print("Vehicle: x=%s" % destination["start"]["x"])
+            start_location = carla.Location(x=destination["start"]["x"], y=destination["start"]["y"], z=destination["start"]["z"])
+            end_location = carla.Location(x=destination["end"]["x"], y=destination["end"]["y"], z=destination["end"]["z"])
+            clean = bool(destination["clean"])
+            end_reset = bool(destination["reset"])
+            vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
+            print("After set_destination")
             vehicle_manager._socket.send(b"DONE")
-
-        #control = vehicle_manager.run_step()
-        #vehicle_manager.apply_control(control)
-        #vehicle_manager.world.wait_for_tick()
+        elif message == "TICK":
+            vehicle_manager.update_info()
+            control = vehicle_manager.run_step()
+            vehicle_manager.apply_control(control)
+            vehicle_manager._socket.send(b"DONE")
+#            vehicle_manager.world.wait_for_tick()
 
 
 if __name__ == '__main__':

@@ -171,9 +171,14 @@ class VehicleManagerProxy(object):
         Returns
         -------
         """
-        message = f"set_destination {start_location} {end_location} {clean} {end_reset}"
+#        message = f"set_destination {start_location} {end_location} {clean} {end_reset}"
+        self._socket.send(b"set_destination")
+        self._socket.recv()
+        message = { "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
+                    "end": {"x": end_location.x, "y": end_location.y, "z": end_location.z},
+                    "clean": clean, "reset": end_reset}
         print("OpenCDA: %s" % message)
-        self._socket.send(message.encode())
+        self._socket.send_pyobj(message)
         self._socket.recv()
         return
 
@@ -211,6 +216,7 @@ class VehicleManagerProxy(object):
         """
         Execute one step of navigation.
         """
+        print("OpenCDA: entered run_step")
         target_speed, target_pos = self.agent.run_step(target_speed)
         control = self.controller.run_step(target_speed, target_pos)
 
@@ -220,6 +226,7 @@ class VehicleManagerProxy(object):
                                       self.localizer,
                                       self.agent)
 
+        print("OpenCDA: after run_step")
         return control
 
     def apply_control(self, control):
