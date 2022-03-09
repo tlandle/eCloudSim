@@ -368,12 +368,6 @@ class AStarPlanner:
                         if (j.intentions == "Lane Change 1" and node.y[i] == j.lane+1) and abs(node.x_tracked[i]-j.pos_x) <= 10:
                             return False                   
 
-        #Lane Diversity requirement: Insert false obstacle in Lane Zero to provoke lane change for CARLA demo
-        obs_x = 40
-        obs_y = 0
-        for i in range(0,len(node.v)):
-            if node.y[i] ==  obs_y and abs(node.x_tracked[i]-obs_x) <= 4:
-                return False
         return True
 
     def calc_obstacle_map(self, ov, oy):
@@ -510,6 +504,9 @@ def get_slices_clustered(Traffic_Tracker,numcars):
     for i in Traffic_Tracker.cars_on_road:
         carlist_posx.append(i.pos_x)
         position_features = np.vstack((position_features,np.array([i.pos_x,lane_weight*i.lane]).reshape((1,2))))
+        # print("Velocity: ", i.v)
+        # print("Target Velocity: ", i.target_velocity)
+        # print("Lane: ", i.lane)
     argsort_indices = np.argsort(np.array(carlist_posx))
     argsort_indices = argsort_indices.tolist()
 
@@ -526,7 +523,7 @@ def get_slices_clustered(Traffic_Tracker,numcars):
         Traffic_Tracker.cars_on_road[i].slice = cluster_list[i]
         slice_list[Traffic_Tracker.cars_on_road[i].slice].append(Traffic_Tracker.cars_on_road[i])
         count += 1
-
+    # print("Slices", slice_list)
     return slice_list, vel_array, lanechange_command
 
 

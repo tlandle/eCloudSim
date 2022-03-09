@@ -156,6 +156,28 @@ class EdgeManager(object):
             color = carla.Color(r=0, g=0, b=255), life_time=1000.0,
             persistent_lines=True)
         i += 1
+      i = 0
+      for w in w3:
+        #print(w)
+        mark=str(i)
+        if i % 10 == 0:
+            world.debug.draw_string(w[0].transform.location,mark, draw_shadow=False, color=carla.Color(r=255, g=0, b=0), life_time=120.0, persistent_lines=True)
+        else:
+            world.debug.draw_string(w[0].transform.location, mark, draw_shadow=False,
+            color = carla.Color(r=0, g=0, b=255), life_time=1000.0,
+            persistent_lines=True)
+        i += 1
+      i = 0
+      for w in w4:
+        #print(w)
+        mark=str(i)
+        if i % 10 == 0:
+            world.debug.draw_string(w[0].transform.location,mark, draw_shadow=False, color=carla.Color(r=255, g=0, b=0), life_time=120.0, persistent_lines=True)
+        else:
+            world.debug.draw_string(w[0].transform.location, mark, draw_shadow=False,
+            color = carla.Color(r=0, g=0, b=255), life_time=1000.0,
+            persistent_lines=True)
+        i += 1
       # i = 0
 
       # while True:
@@ -245,6 +267,8 @@ class EdgeManager(object):
         """
         for i in range(len(self.vehicle_manager_list)):
             self.vehicle_manager_list[i].update_info()
+        #Added in to check if traffic tracker updating would fix waypoint deque issue
+        self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
         print("Updated Info")
 
     def algorithm_step(self):
@@ -285,10 +309,19 @@ class EdgeManager(object):
 
         #Recording location and state
         x_states, y_states, tv, v = self.Traffic_Tracker.ret_car_locations()
+        # x_states, y_states, v_states = [], [], []
+        # for i in range(0,4):
+        #     x_states.append([self.Traffic_Tracker.cars_on_road[i].pos_x+4])
+        #     y_states.append([self.Traffic_Tracker.cars_on_road[i].lane])
+        #     v_states.append([self.Traffic_Tracker.cars_on_road[i].v])
+        # x_states = np.array(x_states).reshape((4,1))
+        # y_states = np.array(y_states).reshape((4,1))
+        # v_states = np.array(v_states).reshape((4,1))
+
         self.xcars = np.hstack((self.xcars, x_states))
         self.ycars = np.hstack((self.ycars, y_states))
         self.target_velocities = np.hstack((self.target_velocities,tv))
-        self.velocities = np.hstack((self.velocities,v))
+        self.velocities = np.hstack((self.velocities,v)) #Was just v, v_states for the skipping-planner debugging
 
         print("Returned X: ", self.xcars)
         print("Returned Y: ", self.ycars)
@@ -300,18 +333,29 @@ class EdgeManager(object):
         ###########################################
 
         waypoints_rev = {1 : np.empty((2,0)), 2 : np.empty((2,0)), 3 : np.empty((2,0)), 4 : np.empty((2,0))}
-        for i in range(0,self.xcars.shape[1]):
-          processed_array = []
-          for j in range(0,self.numcars):
-            x_res = self.xcars[j,i]
-            y_res = self.ycars[j,i]
+        # for i in range(0,self.xcars.shape[1]):
+        #   processed_array = []
+        #   for j in range(0,self.numcars):
+        #     x_res = self.xcars[j,i]
+        #     y_res = self.ycars[j,i]
+        #     processed_array.append(np.array([[x_res],[y_res]]))
+        #     print("Appending to waypoints_rev")
+        #   back = self.processor.process_back(processed_array)
+        #   waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
+        #   waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
+        #   waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
+        #   waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
+        processed_array = []
+        for j in range(0,self.numcars):
+            x_res = self.xcars[j,-1]
+            y_res = self.ycars[j,-1]
             processed_array.append(np.array([[x_res],[y_res]]))
             print("Appending to waypoints_rev")
-          back = self.processor.process_back(processed_array)
-          waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
-          waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
-          waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
-          waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
+        back = self.processor.process_back(processed_array)
+        waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
+        waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
+        waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
+        waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
 
         print(waypoints_rev)
         car_locations = {1 : [], 2 : [], 3 : [], 4 : []}
@@ -319,7 +363,9 @@ class EdgeManager(object):
         for car, car_array in waypoints_rev.items():
           for i in range(0,len(car_array[0])):
             location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
+            print(location)
             self.locations.append(location)
+        print(len(self.locations))
 
     def run_step(self):
         """
@@ -337,17 +383,18 @@ class EdgeManager(object):
         # output algorithm waypoints to waypoint buffer of each vehicle
         i = 0
         for vehicle_manager in self.vehicle_manager_list:
-          print(i)
+          # print(i)
           waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-          print(waypoint_buffer)
+          # print(waypoint_buffer)
           waypoint_buffer.clear()
           waypoint_buffer.append((self.locations[i], RoadOption.STRAIGHT))
-          print(waypoint_buffer)
+          # print(waypoint_buffer)
           i += 1
           
 
         control_list = []
         for i in range(len(self.vehicle_manager_list)):
+            print(self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer())
             control = self.vehicle_manager_list[i].run_step(
                 self.target_speed)
             control_list.append(control)
