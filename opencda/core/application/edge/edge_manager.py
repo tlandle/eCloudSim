@@ -92,7 +92,8 @@ class EdgeManager(object):
           print("inverted is: ", inverted[i][0,0])
           print("revised x is: ", self.secondary_offset)
           self.spawn_x.append(inverted[i][0,0]+self.secondary_offset)
-          self.spawn_v.append(5*(i+1))
+          #self.spawn_v.append(5*(i+1))
+          self.spawn_v.append(0)
           self.spawn_y.append(inverted[i][1,0])
           i += 1
 
@@ -265,8 +266,22 @@ class EdgeManager(object):
         """
         Update CAV world information for every member in the list.
         """
+        
+        self.spawn_x.clear() 
+        self.spawn_y.clear()
+        self.spawn_v.clear()
         for i in range(len(self.vehicle_manager_list)):
             self.vehicle_manager_list[i].update_info()
+        for i in range(len(self.vehicle_manager_list)):
+            x,y = self.processor.process_single_waypoint_forward(self.vehicle_manager_list[i].vehicle.get_location().x, self.vehicle_manager_list[i].vehicle.get_location().y)
+            v = self.vehicle_manager_list[i].vehicle.get_velocity()
+            v_scalar = math.sqrt(v.x**2 + v.y**2 + v.z**2)
+            self.spawn_x.append(x)
+            self.spawn_y.append(y)
+            self.spawn_v.append(v_scalar)
+        print(self.spawn_x)
+        print(self.spawn_y)
+        print(self.spawn_v)
         #Added in to check if traffic tracker updating would fix waypoint deque issue
         self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
         print("Updated Info")
