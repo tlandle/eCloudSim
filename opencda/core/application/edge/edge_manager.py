@@ -289,53 +289,61 @@ class EdgeManager(object):
     def algorithm_step(self):
         self.locations = []
         print("started Algo step")
-        slice_list, vel_array, lanechange_command = get_slices_clustered(self.Traffic_Tracker, self.numcars)
 
-        for i in range(len(slice_list)-1,-1,-1): #Iterate through all slices
-            if len(slice_list[i]) >= 2: #If the slice has more than one vehicle, run the graph planner. Else it'll move using existing
-            #responses - slow down on seeing a vehicle ahead that has slower velocities, else hit target velocity. 
-            #Somewhat suboptimal, ideally the other vehicle would be
-            #folded into existing groups. No easy way to do that yet.
-                print("Slicing")
-                a_star = AStarPlanner(slice_list[i], self.ov, self.oy, self.grid_size, self.robot_radius, self.Traffic_Tracker.cars_on_road, i)
-                rv, ry, rx_tracked = a_star.planning()
-                if len(ry) >= 2: #If there is some planner result, then we move ahead on using it
-                    lanechange_command[i] = ry[-2]
-                    vel_array[i] = rv[-2]
-                else: #If the planner returns an empty list, continue as before - use emergency responses.
-                    lanechange_command[i] = ry[0]
-                    vel_array[i] = ry[0]
+        #DEBUGGING: Bypass algo and simply move cars forward to solve synch and transform issues
+        #Bypassed as of 14/3/2022
 
-        print("Sliced")
-        for i in range(len(slice_list)-1,-1,-1): #Relay lane change commands and new velocities to vehicles where needed
-            if len(slice_list[i]) >= 1 and len(lanechange_command[i]) >= 1:
-                carnum = 0
-                for car in slice_list[i]:
-                    if lanechange_command[i][carnum] > car.lane:
-                        car.intentions = "Lane Change 1"
-                    elif lanechange_command[i][carnum] < car.lane:
-                        car.intentions = "Lane Change -1"
-                    car.v = vel_array[i][carnum]
-                    carnum += 1
+        # slice_list, vel_array, lanechange_command = get_slices_clustered(self.Traffic_Tracker, self.numcars)
 
-        self.Traffic_Tracker.time_tick(mode='Graph') #Tick the simulation
+        # for i in range(len(slice_list)-1,-1,-1): #Iterate through all slices
+        #     if len(slice_list[i]) >= 2: #If the slice has more than one vehicle, run the graph planner. Else it'll move using existing
+        #     #responses - slow down on seeing a vehicle ahead that has slower velocities, else hit target velocity. 
+        #     #Somewhat suboptimal, ideally the other vehicle would be
+        #     #folded into existing groups. No easy way to do that yet.
+        #         print("Slicing")
+        #         a_star = AStarPlanner(slice_list[i], self.ov, self.oy, self.grid_size, self.robot_radius, self.Traffic_Tracker.cars_on_road, i)
+        #         rv, ry, rx_tracked = a_star.planning()
+        #         if len(ry) >= 2: #If there is some planner result, then we move ahead on using it
+        #             lanechange_command[i] = ry[-2]
+        #             vel_array[i] = rv[-2]
+        #         else: #If the planner returns an empty list, continue as before - use emergency responses.
+        #             lanechange_command[i] = ry[0]
+        #             vel_array[i] = ry[0]
 
-        print("Success capsule")
+        # print("Sliced")
+        # for i in range(len(slice_list)-1,-1,-1): #Relay lane change commands and new velocities to vehicles where needed
+        #     if len(slice_list[i]) >= 1 and len(lanechange_command[i]) >= 1:
+        #         carnum = 0
+        #         for car in slice_list[i]:
+        #             if lanechange_command[i][carnum] > car.lane:
+        #                 car.intentions = "Lane Change 1"
+        #             elif lanechange_command[i][carnum] < car.lane:
+        #                 car.intentions = "Lane Change -1"
+        #             car.v = vel_array[i][carnum]
+        #             carnum += 1
+
+        # self.Traffic_Tracker.time_tick(mode='Graph') #Tick the simulation
+
+        # print("Success capsule")
 
         #Recording location and state
-        x_states, y_states, tv, v = self.Traffic_Tracker.ret_car_locations()
-        # x_states, y_states, v_states = [], [], []
-        # for i in range(0,4):
-        #     x_states.append([self.Traffic_Tracker.cars_on_road[i].pos_x+4])
-        #     y_states.append([self.Traffic_Tracker.cars_on_road[i].lane])
-        #     v_states.append([self.Traffic_Tracker.cars_on_road[i].v])
-        # x_states = np.array(x_states).reshape((4,1))
-        # y_states = np.array(y_states).reshape((4,1))
-        # v_states = np.array(v_states).reshape((4,1))
+        # x_states, y_states, tv, v = self.Traffic_Tracker.ret_car_locations() # Commented out for bypassing algo
+        x_states, y_states, v = [], [], [] #Algo bypass begins
+        self.xcars = np.empty((4, 0))
+        self.ycars = np.empty((4, 0)) 
 
+        for i in range(0,4):
+            x_states.append([self.Traffic_Tracker.cars_on_road[i].pos_x+4])
+            y_states.append([self.Traffic_Tracker.cars_on_road[i].lane])
+            v.append([self.Traffic_Tracker.cars_on_road[i].v])
+        x_states = np.array(x_states).reshape((4,1))
+        y_states = np.array(y_states).reshape((4,1))
+        v = np.array(v).reshape((4,1)) #Algo bypass ends
+
+        ###Begin waypoint transform process, algo ended###
         self.xcars = np.hstack((self.xcars, x_states))
         self.ycars = np.hstack((self.ycars, y_states))
-        self.target_velocities = np.hstack((self.target_velocities,tv))
+        # self.target_velocities = np.hstack((self.target_velocities,tv)) #Commented out for bypassing algo, comment back in if algo present
         self.velocities = np.hstack((self.velocities,v)) #Was just v, v_states for the skipping-planner debugging
 
         print("Returned X: ", self.xcars)

@@ -52,10 +52,17 @@ class transform_processor():
         self.scaling = get_scaling(waypoints)
         self.scaling = [1] + self.scaling
         self.waypoints = waypoints
+        self.lanewidth = 3 #Difference between adjacent lane indices, rounded to int, has to be found or coded as 'edge configuration' parameter
 
     def process_single_waypoint_forward(self, waypoint_x, waypoint_y):
         np_waypoint = transform(waypoint_x, waypoint_y, self.rotation_mat, self.offset)
+        print("Preprocessed Waypoint: ", np_waypoint)
+        lane_number = -int(np_waypoint[1,0]/self.lanewidth) #Sign change present since all waypoints turned out negative, handle that case later more cleanly
+        print("Lane Found: ", lane_number)
+        np_waypoint[1,0] = lane_number # max(np_waypoint[1,0]*self.scaling[lane_number] - 1,0) #Handle edge case of zero lane
         print("Scaling: %s " %self.scaling)
+        print("Waypoint Processed: ", np_waypoint)
+        # sys.exit()
         return (np_waypoint[0,0], np_waypoint[1,0])
 
     def process_waypoints_bidirectional(self,indice): #Present for test purposes mainly
