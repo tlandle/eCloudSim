@@ -55,8 +55,11 @@ def run_scenario(opt, config_yaml):
         spectator_vehicle = edge_list[0].vehicle_manager_list[0].vehicle
 
         # run steps
+
+        eval_time = 0
         while True:
-            print("Stepping")
+            eval_time += 1
+            print("Stepping, ", eval_time*0.2)
             scenario_manager.tick()
             transform = spectator_vehicle.get_transform()
             spectator.set_transform(

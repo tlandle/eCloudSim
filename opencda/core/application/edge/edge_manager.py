@@ -369,16 +369,18 @@ class EdgeManager(object):
         #   waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
         #   waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
         processed_array = []
-        for j in range(0,self.numcars):
-            x_res = self.xcars[j,-1]
-            y_res = self.ycars[j,-1]
-            processed_array.append(np.array([[x_res],[y_res]]))
-            print("Appending to waypoints_rev")
-        back = self.processor.process_back(processed_array)
-        waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
-        waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
-        waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
-        waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
+        for k in range(0,4): #Added 16/03 outer loop to check if waypoint horizon influenced things, it did not seem to.
+            for j in range(0,self.numcars):
+                x_res = self.xcars[j,-1]
+                y_res = self.ycars[j,-1]
+                processed_array.append(np.array([[x_res],[y_res]]))
+                self.xcars[j,-1] += 4 #Increment by +4, just adding another waypoint '4m' ahead of this one, until horizon 3 steps ahead
+            print("Appending to waypoints_rev: ", self.xcars)
+            back = self.processor.process_back(processed_array)
+            waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
+            waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
+            waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
+            waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
 
         print(waypoints_rev)
         car_locations = {1 : [], 2 : [], 3 : [], 4 : []}
@@ -388,7 +390,7 @@ class EdgeManager(object):
             location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
             print(location)
             self.locations.append(location)
-        print(len(self.locations))
+        #print("Locations appended: ", self.locations)
 
     def run_step(self):
         """
@@ -409,17 +411,28 @@ class EdgeManager(object):
           # print(i)
           waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
           # print(waypoint_buffer)
-          waypoint_buffer.clear()
-          waypoint_buffer.append((self.locations[i], RoadOption.STRAIGHT))
+          # for waypoints in waypoint_buffer:
+          #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
+          waypoint_buffer.clear() #EDIT MADE 16/03
+          
+          for k in range(0,4):
+            waypoint_buffer.append((self.locations[i*4+k], RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
+          
+          # for waypoints in waypoint_buffer:
+          #   print("Waypoints transform for Vehicle After Clearing: " + str(i) + " : ", waypoints[0].transform)
           # print(waypoint_buffer)
           i += 1
-          
+
+        print("\n ########################\n")
+        print("Length of vehicle manager list: ", len(self.vehicle_manager_list))
 
         control_list = []
         for i in range(len(self.vehicle_manager_list)):
-            print(self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer())
-            control = self.vehicle_manager_list[i].run_step(
-                self.target_speed)
+            waypoints_buffer_printer = self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer()
+            for waypoints in waypoints_buffer_printer:
+                print("Waypoints transform for Vehicle: " + str(i) + " : ", waypoints[0].transform)
+            # print(self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer().transform())
+            control = self.vehicle_manager_list[i].run_step(self.target_speed)
             control_list.append(control)
 
         for (i, control) in enumerate(control_list):

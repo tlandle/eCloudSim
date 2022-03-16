@@ -56,12 +56,14 @@ class transform_processor():
 
     def process_single_waypoint_forward(self, waypoint_x, waypoint_y):
         np_waypoint = transform(waypoint_x, waypoint_y, self.rotation_mat, self.offset)
-        print("Preprocessed Waypoint: ", np_waypoint)
+        # print("Preprocessed Waypoint: ", np_waypoint)
         lane_number = -int(np_waypoint[1,0]/self.lanewidth) #Sign change present since all waypoints turned out negative, handle that case later more cleanly
-        print("Lane Found: ", lane_number)
+        lane_number = max(lane_number,0)
+        lane_number = min(lane_number,3) #4 lanes, hardcoded for now.
+        # print("Lane Found: ", lane_number)
         np_waypoint[1,0] = lane_number # max(np_waypoint[1,0]*self.scaling[lane_number] - 1,0) #Handle edge case of zero lane
-        print("Scaling: %s " %self.scaling)
-        print("Waypoint Processed: ", np_waypoint)
+        # print("Scaling: %s " %self.scaling)
+        # print("Waypoint Processed: ", np_waypoint)
         # sys.exit()
         return (np_waypoint[0,0], np_waypoint[1,0])
 
@@ -75,6 +77,9 @@ class transform_processor():
             print("Initial: ", self.waypoints[i]['x'][indice],self.waypoints[i]['y'][indice])
 
             rot_end.append(transform(self.waypoints[i]['x'][indice],self.waypoints[i]['y'][indice],self.rotation_mat,self.offset))
+            # lane_number = -int(rot_end[-1][1,0]/self.lanewidth)
+            # rot_end[-1][1,0] = lane_number
+
             if rot_end[-1][1,0] != 0:
                 rot_end[-1][1,0] = self.scaling[counter]*rot_end[-1][1,0]-1
 
@@ -96,6 +101,8 @@ class transform_processor():
         for i in self.waypoints.keys():
             print("Initial: ", self.waypoints[i]['x'][indice],self.waypoints[i]['y'][indice])
             rot_end.append(transform(self.waypoints[i]['x'][indice],self.waypoints[i]['y'][indice],self.rotation_mat,self.offset))
+            # lane_number = -int(rot_end[-1][1,0]/self.lanewidth)
+            # rot_end[-1][1,0] = lane_number
             if rot_end[-1][1,0] != 0:
                 rot_end[-1][1,0] = self.scaling[counter]*rot_end[-1][1,0]-1
             print("Transformed: ", rot_end[-1])
