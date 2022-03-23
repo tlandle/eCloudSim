@@ -151,5 +151,5 @@ scenario:
         <<: *base_behavior
         local_planner:
           <<: *base_local_planner
-          debug_trajectory: false
-          debug: false
+          debug_trajectory: true
+          debug: true

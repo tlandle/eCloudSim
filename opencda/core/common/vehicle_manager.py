@@ -315,12 +315,13 @@ def main():
     # run scenario testing
     while(True):
         message = vehicle_manager._socket.recv().decode()
-        print("Vehicle: received %s" % message)
         if message == "update_info":
+            print("Vehicle: received %s" % message)
             vehicle_manager.update_info()
             vehicle_manager._socket.send(b"DONE")
             print("Vehicle: After update_info")
         elif message == "set_destination":
+            print("Vehicle: received %s" % message)
             vehicle_manager._socket.send(b"START")
             destination = vehicle_manager._socket.recv_pyobj()
             print("Vehicle: x=%s" % destination["start"]["x"])
