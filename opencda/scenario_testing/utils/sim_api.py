@@ -248,6 +248,7 @@ class ScenarioManager:
 
         for i, cav_config in enumerate(
                 self.scenario_params['scenario']['single_cav_list']):
+            print(f"eCloud debug: Creating VehiceManagerProxy for vehicle {i}")
 
 
             # create vehicle manager for each cav
@@ -278,6 +279,7 @@ class ScenarioManager:
 
             single_cav_list.append(vehicle_manager)
 
+        print("eCloud debug: finished creating vehicle managers and returning cav list")
         return single_cav_list
 
     def create_platoon_manager(self, map_helper=None, data_dump=False):

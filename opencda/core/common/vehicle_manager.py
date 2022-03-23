@@ -97,7 +97,7 @@ class VehicleManager(object):
         # TODO eCloud Inititialize Carla objects needed in separate process
         self._context = zmq.Context()
         self._socket = self._context.socket(zmq.REP)
-        self._socket.bind("tcp://*:5555")
+        self._socket.bind(f"tcp://*:{vehicle_index+5555}")
         message = self._socket.recv()
         print("Vehicle: %s" % message.decode())
 

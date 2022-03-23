@@ -101,7 +101,7 @@ class VehicleManagerProxy(object):
 
         self._context = zmq.Context()
         self._socket = self._context.socket(zmq.REQ)
-        self._socket.connect("tcp://localhost:5555")
+        self._socket.connect(f"tcp://localhost:{vehicle_index+5555}")
         self._socket.send(b"START")
 
         print("OpenCDA: Spawning process...")
