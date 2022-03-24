@@ -10,6 +10,7 @@ import os
 import sys
 import random
 import zmq
+import uuid
 
 from opencda.version import __version__
 
@@ -90,18 +91,20 @@ class VehicleManager(object):
             application,
             cav_world,
             carla_version,
-            vid,
             current_time='',
             data_dumping=False):
 
-        # TODO eCloud Inititialize Carla objects needed in separate process
+        # Use zmq for interprocess communication between OpenCDA and each vehicle
         self._context = zmq.Context()
         self._socket = self._context.socket(zmq.REP)
         self._socket.bind(f"tcp://*:{vehicle_index+5555}")
-        message = self._socket.recv()
-        print("Vehicle: %s" % message.decode())
 
-        self.vid = vid
+        # Wait for the START message from OpenCDA before going any further
+        message = self._socket.recv()
+        print(f"Vehicle {vehicle_index}: {message.decode()}")
+
+        # an unique uuid for this vehicle
+        self.vid = str(uuid.uuid1())
 
         self.scenario_params = load_yaml(config_file)
 
@@ -176,12 +179,13 @@ class VehicleManager(object):
         else:
             self.data_dumper = None
 
-        print(f"Sending vehicle to OpenCDA: {self.vehicle.id}")
-        self._socket.send(b"%d" % self.vehicle.id)
+        message = {"actor_id": self.vehicle.id, "vid": self.vid}
+        print(f"Vehicle {vehicle_index}: Sending id {message}")
+        self._socket.send_json(message)
 
         cav_world.update_vehicle_manager(self)
 
-        print("Vehicle: Exiting VehicleManager constructor")
+        print(f"Vehicle {vehicle_index}: Exiting VehicleManager constructor")
 
     def initialize_process(self):
         simulation_config = self.scenario_params['world']
@@ -287,8 +291,6 @@ def arg_parse():
                         help="Specifies the index for this vehicle in the config file.")
     parser.add_argument('-a', "--application", required=True, type=str,
                         help='The application for the vehicle. E.g. single or platoon')
-    parser.add_argument("--vid", required=True, type=str,
-                        help='UUID of this vehicle used by OpenCDA')
     parser.add_argument("--apply_ml",
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
@@ -310,7 +312,8 @@ def main():
     # create CAV world
     cav_world = CavWorld(opt.apply_ml)
 
-    vehicle_manager = VehicleManager(opt.index, opt.test_scenario, opt.application, cav_world, opt.version, opt.vid)
+    vehicle_manager = VehicleManager(opt.index, opt.test_scenario, opt.application, cav_world, opt.version)
+    print(f"Vehicle {opt.index} created. Waiting for start...")
 
     # run scenario testing
     while(True):

@@ -96,20 +96,23 @@ class VehicleManagerProxy(object):
         self.initialize_process(config_yaml)
 
         # an unique uuid for this vehicle
-        self.vid = str(uuid.uuid1())
+#        self.vid = str(uuid.uuid1())
         self.carla_map = carla_map
 
+        # Use zmq for interprocess communication between OpenCDA and each vehicle
         self._context = zmq.Context()
         self._socket = self._context.socket(zmq.REQ)
+
+        print(f"OpenCDA: Spawning process {config_file}...")
+#        self.client_process = subprocess.Popen(f"python3 -u ./opencda/core/common/vehicle_manager.py -t {config_file} -i {vehicle_index} -a {application} -v {carla_version}", shell=True)
+
+        # Connect to the vehicle and send the START message
         self._socket.connect(f"tcp://localhost:{vehicle_index+5555}")
         self._socket.send(b"START")
-
-        print("OpenCDA: Spawning process...")
-        self.client_process = subprocess.Popen(f"python3 -u ./opencda/core/common/vehicle_manager.py -t {config_file} -i {vehicle_index} -a {application} -v {carla_version} --vid {self.vid}", shell=True)
-
-        message = self._socket.recv()
-        actor_id = int(message)
-        print(f"OpenCDA: actor_id is {actor_id}")
+        message = self._socket.recv_json()
+        print(f"OpenCDA: received {message}")
+        actor_id = message["actor_id"] # Vehicle sends back the actor id so we can get a handle to the actor in Carla        
+        self.vid = message["vid"] # Vehicle sends back the uuid id we use as unique identifier
 
         vehicle = self.world.get_actor(actor_id)
         self.vehicle = vehicle
