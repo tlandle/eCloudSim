@@ -282,6 +282,8 @@ def arg_parse():
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                              'Set it to true only when you have installed the pytorch/sklearn package.')
+    parser.add_argument('-p', "--port", type=int, default=5555,
+                        help="Specifies the port to listen on, default is 5555")
     parser.add_argument('-v', "--version", type=str, default='0.9.11',
                         help='Specify the CARLA simulator version, default'
                              'is 0.9.11, 0.9.12 is also supported.')
@@ -300,14 +302,15 @@ def main():
     cav_world = CavWorld(opt.apply_ml)
 
     # Use zmq for interprocess communication between OpenCDA and each vehicle
+    server_port = opt.port+opt.index
     context = zmq.Context()
     socket = context.socket(zmq.REP)
-    socket.bind(f"tcp://*:{opt.index+5555}")
+    socket.bind(f"tcp://*:{server_port}")
 
     # Wait for the START message from OpenCDA before going any further
-    print(f"Vehicle {opt.index} created. Waiting for start...", flush=True)
+    print(f"Vehicle {opt.index} created. Waiting for start on port {server_port}...", flush=True)
     message = socket.recv()
-    print(f"Vehicle {opt.index}: {message.decode()}")
+    print(f"Vehicle {opt.index}: received cmd {message.decode()}")
 
     vehicle_manager = VehicleManager(opt.index, opt.test_scenario, opt.application, cav_world, opt.version)
 
@@ -320,21 +323,19 @@ def main():
     while(True):
         message = socket.recv().decode()
         if message == "update_info":
-            print("Vehicle: received %s" % message)
+            print(f"Vehicle {opt.index}: received cmd {message}")
             vehicle_manager.update_info()
             socket.send(b"DONE")
-            print("Vehicle: After update_info")
         elif message == "set_destination":
-            print("Vehicle: received %s" % message)
+            print(f"Vehicle {opt.index}: received cmd {message}")
             socket.send(b"START")
             destination = socket.recv_pyobj()
-            print("Vehicle: x=%s" % destination["start"]["x"])
+            print(f"Vehicle {opt.index}: x=%s" % destination["start"]["x"])
             start_location = carla.Location(x=destination["start"]["x"], y=destination["start"]["y"], z=destination["start"]["z"])
             end_location = carla.Location(x=destination["end"]["x"], y=destination["end"]["y"], z=destination["end"]["z"])
             clean = bool(destination["clean"])
             end_reset = bool(destination["reset"])
             vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
-            print("After set_destination")
             socket.send(b"DONE")
         elif message == "TICK":
             vehicle_manager.update_info()
