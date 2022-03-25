@@ -94,15 +94,6 @@ class VehicleManager(object):
             current_time='',
             data_dumping=False):
 
-        # Use zmq for interprocess communication between OpenCDA and each vehicle
-        self._context = zmq.Context()
-        self._socket = self._context.socket(zmq.REP)
-        self._socket.bind(f"tcp://*:{vehicle_index+5555}")
-
-        # Wait for the START message from OpenCDA before going any further
-        message = self._socket.recv()
-        print(f"Vehicle {vehicle_index}: {message.decode()}")
-
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
 
@@ -178,10 +169,6 @@ class VehicleManager(object):
                                           save_time=current_time)
         else:
             self.data_dumper = None
-
-        message = {"actor_id": self.vehicle.id, "vid": self.vid}
-        print(f"Vehicle {vehicle_index}: Sending id {message}")
-        self._socket.send_json(message)
 
         cav_world.update_vehicle_manager(self)
 
@@ -304,7 +291,7 @@ def arg_parse():
 
 def main():
     opt = arg_parse()
-#    print("OpenCDA Version: %s" % __version__)
+    print("OpenCDA Version: %s" % __version__)
 
     if not os.path.isfile(opt.test_scenario):
         sys.exit("%s not found!" % opt.test_scenario)
@@ -312,21 +299,35 @@ def main():
     # create CAV world
     cav_world = CavWorld(opt.apply_ml)
 
+    # Use zmq for interprocess communication between OpenCDA and each vehicle
+    context = zmq.Context()
+    socket = context.socket(zmq.REP)
+    socket.bind(f"tcp://*:{opt.index+5555}")
+
+    # Wait for the START message from OpenCDA before going any further
+    print(f"Vehicle {opt.index} created. Waiting for start...", flush=True)
+    message = socket.recv()
+    print(f"Vehicle {opt.index}: {message.decode()}")
+
     vehicle_manager = VehicleManager(opt.index, opt.test_scenario, opt.application, cav_world, opt.version)
-    print(f"Vehicle {opt.index} created. Waiting for start...")
+
+    message = {"actor_id": vehicle_manager.vehicle.id, "vid": vehicle_manager.vid}
+    print(f"Vehicle {opt.index}: Sending id {message}")
+    socket.send_json(message)
+
 
     # run scenario testing
     while(True):
-        message = vehicle_manager._socket.recv().decode()
+        message = socket.recv().decode()
         if message == "update_info":
             print("Vehicle: received %s" % message)
             vehicle_manager.update_info()
-            vehicle_manager._socket.send(b"DONE")
+            socket.send(b"DONE")
             print("Vehicle: After update_info")
         elif message == "set_destination":
             print("Vehicle: received %s" % message)
-            vehicle_manager._socket.send(b"START")
-            destination = vehicle_manager._socket.recv_pyobj()
+            socket.send(b"START")
+            destination = socket.recv_pyobj()
             print("Vehicle: x=%s" % destination["start"]["x"])
             start_location = carla.Location(x=destination["start"]["x"], y=destination["start"]["y"], z=destination["start"]["z"])
             end_location = carla.Location(x=destination["end"]["x"], y=destination["end"]["y"], z=destination["end"]["z"])
@@ -334,12 +335,12 @@ def main():
             end_reset = bool(destination["reset"])
             vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
             print("After set_destination")
-            vehicle_manager._socket.send(b"DONE")
+            socket.send(b"DONE")
         elif message == "TICK":
             vehicle_manager.update_info()
             control = vehicle_manager.run_step()
             vehicle_manager.apply_control(control)
-            vehicle_manager._socket.send(b"DONE")
+            socket.send(b"DONE")
 #            vehicle_manager.world.wait_for_tick()
 
 
