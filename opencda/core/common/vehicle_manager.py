@@ -5,14 +5,8 @@ Basic class of CAV
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-import argparse
-import os
-import sys
 import random
-import zmq
 import uuid
-
-from opencda.version import __version__
 
 import carla
 import numpy as np
@@ -269,82 +263,3 @@ class VehicleManager(object):
         self.perception_manager.destroy()
         self.localizer.destroy()
         self.vehicle.destroy()
-
-def arg_parse():
-    parser = argparse.ArgumentParser(description="OpenCDA vehicle manager.")
-    parser.add_argument("--apply_ml",
-                        action='store_true',
-                        help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
-                             'Set it to true only when you have installed the pytorch/sklearn package.')
-    parser.add_argument('-p', "--port", type=int, default=5555,
-                        help="Specifies the port to listen on, default is 5555")
-
-    opt = parser.parse_args()
-    return opt
-
-def main():
-    vehicle_index = 0
-    application = ["single"]
-    version = "0.9.11"
-
-    opt = arg_parse()
-    print("OpenCDA Version: %s" % __version__)
-
-    # Use zmq for interprocess communication between OpenCDA and each vehicle
-    context = zmq.Context()
-    socket = context.socket(zmq.REP)
-    socket.bind(f"tcp://*:{opt.port}")
-
-    # Wait for the START message from OpenCDA before going any further
-    print(f"Vehicle created. Waiting for start on port {opt.port}...", flush=True)
-    message = socket.recv_json()
-    print(f"Vehicle: received cmd {message}")
-    if message["cmd"] == "start":
-        test_scenario = message["params"]["scenario"]
-        vehicle_index = message["params"]["vehicle"]
-        application = message["params"]["application"]
-        version = message["params"]["version"]
-
-    if not os.path.isfile(test_scenario):
-        sys.exit("%s not found!" % test_scenario)
-
-    # create CAV world
-    cav_world = CavWorld(opt.apply_ml)
-
-    vehicle_manager = VehicleManager(vehicle_index, test_scenario, application, cav_world, version)
-
-    message = {"actor_id": vehicle_manager.vehicle.id, "vid": vehicle_manager.vid}
-    print(f"Vehicle: Sending id {message}")
-    socket.send_json(message)
-
-    # run scenario testing
-    while(True):
-        message = socket.recv().decode()
-        if message == "update_info":
-            print(f"Vehicle: received cmd {message}")
-            vehicle_manager.update_info()
-            socket.send(b"DONE")
-        elif message == "set_destination":
-            print(f"Vehicle: received cmd {message}")
-            socket.send(b"START")
-            destination = socket.recv_pyobj()
-            print(f"Vehicle: x=%s" % destination["start"]["x"])
-            start_location = carla.Location(x=destination["start"]["x"], y=destination["start"]["y"], z=destination["start"]["z"])
-            end_location = carla.Location(x=destination["end"]["x"], y=destination["end"]["y"], z=destination["end"]["z"])
-            clean = bool(destination["clean"])
-            end_reset = bool(destination["reset"])
-            vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
-            socket.send(b"DONE")
-        elif message == "TICK":
-            vehicle_manager.update_info()
-            control = vehicle_manager.run_step()
-            vehicle_manager.apply_control(control)
-            socket.send(b"DONE")
-#            vehicle_manager.world.wait_for_tick()
-
-
-if __name__ == '__main__':
-    try:
-        main()
-    except KeyboardInterrupt:
-        print(' - Exited by user.')
