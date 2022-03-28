@@ -9,6 +9,23 @@ The deployment of a multi-vehicle simulation will involve several VM types:
 2. OpenCDA - the OpenCDA framework needs to be installed on a VM, which is the master for the simulation. This VM is responsible for initiating the simulation, connecting to each simulation vehicle and passing simulation parameters, and "tick" the simulation to cause it to advance a single time step.
 3. Worker nodes - we will use multiple worker nodes that can host one or more Docker containers for the simulated vehicle. Since we simulated vehicle can use a neural network for doing perception of other vehicles, the worker nodes will need to be built on a GPU VM.
 
-We will manually create a VM for the Carla server and OpenCDA. We will create an image of a worker node to encapsulate our desired worker node installation.
+We will manually create a VM for the Carla server and OpenCDA. We will create an image of a worker node to encapsulate our desired worker node installation. A Simulated Vehicle can run in two modes - apply_ml=true uses a neural network (Yolov5) to perform perception of other vehicles, apply_ml=false reads information directly from the Carla server to find information on other vehicles. We will want two images - a GPU based image when apply_ml is true, and a non-GPU image when apply_ml=false. Given heavy restrictions on access to GPUs by Microsoft currently, I'd recommend supporting non-GPU based simulations.
 
-We will use docker_machine to create new workers from our image and to deploy our Docker container image to the worker, as well as starting/stopping the containers when we want to run a simulation. 
+We will use docker_machine to create new workers from our images, to deploy our Docker container image to the worker, as well as starting/stopping the containers when we want to run a simulation. 
+
+## OpenCDA Master
+
+The OpenCDA framework is installed on a VM. This can be installed on the same VM as the Carla server, or separately. The OpenCDA framework (opencda.py) reads a deployment.yml configuration file that provides parameters connection information for each Simulation Vehicle Docker container.
+
+OpenCDA uses a REQ/RESP pattern from 0MQ to connect to each Simulation Vehicle, pass parameters for the simulation run, and make RPC calls to the vehicle to control the simulation. At the end of the simulation, it is responsible for evaluating and reporting out on the success of the simulation run.
+
+## Simulation Vehicle
+
+An OpenCDA vehicle that runs in a separate process (sim_vehicle.py), and has been containerised. We can deploy multiple containers to a VM, and determine how many containers can be supported by a single vehicle while still getting good performance, and also deploy containers to new VMs to scale further. 
+
+sim_vehicle.py has a single command line parameter to set the listening port (-p). The default port to listen on is 5555. When the simulation vehicle starts, it immediately starts listening for the OpenCDA master to connect to it. When the master connects, it sends a START command, along with the parameters for this simulation run. Parameters include:
+
+* test scenario - the yaml configuration file for this simulation to be run. Note initially we assume the yaml file exists on the container, but an improvement would be to pass the contents of the yaml file in another RPC call so that the simulation can be easily changed without modifying the container.
+* Vehicle index - the identifying in the simulation yaml file for this simulation vehicle to read. This configuration determines the start spawn location and behavior for this simulated vehicle
+* Version - which version of Carla we are running. Currently OpenCDA supports 0.9.11 and 0.9.12.
+* Application - an array of applications that this vehicle should use. For example, "single", "platoon" and "edge".
