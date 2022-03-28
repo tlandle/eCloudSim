@@ -272,65 +272,63 @@ class VehicleManager(object):
 
 def arg_parse():
     parser = argparse.ArgumentParser(description="OpenCDA vehicle manager.")
-    parser.add_argument('-t', "--test_scenario", required=True, type=str,
-                        help='Define the path to the config file for the scenario you want to test.')
-    parser.add_argument('-i', "--index", required=True, type=int,
-                        help="Specifies the index for this vehicle in the config file.")
-    parser.add_argument('-a', "--application", required=True, type=str,
-                        help='The application for the vehicle. E.g. single or platoon')
     parser.add_argument("--apply_ml",
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                              'Set it to true only when you have installed the pytorch/sklearn package.')
     parser.add_argument('-p', "--port", type=int, default=5555,
                         help="Specifies the port to listen on, default is 5555")
-    parser.add_argument('-v', "--version", type=str, default='0.9.11',
-                        help='Specify the CARLA simulator version, default'
-                             'is 0.9.11, 0.9.12 is also supported.')
 
     opt = parser.parse_args()
     return opt
 
 def main():
+    vehicle_index = 0
+    application = ["single"]
+    version = "0.9.11"
+
     opt = arg_parse()
     print("OpenCDA Version: %s" % __version__)
 
-    if not os.path.isfile(opt.test_scenario):
-        sys.exit("%s not found!" % opt.test_scenario)
+    # Use zmq for interprocess communication between OpenCDA and each vehicle
+    context = zmq.Context()
+    socket = context.socket(zmq.REP)
+    socket.bind(f"tcp://*:{opt.port}")
+
+    # Wait for the START message from OpenCDA before going any further
+    print(f"Vehicle created. Waiting for start on port {opt.port}...", flush=True)
+    message = socket.recv_json()
+    print(f"Vehicle: received cmd {message}")
+    if message["cmd"] == "start":
+        test_scenario = message["params"]["scenario"]
+        vehicle_index = message["params"]["vehicle"]
+        application = message["params"]["application"]
+        version = message["params"]["version"]
+
+    if not os.path.isfile(test_scenario):
+        sys.exit("%s not found!" % test_scenario)
 
     # create CAV world
     cav_world = CavWorld(opt.apply_ml)
 
-    # Use zmq for interprocess communication between OpenCDA and each vehicle
-    server_port = opt.port+opt.index
-    context = zmq.Context()
-    socket = context.socket(zmq.REP)
-    socket.bind(f"tcp://*:{server_port}")
-
-    # Wait for the START message from OpenCDA before going any further
-    print(f"Vehicle {opt.index} created. Waiting for start on port {server_port}...", flush=True)
-    message = socket.recv()
-    print(f"Vehicle {opt.index}: received cmd {message.decode()}")
-
-    vehicle_manager = VehicleManager(opt.index, opt.test_scenario, opt.application, cav_world, opt.version)
+    vehicle_manager = VehicleManager(vehicle_index, test_scenario, application, cav_world, version)
 
     message = {"actor_id": vehicle_manager.vehicle.id, "vid": vehicle_manager.vid}
-    print(f"Vehicle {opt.index}: Sending id {message}")
+    print(f"Vehicle: Sending id {message}")
     socket.send_json(message)
-
 
     # run scenario testing
     while(True):
         message = socket.recv().decode()
         if message == "update_info":
-            print(f"Vehicle {opt.index}: received cmd {message}")
+            print(f"Vehicle: received cmd {message}")
             vehicle_manager.update_info()
             socket.send(b"DONE")
         elif message == "set_destination":
-            print(f"Vehicle {opt.index}: received cmd {message}")
+            print(f"Vehicle: received cmd {message}")
             socket.send(b"START")
             destination = socket.recv_pyobj()
-            print(f"Vehicle {opt.index}: x=%s" % destination["start"]["x"])
+            print(f"Vehicle: x=%s" % destination["start"]["x"])
             start_location = carla.Location(x=destination["start"]["x"], y=destination["start"]["y"], z=destination["start"]["z"])
             end_location = carla.Location(x=destination["end"]["x"], y=destination["end"]["y"], z=destination["end"]["z"])
             clean = bool(destination["clean"])

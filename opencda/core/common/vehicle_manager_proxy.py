@@ -108,7 +108,17 @@ class VehicleManagerProxy(object):
 
         # Connect to the vehicle and send the START message
         self._socket.connect(f"tcp://localhost:{vehicle_index+5555}")
-        self._socket.send(b"START")
+
+        message =   {
+                        "cmd": "start",
+                        "params": {
+                            "scenario": config_file,
+                            "vehicle": vehicle_index,
+                            "application": application,
+                            "version": carla_version
+                        } 
+                    }
+        self._socket.send_json(message)
         message = self._socket.recv_json()
         print(f"OpenCDA: received {message}")
         actor_id = message["actor_id"] # Vehicle sends back the actor id so we can get a handle to the actor in Carla        
