@@ -65,28 +65,37 @@ def main():
 
     # run scenario testing
     while(True):
-        message = socket.recv().decode()
-        if message == "update_info":
-            print(f"Vehicle: received cmd {message}")
+        message = socket.recv_json()
+        cmd = message["cmd"]
+        if cmd != "TICK": # don't print tick message since there are too many
+            print(f"Vehicle: received cmd {cmd}")
+
+        if cmd == "update_info":
             vehicle_manager.update_info()
-            socket.send(b"DONE")
-        elif message == "set_destination":
-            print(f"Vehicle: received cmd {message}")
-            socket.send(b"START")
-            destination = socket.recv_pyobj()
+            socket.send_json({"resp": "OK"})
+        elif cmd == "set_destination":
+            destination = message["params"]
             print(f"Vehicle: x=%s" % destination["start"]["x"])
             start_location = carla.Location(x=destination["start"]["x"], y=destination["start"]["y"], z=destination["start"]["z"])
             end_location = carla.Location(x=destination["end"]["x"], y=destination["end"]["y"], z=destination["end"]["z"])
             clean = bool(destination["clean"])
             end_reset = bool(destination["reset"])
             vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
-            socket.send(b"DONE")
-        elif message == "TICK":
+            socket.send_json({"resp": "OK"})
+        elif cmd == "TICK":
             vehicle_manager.update_info()
             control = vehicle_manager.run_step()
-            vehicle_manager.apply_control(control)
-            socket.send(b"DONE")
-#            vehicle_manager.world.wait_for_tick()
+            if control is None:
+                socket.send_json({"resp": "DONE"})
+            else:
+                vehicle_manager.apply_control(control)
+                socket.send_json({"resp": "OK"})
+        elif cmd == "END":
+            break
+    
+    vehicle_manager.destroy()
+    socket.close()
+    context.term()
 
 
 if __name__ == '__main__':

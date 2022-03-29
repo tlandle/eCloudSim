@@ -166,8 +166,6 @@ class VehicleManager(object):
 
         cav_world.update_vehicle_manager(self)
 
-        print(f"Vehicle {vehicle_index}: Exiting VehicleManager constructor")
-
     def initialize_process(self):
         simulation_config = self.scenario_params['world']
 
@@ -239,6 +237,9 @@ class VehicleManager(object):
         Execute one step of navigation.
         """
         target_speed, target_pos = self.agent.run_step(target_speed)
+        if target_speed == -1:
+            print("run_step: simulation is over")
+            return None # -1 indicates the simulation is over. TODO Need a const here.
         control = self.controller.run_step(target_speed, target_pos)
 
         # dump data
@@ -251,7 +252,6 @@ class VehicleManager(object):
 
     def apply_control(self, control):
         """
-        TODO ecloud Added to separate Carla vehicle access from the scenario
         Apply the controls to the vehicle
         """
         self.vehicle.apply_control(control)

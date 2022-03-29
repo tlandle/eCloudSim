@@ -28,7 +28,9 @@ from opencda.core.plan.behavior_agent \
 from opencda.core.common.data_dumper import DataDumper
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
-
+RESULT_SUCCESS = 0 # Step ran ok
+RESULT_ERROR = 1 # Step resulted in an error
+RESULT_END = 2 # Step resulted in the vehicle simulation ending
 
 class VehicleManagerProxy(object):
     """
@@ -108,16 +110,17 @@ class VehicleManagerProxy(object):
 
         # Connect to the vehicle and send the START message
         self._socket.connect(f"tcp://localhost:{vehicle_index+5555}")
+        self._socket.setsockopt(zmq.RCVTIMEO, 5000) # milliseconds
+        self._socket.setsockopt(zmq.LINGER, 0)
 
-        message =   {
-                        "cmd": "start",
-                        "params": {
-                            "scenario": config_file,
-                            "vehicle": vehicle_index,
-                            "application": application,
-                            "version": carla_version
-                        } 
-                    }
+        message = { "cmd": "start",
+                    "params": {
+                        "scenario": config_file,
+                        "vehicle": vehicle_index,
+                        "application": application,
+                        "version": carla_version
+                    } 
+        }
         self._socket.send_json(message)
         message = self._socket.recv_json()
         print(f"OpenCDA: received {message}")
@@ -184,52 +187,36 @@ class VehicleManagerProxy(object):
         Returns
         -------
         """
-#        message = f"set_destination {start_location} {end_location} {clean} {end_reset}"
-        self._socket.send(b"set_destination")
-        self._socket.recv()
-        message = { "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
-                    "end": {"x": end_location.x, "y": end_location.y, "z": end_location.z},
-                    "clean": clean, "reset": end_reset}
-        print("OpenCDA: %s" % message)
-        self._socket.send_pyobj(message)
-        self._socket.recv()
-        return
+        print("OpenCDA: set_destination")
 
-        self.agent.set_destination(
-            start_location, end_location, clean, end_reset)
+        message = { "cmd": "set_destination",
+                    "params": {
+                    "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
+                    "end": {"x": end_location.x, "y": end_location.y, "z": end_location.z},
+                    "clean": clean, "reset": end_reset
+                    }
+        }
+        self._socket.send_json(message)
+        self._socket.recv_json()
+        return
 
     def update_info(self):
         """
         Call perception and localization module to
         retrieve surrounding info an ego position.
         """
-
         print("OpenCDA: update_info called")
-        self._socket.send(b"update_info")
-        self._socket.recv()
+
+        self._socket.send_json({"cmd": "update_info"})
+        self._socket.recv_json()
         return 
-        # localization
-        self.localizer.localize()
-
-        ego_pos = self.localizer.get_ego_pos()
-        ego_spd = self.localizer.get_ego_spd()
-
-        # object detection
-        objects = self.perception_manager.detect(ego_pos)
-
-        # update ego position and speed to v2x manager,
-        # and then v2x manager will search the nearby cavs
-        self.v2x_manager.update_info(ego_pos, ego_spd)
-
-        self.agent.update_information(ego_pos, ego_spd, objects)
-        # pass position and speed info to controller
-        self.controller.update_info(ego_pos, ego_spd)
 
     def run_step(self, target_speed=None):
         """
         Execute one step of navigation.
         """
-        print("OpenCDA: entered run_step")
+        print("OpenCDA: run_step")
+
         target_speed, target_pos = self.agent.run_step(target_speed)
         control = self.controller.run_step(target_speed, target_pos)
 
@@ -239,15 +226,37 @@ class VehicleManagerProxy(object):
                                       self.localizer,
                                       self.agent)
 
-        print("OpenCDA: after run_step")
         return control
 
-    def apply_control(self, control):
+#    def apply_control(self, control):
+#        """
+#        Apply the controls to the vehicle
+#        """
+#        self.vehicle.apply_control(control)
+
+    def do_tick(self):
         """
-        TODO ecloud Added to separate Carla vehicle access from the scenario
-        Apply the controls to the vehicle
+        Tells the vehicle that it should advance a single step in the simulation
         """
-        self.vehicle.apply_control(control)
+        success = RESULT_SUCCESS
+        try:
+            self._socket.send_json({"cmd": "TICK"})
+            message = self._socket.recv_json()
+            if (message["resp"] == "DONE"):
+                success = RESULT_END
+        except zmq.ZMQError as e:
+            success = RESULT_ERROR
+        return success
+
+    def end_step(self):
+        """
+        Sends the END command to the vehicle to tell it to end gracefully
+        """
+        try:
+            self._socket.send_json({"cmd": "END"})
+            self._socket.recv_json()
+        except zmq.ZMQError as e:
+            pass
 
     def destroy(self):
         """
