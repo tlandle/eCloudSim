@@ -18,6 +18,7 @@ import numpy as np
 from opencda.core.common.vehicle_manager_proxy import VehicleManagerProxy
 from opencda.core.application.platooning.platooning_manager import \
     PlatooningManager
+from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.utils.customized_map_api import \
     load_customized_world, bcolors

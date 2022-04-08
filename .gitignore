@@ -147,6 +147,6 @@ opencda/evaluation_figures/
 *cache*
 evaluation_outputs/
 docs/tmp.py
-data_dumping
 video_dumping
+*data_dumping*
 
