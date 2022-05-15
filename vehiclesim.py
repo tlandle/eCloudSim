@@ -8,6 +8,8 @@ import argparse
 import os
 import sys
 import zmq
+import socket
+import json
 
 import carla
 
@@ -22,13 +24,16 @@ def arg_parse():
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                              'Set it to true only when you have installed the pytorch/sklearn package.')
+    parser.add_argument('-i', "--ipaddress", type=str, default="127.0.0.1",
+                        help="Specifies the ip address of the server to connect to. [Default: 127.0.0.1]")
     parser.add_argument('-p', "--port", type=int, default=5555,
-                        help="Specifies the port to listen on, default is 5555")
+                        help="Specifies the port to connect to. [Default: 5555]")
 
     opt = parser.parse_args()
     return opt
 
 def main():
+    # default params which can be over-written from the simulation controller
     vehicle_index = 0
     application = ["single"]
     version = "0.9.11"
@@ -37,13 +42,16 @@ def main():
     print("OpenCDA Version: %s" % __version__)
 
     # Use zmq for interprocess communication between OpenCDA and each vehicle
-    context = zmq.Context()
-    socket = context.socket(zmq.REP)
-    socket.bind(f"tcp://*:{opt.port}")
+#    context = zmq.Context()
+#    socket = context.socket(zmq.REP)
+#    socket.bind(f"tcp://*:{opt.port}")
+
+    _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    _socket.connect((opt.ipaddress, opt.port))
 
     # Wait for the START message from OpenCDA before going any further
-    print(f"Vehicle created. Waiting for start on port {opt.port}...", flush=True)
-    message = socket.recv_json()
+    print(f"Vehicle created. Waiting for start...", flush=True)
+    message = json.loads(_socket.recv(1024).decode('utf-8'))
     print(f"Vehicle: received cmd {message}")
     if message["cmd"] == "start":
         test_scenario = message["params"]["scenario"]
@@ -61,18 +69,18 @@ def main():
 
     message = {"actor_id": vehicle_manager.vehicle.id, "vid": vehicle_manager.vid}
     print(f"Vehicle: Sending id {message}")
-    socket.send_json(message)
+    _socket.send(json.dumps(message).encode('utf-8'))
 
     # run scenario testing
     while(True):
-        message = socket.recv_json()
+        message = json.loads(_socket.recv(1024).decode('utf-8'))
         cmd = message["cmd"]
         if cmd != "TICK": # don't print tick message since there are too many
             print(f"Vehicle: received cmd {cmd}")
 
         if cmd == "update_info":
             vehicle_manager.update_info()
-            socket.send_json({"resp": "OK"})
+            _socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
         elif cmd == "set_destination":
             destination = message["params"]
             print(f"Vehicle: x=%s" % destination["start"]["x"])
@@ -81,22 +89,20 @@ def main():
             clean = bool(destination["clean"])
             end_reset = bool(destination["reset"])
             vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
-            socket.send_json({"resp": "OK"})
+            _socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
         elif cmd == "TICK":
             vehicle_manager.update_info()
             control = vehicle_manager.run_step()
             if control is None:
-                socket.send_json({"resp": "DONE"})
+                _socket.send(json.dumps({"resp": "DONE"}).encode('utf-8'))
             else:
                 vehicle_manager.apply_control(control)
-                socket.send_json({"resp": "OK"})
+                _socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
         elif cmd == "END":
             break
     
     vehicle_manager.destroy()
-    socket.close()
-    context.term()
-
+    _socket.close()
 
 if __name__ == '__main__':
     try:

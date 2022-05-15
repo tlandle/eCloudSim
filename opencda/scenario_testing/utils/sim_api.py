@@ -11,6 +11,7 @@ import math
 import random
 import sys
 from random import shuffle
+import socket
 
 import carla
 import numpy as np
@@ -193,6 +194,24 @@ class ScenarioManager:
         self.carla_map = self.world.get_map()
         self.apply_ml = apply_ml
 
+        # Wait for vehicle clients to connect
+        print("Waiting for vehicles to connect...")
+        self._sockets = []
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 5555))
+            while (len(self._sockets) < 2):
+                s.listen()
+                conn, addr = s.accept()
+                self._sockets.append(conn)
+                print(f"Vehicle at {addr} connected.")
+        print("Received sufficient vehicle connections. Continuing with simulation.")
+        
+        #with conn:
+        #    print(f"Accepted connection from {addr}")
+        #    print(conn.recv(1024).decode())
+        #    conn.close()
+
+
     @staticmethod
     def set_weather(weather_settings):
         """
@@ -253,7 +272,7 @@ class ScenarioManager:
 
             # create vehicle manager for each cav
             vehicle_manager = VehicleManagerProxy(
-                i, self.config_file, application,
+                i, self._sockets[i], self.config_file, application,
                 self.carla_map, self.cav_world,
                 current_time=self.scenario_params['current_time'],
                 data_dumping=data_dump, carla_version=self.carla_version)

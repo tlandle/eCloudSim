@@ -8,7 +8,8 @@ Basic class of CAV
 import uuid
 import subprocess
 import random
-import zmq
+import socket
+import json
 
 import carla
 import numpy as np
@@ -84,6 +85,7 @@ class VehicleManagerProxy(object):
     def __init__(
             self,
             vehicle_index,
+            conn,
             config_file,
             application,
             carla_map,
@@ -101,18 +103,10 @@ class VehicleManagerProxy(object):
 #        self.vid = str(uuid.uuid1())
         self.carla_map = carla_map
 
-        # Use zmq for interprocess communication between OpenCDA and each vehicle
-        self._context = zmq.Context()
-        self._socket = self._context.socket(zmq.REQ)
+        # Use sockets for interprocess communication between OpenCDA and each vehicle
+        self._socket = conn
 
-        print(f"OpenCDA: Spawning process {config_file}...")
-#        self.client_process = subprocess.Popen(f"python3 -u ./opencda/core/common/vehicle_manager.py -t {config_file} -i {vehicle_index} -a {application} -v {carla_version}", shell=True)
-
-        # Connect to the vehicle and send the START message
-        self._socket.connect(f"tcp://localhost:{vehicle_index+5555}")
-        self._socket.setsockopt(zmq.RCVTIMEO, 5000) # milliseconds
-        self._socket.setsockopt(zmq.LINGER, 0)
-
+        # Send the START message to the vehicle with simulation parameters
         message = { "cmd": "start",
                     "params": {
                         "scenario": config_file,
@@ -121,8 +115,8 @@ class VehicleManagerProxy(object):
                         "version": carla_version
                     } 
         }
-        self._socket.send_json(message)
-        message = self._socket.recv_json()
+        self._socket.send(json.dumps(message).encode('utf-8'))
+        message = json.loads(self._socket.recv(1024).decode('utf-8'))
         print(f"OpenCDA: received {message}")
         actor_id = message["actor_id"] # Vehicle sends back the actor id so we can get a handle to the actor in Carla        
         self.vid = message["vid"] # Vehicle sends back the uuid id we use as unique identifier
@@ -196,8 +190,8 @@ class VehicleManagerProxy(object):
                     "clean": clean, "reset": end_reset
                     }
         }
-        self._socket.send_json(message)
-        self._socket.recv_json()
+        self._socket.send(json.dumps(message).encode('utf-8'))
+        resp = json.loads(self._socket.recv(1024).decode('utf-8'))
         return
 
     def update_info(self):
@@ -207,8 +201,8 @@ class VehicleManagerProxy(object):
         """
         print("OpenCDA: update_info called")
 
-        self._socket.send_json({"cmd": "update_info"})
-        self._socket.recv_json()
+        self._socket.send(json.dumps({"cmd": "update_info"}).encode('utf-8'))
+        resp = json.loads(self._socket.recv(1024).decode('utf-8'))
         return 
 
     def run_step(self, target_speed=None):
@@ -239,24 +233,18 @@ class VehicleManagerProxy(object):
         Tells the vehicle that it should advance a single step in the simulation
         """
         success = RESULT_SUCCESS
-        try:
-            self._socket.send_json({"cmd": "TICK"})
-            message = self._socket.recv_json()
-            if (message["resp"] == "DONE"):
-                success = RESULT_END
-        except zmq.ZMQError as e:
-            success = RESULT_ERROR
+        self._socket.send(json.dumps({"cmd": "TICK"}).encode('utf-8'))
+        resp = json.loads(self._socket.recv(1024).decode('utf-8'))
+        if (resp["resp"] == "DONE"):
+            success = RESULT_END
         return success
 
     def end_step(self):
         """
         Sends the END command to the vehicle to tell it to end gracefully
         """
-        try:
-            self._socket.send_json({"cmd": "END"})
-            self._socket.recv_json()
-        except zmq.ZMQError as e:
-            pass
+        self._socket.send(json.dumps({"cmd": "END"}).encode('utf-8'))
+        resp = json.loads(self._socket.recv(1024).decode('utf-8'))
 
     def destroy(self):
         """
@@ -265,3 +253,4 @@ class VehicleManagerProxy(object):
         self.perception_manager.destroy()
         self.localizer.destroy()
         self.vehicle.destroy()
+        self._socket.close()
