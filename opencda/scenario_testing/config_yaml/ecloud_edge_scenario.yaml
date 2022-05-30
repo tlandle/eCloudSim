@@ -8,7 +8,7 @@ description: |-
 world:
   sync_mode: true
   client_port: 2000
-  fixed_delta_seconds: &delta 0.03
+  fixed_delta_seconds: &delta 0.03 # 0.2
   seed: 10
   weather:
     sun_altitude_angle: 15 # 90 is the midday and -90 is the midnight

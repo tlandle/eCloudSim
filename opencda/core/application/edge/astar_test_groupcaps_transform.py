@@ -267,7 +267,7 @@ class AStarPlanner:
                     n_id = self.calc_grid_index(node)
 
                     # If the node is not safe, do nothing
-                    if not self.verify_node(node):
+                    if not self.verify_node(node,current):
                         if node.y.any() > 1:
                             print("Node Not Viable: ", node.__str__())
                         continue
@@ -306,9 +306,10 @@ class AStarPlanner:
     @staticmethod
     def calc_heuristic(n1,n2=0):
         w = 10.0  # weight of heuristic
+        w_lane = 0.5 # weight of lane changes (for now), was 0.5 earlier.
         d = 0
         for i in range(0,len(n1.v)):
-            d += w * abs(n1.v[i] - n1.vt[i]) + 0.5*abs(n1.y[i]-n2.y[i])# math.hypot(n1.x - n2.x, n1.y - n2.y)
+            d += w * abs(n1.v[i] - n1.vt[i]) + w_lane*abs(n1.y[i]-n2.y[i])# math.hypot(n1.x - n2.x, n1.y - n2.y)
         return d
 
     def calc_grid_position(self, index, min_position):
@@ -334,7 +335,7 @@ class AStarPlanner:
         str1 = ''.join(str(e) for e in coord_tracked)
         return hash(str1)
 
-    def verify_node(self, node):
+    def verify_node(self, node, current=None):
 
         for i in range(0,len(node.v)): #Check to see if within lane and velocity limits
             px = self.calc_grid_position(node.v[i], self.min_v)
@@ -355,6 +356,12 @@ class AStarPlanner:
                 if node.y[i] == node.y[j] and abs(node.x_tracked[j]-node.x_tracked[i]) <= 10:
                     # print("False for constraint")
                     return False
+        #Added to prevent easy swapping of lanes in a single iteration, requires sufficient clearance between vehicles now: Added on 05/05/22
+        if current is not None:
+            for i in range(0,len(node.v)):
+                for j in range(i+1,len(node.v)):
+                    if node.y[i] == current.y[j] and abs(node.x_tracked[j]-node.x_tracked[i]) <= 10:
+                        return False
 
         # collision check: Other cars: For every vehicle in slice (i in range), check all other non slice vehicles (j + j.slice condition)
         if self.cars_on_road is not None:

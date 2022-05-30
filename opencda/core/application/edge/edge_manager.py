@@ -284,6 +284,11 @@ class EdgeManager(object):
         print(self.spawn_v)
         #Added in to check if traffic tracker updating would fix waypoint deque issue
         self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+        
+        for car in self.Traffic_Tracker.cars_on_road:
+            car.target_velocity = 15
+        # sys.exit()
+
         print("Updated Info")
 
     def algorithm_step(self):
@@ -293,57 +298,57 @@ class EdgeManager(object):
         #DEBUGGING: Bypass algo and simply move cars forward to solve synch and transform issues
         #Bypassed as of 14/3/2022
 
-        # slice_list, vel_array, lanechange_command = get_slices_clustered(self.Traffic_Tracker, self.numcars)
+        slice_list, vel_array, lanechange_command = get_slices_clustered(self.Traffic_Tracker, self.numcars)
 
-        # for i in range(len(slice_list)-1,-1,-1): #Iterate through all slices
-        #     if len(slice_list[i]) >= 2: #If the slice has more than one vehicle, run the graph planner. Else it'll move using existing
-        #     #responses - slow down on seeing a vehicle ahead that has slower velocities, else hit target velocity. 
-        #     #Somewhat suboptimal, ideally the other vehicle would be
-        #     #folded into existing groups. No easy way to do that yet.
-        #         print("Slicing")
-        #         a_star = AStarPlanner(slice_list[i], self.ov, self.oy, self.grid_size, self.robot_radius, self.Traffic_Tracker.cars_on_road, i)
-        #         rv, ry, rx_tracked = a_star.planning()
-        #         if len(ry) >= 2: #If there is some planner result, then we move ahead on using it
-        #             lanechange_command[i] = ry[-2]
-        #             vel_array[i] = rv[-2]
-        #         else: #If the planner returns an empty list, continue as before - use emergency responses.
-        #             lanechange_command[i] = ry[0]
-        #             vel_array[i] = ry[0]
+        for i in range(len(slice_list)-1,-1,-1): #Iterate through all slices
+            if len(slice_list[i]) >= 2: #If the slice has more than one vehicle, run the graph planner. Else it'll move using existing
+            #responses - slow down on seeing a vehicle ahead that has slower velocities, else hit target velocity. 
+            #Somewhat suboptimal, ideally the other vehicle would be
+            #folded into existing groups. No easy way to do that yet.
+                print("Slicing")
+                a_star = AStarPlanner(slice_list[i], self.ov, self.oy, self.grid_size, self.robot_radius, self.Traffic_Tracker.cars_on_road, i)
+                rv, ry, rx_tracked = a_star.planning()
+                if len(ry) >= 2: #If there is some planner result, then we move ahead on using it
+                    lanechange_command[i] = ry[-2]
+                    vel_array[i] = rv[-2]
+                else: #If the planner returns an empty list, continue as before - use emergency responses.
+                    lanechange_command[i] = ry[0]
+                    vel_array[i] = ry[0]
 
-        # print("Sliced")
-        # for i in range(len(slice_list)-1,-1,-1): #Relay lane change commands and new velocities to vehicles where needed
-        #     if len(slice_list[i]) >= 1 and len(lanechange_command[i]) >= 1:
-        #         carnum = 0
-        #         for car in slice_list[i]:
-        #             if lanechange_command[i][carnum] > car.lane:
-        #                 car.intentions = "Lane Change 1"
-        #             elif lanechange_command[i][carnum] < car.lane:
-        #                 car.intentions = "Lane Change -1"
-        #             car.v = vel_array[i][carnum]
-        #             carnum += 1
+        print("Sliced")
+        for i in range(len(slice_list)-1,-1,-1): #Relay lane change commands and new velocities to vehicles where needed
+            if len(slice_list[i]) >= 1 and len(lanechange_command[i]) >= 1:
+                carnum = 0
+                for car in slice_list[i]:
+                    if lanechange_command[i][carnum] > car.lane:
+                        car.intentions = "Lane Change 1"
+                    elif lanechange_command[i][carnum] < car.lane:
+                        car.intentions = "Lane Change -1"
+                    car.v = vel_array[i][carnum]
+                    carnum += 1
 
-        # self.Traffic_Tracker.time_tick(mode='Graph') #Tick the simulation
+        self.Traffic_Tracker.time_tick(mode='Graph') #Tick the simulation
 
-        # print("Success capsule")
+        print("Success capsule")
 
         #Recording location and state
-        # x_states, y_states, tv, v = self.Traffic_Tracker.ret_car_locations() # Commented out for bypassing algo
-        x_states, y_states, v = [], [], [] #Algo bypass begins
-        self.xcars = np.empty((4, 0))
-        self.ycars = np.empty((4, 0)) 
+        x_states, y_states, tv, v = self.Traffic_Tracker.ret_car_locations() # Commented out for bypassing algo
+        # x_states, y_states, v = [], [], [] #Algo bypass begins
+        # self.xcars = np.empty((4, 0))
+        # self.ycars = np.empty((4, 0)) 
 
-        for i in range(0,4):
-            x_states.append([self.Traffic_Tracker.cars_on_road[i].pos_x+4])
-            y_states.append([self.Traffic_Tracker.cars_on_road[i].lane])
-            v.append([self.Traffic_Tracker.cars_on_road[i].v])
-        x_states = np.array(x_states).reshape((4,1))
-        y_states = np.array(y_states).reshape((4,1))
-        v = np.array(v).reshape((4,1)) #Algo bypass ends
+        # for i in range(0,4):
+        #     x_states.append([self.Traffic_Tracker.cars_on_road[i].pos_x+4])
+        #     y_states.append([self.Traffic_Tracker.cars_on_road[i].lane])
+        #     v.append([self.Traffic_Tracker.cars_on_road[i].v])
+        # x_states = np.array(x_states).reshape((4,1))
+        # y_states = np.array(y_states).reshape((4,1))
+        # v = np.array(v).reshape((4,1)) #Algo bypass ends
 
         ###Begin waypoint transform process, algo ended###
         self.xcars = np.hstack((self.xcars, x_states))
         self.ycars = np.hstack((self.ycars, y_states))
-        # self.target_velocities = np.hstack((self.target_velocities,tv)) #Commented out for bypassing algo, comment back in if algo present
+        self.target_velocities = np.hstack((self.target_velocities,tv)) #Commented out for bypassing algo, comment back in if algo present
         self.velocities = np.hstack((self.velocities,v)) #Was just v, v_states for the skipping-planner debugging
 
         print("Returned X: ", self.xcars)
@@ -356,31 +361,31 @@ class EdgeManager(object):
         ###########################################
 
         waypoints_rev = {1 : np.empty((2,0)), 2 : np.empty((2,0)), 3 : np.empty((2,0)), 4 : np.empty((2,0))}
-        # for i in range(0,self.xcars.shape[1]):
-        #   processed_array = []
-        #   for j in range(0,self.numcars):
-        #     x_res = self.xcars[j,i]
-        #     y_res = self.ycars[j,i]
-        #     processed_array.append(np.array([[x_res],[y_res]]))
-        #     print("Appending to waypoints_rev")
-        #   back = self.processor.process_back(processed_array)
-        #   waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
-        #   waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
-        #   waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
-        #   waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
-        processed_array = []
-        for k in range(0,4): #Added 16/03 outer loop to check if waypoint horizon influenced things, it did not seem to.
-            for j in range(0,self.numcars):
-                x_res = self.xcars[j,-1]
-                y_res = self.ycars[j,-1]
-                processed_array.append(np.array([[x_res],[y_res]]))
-                self.xcars[j,-1] += 4 #Increment by +4, just adding another waypoint '4m' ahead of this one, until horizon 3 steps ahead
-            print("Appending to waypoints_rev: ", self.xcars)
-            back = self.processor.process_back(processed_array)
-            waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
-            waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
-            waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
-            waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
+        for i in range(0,self.xcars.shape[1]):
+          processed_array = []
+          for j in range(0,self.numcars):
+            x_res = self.xcars[j,i]
+            y_res = self.ycars[j,i]
+            processed_array.append(np.array([[x_res],[y_res]]))
+            print("Appending to waypoints_rev")
+          back = self.processor.process_back(processed_array)
+          waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
+          waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
+          waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
+          waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
+        # processed_array = []
+        # for k in range(0,4): #Added 16/03 outer loop to check if waypoint horizon influenced things, it did not seem to.
+        #     for j in range(0,self.numcars):
+        #         x_res = self.xcars[j,-1]
+        #         y_res = self.ycars[j,-1]
+        #         processed_array.append(np.array([[x_res],[y_res]]))
+        #         self.xcars[j,-1] += 4 #Increment by +4, just adding another waypoint '4m' ahead of this one, until horizon 3 steps ahead
+        #     print("Appending to waypoints_rev: ", self.xcars)
+        #     back = self.processor.process_back(processed_array)
+        #     waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
+        #     waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
+        #     waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
+        #     waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
 
         print(waypoints_rev)
         car_locations = {1 : [], 2 : [], 3 : [], 4 : []}
@@ -390,7 +395,7 @@ class EdgeManager(object):
             location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
             print(location)
             self.locations.append(location)
-        #print("Locations appended: ", self.locations)
+        print("Locations appended: ", self.locations)
 
     def run_step(self):
         """
@@ -415,12 +420,13 @@ class EdgeManager(object):
           #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
           waypoint_buffer.clear() #EDIT MADE 16/03
           
-          for k in range(0,4):
-            waypoint_buffer.append((self.locations[i*4+k], RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
+          for k in range(0,1):
+            waypoint_buffer.append((self.locations[i*1+k], RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
           
           # for waypoints in waypoint_buffer:
           #   print("Waypoints transform for Vehicle After Clearing: " + str(i) + " : ", waypoints[0].transform)
-          # print(waypoint_buffer)
+          # sys.exit()
+          # # print(waypoint_buffer)
           i += 1
 
         print("\n ########################\n")
