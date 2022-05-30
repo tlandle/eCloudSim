@@ -266,7 +266,7 @@ class EdgeManager(object):
         """
         Update CAV world information for every member in the list.
         """
-        
+                
         self.spawn_x.clear() 
         self.spawn_y.clear()
         self.spawn_v.clear()
@@ -334,8 +334,8 @@ class EdgeManager(object):
         #Recording location and state
         x_states, y_states, tv, v = self.Traffic_Tracker.ret_car_locations() # Commented out for bypassing algo
         # x_states, y_states, v = [], [], [] #Algo bypass begins
-        # self.xcars = np.empty((4, 0))
-        # self.ycars = np.empty((4, 0)) 
+        self.xcars = np.empty((4, 0))
+        self.ycars = np.empty((4, 0)) 
 
         # for i in range(0,4):
         #     x_states.append([self.Traffic_Tracker.cars_on_road[i].pos_x+4])
