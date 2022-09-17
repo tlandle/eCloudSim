@@ -51,6 +51,7 @@ class EvaluationManager(object):
         statistics into the log file.
         """
         log_file = os.path.join(self.eval_save_path, 'log.txt')
+        sim_stats_file = os.path.join(self.eval_save_path, 'sim_stats.txt')
 
         self.localization_eval(log_file)
         print('Localization Evaluation Done.')
@@ -60,6 +61,8 @@ class EvaluationManager(object):
 
         self.platooning_eval(log_file)
         print('Platooning Evaluation Done.')
+
+        self.simulation_eval(log_file, sim_stats_file)
 
     def kinematics_eval(self, log_file):
         """
@@ -134,3 +137,28 @@ class EvaluationManager(object):
 
             # save log txt
             lprint(log_file, perform_txt)
+
+    def simulation_eval(self, log_file,sim_stats_file):
+        """
+        Platooning evaluation.
+
+        Args:
+            -log_file (File): The log file to write the data.
+
+        """
+        lprint(log_file, "***********Simulation Analysis***********")
+
+        lprint(log_file, 'Number of Vehicles: %s' % number_of_vehicles)
+        figure, perform_txt, sim_stats = sim.evaluate()
+
+        # save plotting
+        figure_save_path = os.path.join(
+            self.eval_save_path,
+            '%s_sim_stats_plotting.png' %
+            pmid)
+        figure.savefig(figure_save_path, dpi=100)
+
+        # save log txt
+        lprint(log_file, perform_txt)
+
+        lprint(sim_stats_file, sim_stats)

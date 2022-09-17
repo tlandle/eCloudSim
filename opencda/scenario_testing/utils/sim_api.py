@@ -199,7 +199,7 @@ class ScenarioManager:
         self._sockets = []
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("127.0.0.1", 5555))
-            while (len(self._sockets) < 2):
+            while (len(self._sockets) < 16):
                 s.listen()
                 conn, addr = s.accept()
                 self._sockets.append(conn)
