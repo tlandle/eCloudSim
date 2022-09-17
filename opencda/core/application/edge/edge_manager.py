@@ -54,14 +54,14 @@ class EdgeManager(object):
         self.spawn_x = []
         self.spawn_y = []
         self.spawn_v = [] # probably 0s but can be target vel too
-        self.xcars = np.empty((4, 0))
-        self.ycars = np.empty((4, 0))
+        self.xcars = np.empty((8, 0))
+        self.ycars = np.empty((8, 0))
         self.x_states = None
         self.y_states = None
         self.tv = None
         self.v = None
-        self.target_velocities = np.empty((4, 0))
-        self.velocities = np.empty((4,0))
+        self.target_velocities = np.empty((8, 0))
+        self.velocities = np.empty((8,0))
         self.Traffic_Tracker = None
         self.numcars = 0
         self.waypoints_dict = {}
@@ -100,8 +100,8 @@ class EdgeManager(object):
           vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
       self.dt = .200
       self.numlanes = 4
-      self.numcars = 4
-      self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+      self.numcars = 8
+      self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=8,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
     
     def get_four_lane_waypoints_dict(self):
       world = self.vehicle_manager_list[0].vehicle.get_world()
@@ -283,7 +283,7 @@ class EdgeManager(object):
         print(self.spawn_y)
         print(self.spawn_v)
         #Added in to check if traffic tracker updating would fix waypoint deque issue
-        self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+        self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=8,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
         
         for car in self.Traffic_Tracker.cars_on_road:
             car.target_velocity = 15
@@ -334,8 +334,8 @@ class EdgeManager(object):
         #Recording location and state
         x_states, y_states, tv, v = self.Traffic_Tracker.ret_car_locations() # Commented out for bypassing algo
         # x_states, y_states, v = [], [], [] #Algo bypass begins
-        self.xcars = np.empty((4, 0))
-        self.ycars = np.empty((4, 0)) 
+        self.xcars = np.empty((8, 0))
+        self.ycars = np.empty((8, 0)) 
 
         # for i in range(0,4):
         #     x_states.append([self.Traffic_Tracker.cars_on_road[i].pos_x+4])
@@ -360,7 +360,7 @@ class EdgeManager(object):
 
         ###########################################
 
-        waypoints_rev = {1 : np.empty((2,0)), 2 : np.empty((2,0)), 3 : np.empty((2,0)), 4 : np.empty((2,0))}
+        waypoints_rev = {1 : np.empty((2,0)), 2 : np.empty((2,0)), 3 : np.empty((2,0)), 4 : np.empty((2,0)), 5 : np.empty((2,0)), 6 : np.empty((2,0)), 7 : np.empty((2,0)), 8 : np.empty((2,0))}
         for i in range(0,self.xcars.shape[1]):
           processed_array = []
           for j in range(0,self.numcars):
@@ -373,6 +373,11 @@ class EdgeManager(object):
           waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
           waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
           waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
+          waypoints_rev[5] = np.hstack((waypoints_rev[5],back[4]))
+          waypoints_rev[6] = np.hstack((waypoints_rev[6],back[5]))
+          waypoints_rev[7] = np.hstack((waypoints_rev[7],back[6]))
+          waypoints_rev[8] = np.hstack((waypoints_rev[8],back[7]))
+
         # processed_array = []
         # for k in range(0,4): #Added 16/03 outer loop to check if waypoint horizon influenced things, it did not seem to.
         #     for j in range(0,self.numcars):
@@ -388,7 +393,7 @@ class EdgeManager(object):
         #     waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
 
         print(waypoints_rev)
-        car_locations = {1 : [], 2 : [], 3 : [], 4 : []}
+        car_locations = {1 : [], 2 : [], 3 : [], 4 : [], 5 : [], 6 : [], 7 : [], 8 : []}
 
         for car, car_array in waypoints_rev.items():
           for i in range(0,len(car_array[0])):
