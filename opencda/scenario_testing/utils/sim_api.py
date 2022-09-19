@@ -12,6 +12,18 @@ import random
 import sys
 from random import shuffle
 import socket
+import time
+
+# gRPC
+import asyncio
+import logging
+
+# sys.path.append('../../protos/')
+
+import grpc
+import helloworld_pb2
+import helloworld_pb2_grpc
+#end gRPC
 
 import carla
 import numpy as np
@@ -93,7 +105,6 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
 
     return blueprints
 
-
 class ScenarioManager:
     """
     The manager that controls simulation construction, backgound traffic
@@ -135,6 +146,34 @@ class ScenarioManager:
 
     """
 
+    connections_received = 0
+    
+    class Greeter(helloworld_pb2_grpc.GreeterServicer):
+
+        async def SayHello(
+                self, request: helloworld_pb2.HelloRequest,
+                context: grpc.aio.ServicerContext) -> helloworld_pb2.HelloReply:
+            print("foo")
+            global connections_received
+            connections_received += 1    
+            return helloworld_pb2.HelloReply(message='Hello, %s!' % request.name)
+            
+
+    async def serve(self) -> None:
+        self.server = grpc.aio.server()
+        helloworld_pb2_grpc.add_GreeterServicer_to_server(self.Greeter(), self.server)
+        listen_addr = '[::]:50051'
+        self.server.add_insecure_port(listen_addr)
+        logging.info("Starting server on %s", listen_addr)
+        await self.server.start()
+
+        while ( connections_received < 2 ):
+            print("waiting...")
+            await asyncio.sleep(1)
+            continue
+        await self.server.stop(5)
+
+
     def __init__(self, scenario_params,
                  apply_ml,
                  carla_version,
@@ -145,6 +184,8 @@ class ScenarioManager:
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.config_file = config_file
+        global connections_received
+        connections_received = 0
 
         simulation_config = scenario_params['world']
 
@@ -194,6 +235,17 @@ class ScenarioManager:
         self.carla_map = self.world.get_map()
         self.apply_ml = apply_ml
 
+        # gRPC hello block begin
+
+        logging.basicConfig(level=logging.INFO)
+        loop = asyncio.get_event_loop()
+        try:
+            loop.run_until_complete(self.serve())
+        finally:
+            loop.close()
+
+        # gRPC hello block end
+
         # Wait for vehicle clients to connect
         print("Waiting for vehicles to connect...")
         self._sockets = []
@@ -210,7 +262,6 @@ class ScenarioManager:
         #    print(f"Accepted connection from {addr}")
         #    print(conn.recv(1024).decode())
         #    conn.close()
-
 
     @staticmethod
     def set_weather(weather_settings):

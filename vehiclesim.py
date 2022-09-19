@@ -17,6 +17,23 @@ from opencda.version import __version__
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
 
+# gRPC
+import asyncio
+import logging
+
+# sys.path.append('../../protos/')
+
+import grpc
+import helloworld_pb2
+import helloworld_pb2_grpc
+
+async def run() -> None:
+    async with grpc.aio.insecure_channel('localhost:50051') as channel:
+        stub = helloworld_pb2_grpc.GreeterStub(channel)
+        response = await stub.SayHello(helloworld_pb2.HelloRequest(name='you'))
+    print("Greeter client received: " + response.message)
+
+#end gRPC
 
 def arg_parse():
     parser = argparse.ArgumentParser(description="OpenCDA Vehicle Simulation.")
@@ -45,6 +62,13 @@ def main():
 #    context = zmq.Context()
 #    socket = context.socket(zmq.REP)
 #    socket.bind(f"tcp://*:{opt.port}")
+
+    # gRPC start
+
+    logging.basicConfig()
+    asyncio.run(run())
+
+    # gRPC end
 
     _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     _socket.connect((opt.ipaddress, opt.port))
