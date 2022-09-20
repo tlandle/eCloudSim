@@ -48,7 +48,7 @@ class EdgeManager(object):
         self.edgeid = str(uuid.uuid1())
         self.vehicle_manager_list = []
         self.target_speed = config_yaml['target_speed']
-      #self.locations = []
+        #self.locations = []
         self.destination = None
         # Query the vehicle locations and velocities + target velocities
         self.spawn_x = []
@@ -77,6 +77,7 @@ class EdgeManager(object):
       self.processor = transform_processor(self.waypoints_dict)
       _, _ = self.processor.process_waypoints_bidirectional(0)
       inverted = self.processor.process_forward(0)
+      print(len(inverted))
       i = 0
 
       # for k in inverted:
@@ -85,16 +86,22 @@ class EdgeManager(object):
       #       self.secondary_offset = -k[0,0]
 
       for vehicle_manager in self.vehicle_manager_list:
-          #self.spawn_x.append(vehicle_manager.vehicle.get_location().x)
-          #self.spawn_y.append(vehicle_manager.vehicle.get_location().y)
+          spawn_coords = vehicle_manager.vehicle.get_location()
+          spawn_coords = np.array([spawn_coords.x,spawn_coords.y]).reshape((2,1))
+          # print(spawn_coords)
+          spawn_coords = self.processor.process_single_waypoint_forward(spawn_coords[0,0],spawn_coords[1,0])
+          # print(spawn_coords)
+          # sys.exit()
+          # self.spawn_x.append(vehicle_manager.vehicle.get_location().x)
+          # self.spawn_y.append(vehicle_manager.vehicle.get_location().y)
           #self.spawn_v.append(vehicle_manager.vehicle.get_velocity())
           ## THIS IS TEMPORARY ##
-          print("inverted is: ", inverted[i][0,0])
-          print("revised x is: ", self.secondary_offset)
-          self.spawn_x.append(inverted[i][0,0]+self.secondary_offset)
+          # print("inverted is: ", inverted[i][0,0])
+          # print("revised x is: ", self.secondary_offset)
+          self.spawn_x.append(spawn_coords[0]) # inverted[i][0,0]+self.secondary_offset)
           #self.spawn_v.append(5*(i+1))
           self.spawn_v.append(0)
-          self.spawn_y.append(inverted[i][1,0])
+          self.spawn_y.append(spawn_coords[1])# inverted[i][1,0])
           i += 1
 
           vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
@@ -115,6 +122,8 @@ class EdgeManager(object):
 
       indices_source = indices_source.astype(int)
       indices_dest = indices_dest.astype(int)
+
+      print("Source Shape: ", indices_source.shape)
 
       a = carla.Location(waypoints[indices_source[0,1]].transform.location)
       b = carla.Location(waypoints[indices_dest[0,1]].transform.location)
@@ -360,7 +369,30 @@ class EdgeManager(object):
 
         ###########################################
 
-        waypoints_rev = {1 : np.empty((2,0)), 2 : np.empty((2,0)), 3 : np.empty((2,0)), 4 : np.empty((2,0)), 5 : np.empty((2,0)), 6 : np.empty((2,0)), 7 : np.empty((2,0)), 8 : np.empty((2,0))}
+        # waypoints_rev = {1 : np.empty((2,0)), 2 : np.empty((2,0)), 3 : np.empty((2,0)), 4 : np.empty((2,0)), 5 : np.empty((2,0)), 6 : np.empty((2,0)), 7 : np.empty((2,0)), 8 : np.empty((2,0))}
+        # for i in range(0,self.xcars.shape[1]):
+        #   processed_array = []
+        #   for j in range(0,self.numcars):
+        #     x_res = self.xcars[j,i]
+        #     y_res = self.ycars[j,i]
+        #     processed_array.append(np.array([[x_res],[y_res]]))
+        #     print("Appending to waypoints_rev")
+        #   back = self.processor.process_back(processed_array)
+        #   waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
+        #   waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
+        #   waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
+        #   waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
+        #   waypoints_rev[5] = np.hstack((waypoints_rev[5],back[4]))
+        #   waypoints_rev[6] = np.hstack((waypoints_rev[6],back[5]))
+        #   waypoints_rev[7] = np.hstack((waypoints_rev[7],back[6]))
+        #   waypoints_rev[8] = np.hstack((waypoints_rev[8],back[7]))
+
+        waypoints_rev = {}
+        car_locations = {}
+        for cars in range(1,self.numcars+1):
+            waypoints_rev[str(cars)] = np.empty((2,0))
+            car_locations[str(cars)] = []
+
         for i in range(0,self.xcars.shape[1]):
           processed_array = []
           for j in range(0,self.numcars):
@@ -369,14 +401,8 @@ class EdgeManager(object):
             processed_array.append(np.array([[x_res],[y_res]]))
             print("Appending to waypoints_rev")
           back = self.processor.process_back(processed_array)
-          waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
-          waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
-          waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
-          waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
-          waypoints_rev[5] = np.hstack((waypoints_rev[5],back[4]))
-          waypoints_rev[6] = np.hstack((waypoints_rev[6],back[5]))
-          waypoints_rev[7] = np.hstack((waypoints_rev[7],back[6]))
-          waypoints_rev[8] = np.hstack((waypoints_rev[8],back[7]))
+          for j in range(0,self.numcars):
+            waypoints_rev[str(j+1)] = np.hstack((waypoints_rev[str(j+1)],back[str(j)]))
 
         # processed_array = []
         # for k in range(0,4): #Added 16/03 outer loop to check if waypoint horizon influenced things, it did not seem to.
@@ -393,13 +419,14 @@ class EdgeManager(object):
         #     waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
 
         print(waypoints_rev)
-        car_locations = {1 : [], 2 : [], 3 : [], 4 : [], 5 : [], 6 : [], 7 : [], 8 : []}
+        # car_locations = {1 : [], 2 : [], 3 : [], 4 : [], 5 : [], 6 : [], 7 : [], 8 : []}
 
         for car, car_array in waypoints_rev.items():
           for i in range(0,len(car_array[0])):
             location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
             print(location)
             self.locations.append(location)
+
         print("Locations appended: ", self.locations)
 
     def run_step(self):
