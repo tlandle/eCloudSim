@@ -18,20 +18,107 @@ from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
 
 # gRPC
-import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import logging
+import threading
+import time
+from typing import Iterator
+
+from google.protobuf.json_format import MessageToJson
+import grpc
 
 # sys.path.append('../../protos/')
 
-import grpc
-import helloworld_pb2
-import helloworld_pb2_grpc
+import sim_api_pb2 as sim_state
+import sim_api_pb2_grpc as rpc
+#end gRPC
 
-async def run() -> None:
-    async with grpc.aio.insecure_channel('localhost:50051') as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
-        response = await stub.SayHello(helloworld_pb2.HelloRequest(name='you'))
-    print("Greeter client received: " + response.message)
+class Client:
+
+    def __init__(self, executor: ThreadPoolExecutor, channel: grpc.Channel) -> None:
+        self._executor = executor
+        self._channel = channel
+        self._stub = rpc.OpenCDAStub(self._channel)
+        self._vehicle_id = None
+        self._sim_state = None
+        self._opencda_responded = threading.Event()
+        self._sim_finished = threading.Event()
+        self._consumer_future = None
+
+    def _sim_state_watcher(
+            self,
+            response_iterator: Iterator[sim_state.SimulationState]) -> None:
+        try:
+            for response in response_iterator:
+                # NOTE: All fields in Proto3 are optional. This is the recommended way
+                # to check if a field is present or not, or to exam which one-of field is
+                # fulfilled by this message.
+                if response.HasField("call_info"):
+                    self._on_call_info(response.call_info)
+                elif response.HasField("call_state"):
+                    self._on_call_state(response.call_state.state)
+                else:
+                    raise RuntimeError(
+                        "Received StreamCallResponse without call_info and call_state"
+                    )
+        except Exception as e:
+            self._opencda_responded.set()
+            raise
+
+    def _on_call_info(self, call_info: phone_pb2.CallInfo) -> None:
+        print("received stream message...")
+        self._session_id = call_info.session_id
+        self._audio_session_link = call_info.media
+
+    def _on_call_state(self, call_state: phone_pb2.CallState.State) -> None:
+        logging.info("Call toward [%s] enters [%s] state", self._phone_number,
+                     phone_pb2.CallState.State.Name(call_state))
+        self._call_state = call_state
+        if call_state == phone_pb2.CallState.State.ACTIVE:
+            self._opencda_responded.set()
+        if call_state == phone_pb2.CallState.State.ENDED:
+            self._opencda_responded.set()
+            #self._call_finished.set()
+
+    def call(self) -> None:
+        request = phone_pb2.StreamCallRequest()
+        request.phone_number = self._phone_number
+        response_iterator = self._stub.StreamCall(iter((request,)))
+        # Instead of consuming the response on current thread, spawn a consumption thread.
+        self._consumer_future = self._executor.submit(self._sim_state_watcher,
+                                                      response_iterator)
+
+    def wait_opencda(self) -> bool:
+        logging.info("Waiting for OpenCDA to connect...")
+        self._opencda_responded.wait(timeout=None)
+        if self._consumer_future.done():
+            # If the future raises, forwards the exception here
+            self._consumer_future.result()
+        return self._call_state == sim_state.SimulationState.State.ACTIVE
+
+    def subscribe_to_sim_state(self) -> None:
+        assert self._audio_session_link is not None
+        logging.info("Consuming audio resource [%s]", self._audio_session_link)
+        self._call_finished.wait(timeout=None)
+        logging.info("Audio session finished [%s]", self._audio_session_link)
+
+
+def register_with_opencda(executor: ThreadPoolExecutor, channel: grpc.Channel) -> None:
+    opencda_client = Client(executor, channel)
+    opencda_client.call() # register with opencda
+    if opencda_client.wait_opencda():
+        opencda_client.subscribe_to_sim_state()
+        logging.info("Call finished!")
+    else:
+        logging.info("Call failed: peer didn't answer")
+
+
+def run():
+    executor = ThreadPoolExecutor()
+    with grpc.insecure_channel("localhost:50051") as channel:
+        future = executor.submit(register_with_opencda, executor, channel,
+                                 "555-0100-XXXX")
+        future.result()
 
 #end gRPC
 
@@ -66,7 +153,8 @@ def main():
     # gRPC start
 
     logging.basicConfig()
-    asyncio.run(run())
+    client_thread = threading.Thread(target=run, daemon=True)
+    client_thread.start()
 
     # gRPC end
 

@@ -15,14 +15,19 @@ import socket
 import time
 
 # gRPC
-import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import logging
+import threading
+import time
+from typing import Iterable
+
+from google.protobuf.json_format import MessageToJson
+import grpc
 
 # sys.path.append('../../protos/')
 
-import grpc
-import helloworld_pb2
-import helloworld_pb2_grpc
+import sim_api_pb2 as sim_state
+import sim_api_pb2_grpc as rpc
 #end gRPC
 
 import carla
@@ -147,31 +152,39 @@ class ScenarioManager:
     """
 
     connections_received = 0
+    tick_id = 0 # current tick counter
+    sim_state_reponses = [] # list of responses per tick - e.g. sim_state_responses[tick_id = 1] = [veh_id = 1, veh_id = 2]
     
-    class Greeter(helloworld_pb2_grpc.GreeterServicer):
+    class OpenCDA(rpc.OpenCDAServicer):
 
-        async def SayHello(
-                self, request: helloworld_pb2.HelloRequest,
-                context: grpc.aio.ServicerContext) -> helloworld_pb2.HelloReply:
-            print("foo")
-            global connections_received
-            connections_received += 1    
-            return helloworld_pb2.HelloReply(message='Hello, %s!' % request.name)
-            
+        def __init__(self):
+            self._id_counter = 0
 
-    async def serve(self) -> None:
-        self.server = grpc.aio.server()
-        helloworld_pb2_grpc.add_GreeterServicer_to_server(self.Greeter(), self.server)
-        listen_addr = '[::]:50051'
-        self.server.add_insecure_port(listen_addr)
-        logging.info("Starting server on %s", listen_addr)
-        await self.server.start()
+        def SimulationStateStream(self, request_iterator, context):
+            last_tick_id = 0
+            while True:
+                global sim_state_responses
+                global tick_id
+                while last_tick_id < tick_id:
+                    last_tick_id = tick_id
+                    sim_state_update = sim_state.SimulationState()
+                    sim_state_update.state = sim_state.SimulationState.State.ACTIVE
+                    sim_state_update.tick_id = tick_id
+                    yield sim_state_update
 
-        while ( connections_received < 2 ):
-            print("waiting...")
-            await asyncio.sleep(1)
-            continue
-        await self.server.stop(5)
+        def SendUpdate(self, request: sim_state.VehicleUpdate, context):
+            global sim_state_reponses
+            sim_state_responses[request.tick_id].append(request.vehicle_id)
+            return sim_state.Empty()            
+
+
+    def serve(self, address: str) -> None:
+        server = grpc.server(ThreadPoolExecutor())
+        rpc.add_OpenCDAServicer_to_server(self.OpenCDA(), server)
+        server.add_insecure_port(address)
+        server.start()
+        logging.info("Server serving at %s", address)
+        server.wait_for_termination()
 
 
     def __init__(self, scenario_params,
@@ -184,6 +197,7 @@ class ScenarioManager:
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.config_file = config_file
+        
         global connections_received
         connections_received = 0
 
@@ -238,11 +252,8 @@ class ScenarioManager:
         # gRPC hello block begin
 
         logging.basicConfig(level=logging.INFO)
-        loop = asyncio.get_event_loop()
-        try:
-            loop.run_until_complete(self.serve())
-        finally:
-            loop.close()
+        server_thread = threading.Thread(target=self.serve, args=("[::]:50051",))
+        server_thread.start()
 
         # gRPC hello block end
 
@@ -664,6 +675,7 @@ class ScenarioManager:
         """
         Tick the server.
         """
+        #TODO: put the gRPC broadcast call in here
         self.world.tick()
 
     def destroyActors(self):
