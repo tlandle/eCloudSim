@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package grpc;
+
+message Empty {}
+
+message SimulationState {
+  enum State {
+    // The default state.
+    UNDEFINED = 0;
+    // The call is newly created.
+    NEW = 1;
+    // The call is connected.
+    ACTIVE = 6;
+    // The call is finished.
+    ENDED = 7;
+  }
+  State state = 2;
+  int32 tick_id = 3;
+  int32 vehicle_id = 4;
+}
+
+message VehicleUpdate {
+  int32 tick_id = 1;
+  int32 vehicle_id = 2;
+}
+
+service OpenCDA {
+  rpc SimulationStateStream (Empty) returns (stream SimulationState);
+  rpc SendUpdate (VehicleUpdate) returns (Empty);
+}
