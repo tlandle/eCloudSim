@@ -60,6 +60,23 @@ Also, under this LICENSE, OpenCDA is for non-commercial research only. Researche
 Note: We continuously improve the performance of OpenCDA. Currently, it is mainly tested in our customized maps and
  Carla town06 map; therefore, we <strong>DO NOT </strong> guarantee the same level of  robustness in other maps.
 
+### Usage
+
+Start the Carla server
+
+`./CarlaUE4.sh`
+
+Run opencda vehicle test
+
+```
+python opencda.py -t single_2lanefree_carla -v 0.9.12
+python opencda.py -t multi_2lanefree_carla -v 0.9.12
+```
+
+Create Vehicle Client
+
+`python vehiclesim.py`
+
 ### Developer Guide
 
 *  [Class Design](https://opencda-documentation.readthedocs.io/en/latest/md_files/developer_tutorial.html)
