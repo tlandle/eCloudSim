@@ -85,7 +85,7 @@ class VehicleManagerProxy(object):
     def __init__(
             self,
             vehicle_index,
-            conn,
+            #conn,
             config_file,
             application,
             carla_map,
@@ -95,7 +95,9 @@ class VehicleManagerProxy(object):
             data_dumping=False):
 
         config_yaml = load_yaml(config_file)
-        cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index]
+        self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index]
+        self.cav_world = cav_world
+        self.data_dumping = data_dumping
 
         self.initialize_process(config_yaml)
 
@@ -104,42 +106,33 @@ class VehicleManagerProxy(object):
         self.carla_map = carla_map
 
         # Use sockets for interprocess communication between OpenCDA and each vehicle
-        self._socket = conn
+        #self._socket = conn
 
-        # Send the START message to the vehicle with simulation parameters
-        message = { "cmd": "start",
-                    "params": {
-                        "scenario": config_file,
-                        "vehicle": vehicle_index,
-                        "application": application,
-                        "version": carla_version
-                    } 
-        }
-        self._socket.send(json.dumps(message).encode('utf-8'))
-        message = json.loads(self._socket.recv(1024).decode('utf-8'))
-        print(f"OpenCDA: received {message}")
-        actor_id = message["actor_id"] # Vehicle sends back the actor id so we can get a handle to the actor in Carla        
-        self.vid = message["vid"] # Vehicle sends back the uuid id we use as unique identifier
+    def start_vehicle(self, actor_id, vid):
+        # Send the START message to the vehicle with simulation parameters       
+        self.vid = vid # message["vid"] # Vehicle sends back the uuid id we use as unique identifier
+
+        print("eCloud debug | actor_id: " + str(actor_id))
 
         vehicle = self.world.get_actor(actor_id)
         self.vehicle = vehicle
 
         # retrieve the configure for different modules
-        sensing_config = cav_config['sensing']
-        behavior_config = cav_config['behavior']
-        control_config = cav_config['controller']
-        v2x_config = cav_config['v2x']
+        sensing_config = self.cav_config['sensing']
+        behavior_config = self.cav_config['behavior']
+        control_config = self.cav_config['controller']
+        v2x_config = self.cav_config['v2x']
         # v2x module
-        self.v2x_manager = V2XManager(cav_world, v2x_config, self.vid)
+        self.v2x_manager = V2XManager(self.cav_world, v2x_config, self.vid)
         # localization module
         self.localizer = LocalizationManager(
-            vehicle, sensing_config['localization'], carla_map)
+            vehicle, sensing_config['localization'], self.carla_map)
         # perception module
         self.perception_manager = PerceptionManager(
-            vehicle, sensing_config['perception'], cav_world,
-            data_dumping)
+            vehicle, sensing_config['perception'], self.cav_world,
+            self.data_dumping)
 
-        cav_world.update_vehicle_manager(self)
+        self.cav_world.update_vehicle_manager(self)
 
     def initialize_process(self, config_yaml):
         simulation_config = config_yaml['world']

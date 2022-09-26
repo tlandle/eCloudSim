@@ -38,6 +38,8 @@ def run_scenario(opt, config_yaml):
                                                    cav_world=cav_world,
                                                    config_file=config_yaml)
 
+        print("scenario manager created...", flush=True)                                           
+
         if opt.record:
             scenario_manager.client. \
                 start_recorder("single_2lanefree_carla.log", True)
@@ -73,16 +75,23 @@ def run_scenario(opt, config_yaml):
                     pitch=-
                     90)))
 
-            for _, single_cav in enumerate(single_cav_list):
-                result = single_cav.do_tick()
-                if result == 1: # Need to figure out how to use a const
-                    print("Unexpected termination: Sending END to all vehicles and ending.")
-                    flag = False
-                    break
-                elif result == 2:
-                    print("Simulation ended: Sending END to all vehicles and ending.")
-                    flag = False
-                    break
+            # gRPC begin
+
+            # call sim_api to update tick
+            # loop here --> sim_api should not return True until tick completed
+
+            #gRPC end
+
+            # for _, single_cav in enumerate(single_cav_list):
+            #     result = single_cav.do_tick()
+            #     if result == 1: # Need to figure out how to use a const
+            #         print("Unexpected termination: Sending END to all vehicles and ending.")
+            #         flag = False
+            #         break
+            #     elif result == 2:
+            #         print("Simulation ended: Sending END to all vehicles and ending.")
+            #         flag = False
+            #         break
 
         for _, single_cav in enumerate(single_cav_list):
             single_cav.end_step()

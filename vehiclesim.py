@@ -5,6 +5,8 @@ Script to run a simulated vehicle
 
 # Author: Aaron Drysdale <adrysdale3@gatech.edu>
 import argparse
+from atexit import register
+from curses import A_DIM
 import os
 import sys
 import zmq
@@ -23,6 +25,7 @@ import logging
 import threading
 import time
 from typing import Iterator
+from queue import Queue
 
 from google.protobuf.json_format import MessageToJson
 import grpc
@@ -33,92 +36,158 @@ import sim_api_pb2 as sim_state
 import sim_api_pb2_grpc as rpc
 #end gRPC
 
+state = sim_state.State.UNDEFINED #do we need a global state?
+vehicle_index = None
+tick_id = None
+opencda_responded = threading.Event() # to signal from gRPC thread to main. redundant to below? Just set-clear-set?
+opencda_started = threading.Event() # to signal from gRPC thread to main
+carla_vehicle_created = threading.Event() # to signal from main to gRPC thread
+sim_finished = threading.Event()
+lock = threading.Lock()
+
+# sim params
+test_scenario = None #= message["params"]["scenario"]
+application = None #= message["params"]["application"]
+version = None #= message["params"]["version"]
+
+# carla params
+actor_id = None
+vid = None
+
 class Client:
 
-    def __init__(self, executor: ThreadPoolExecutor, channel: grpc.Channel) -> None:
-        self._executor = executor
+    def __init__(self, queue, channel: grpc.Channel) -> None:
+        #self._executor = executor
         self._channel = channel
         self._stub = rpc.OpenCDAStub(self._channel)
-        self._vehicle_id = None
-        self._sim_state = None
-        self._opencda_responded = threading.Event()
-        self._sim_finished = threading.Event()
-        self._consumer_future = None
+        self._actor_id = None
+        self._vid = None
+        self._queue = queue
 
-    def _sim_state_watcher(
-            self,
-            response_iterator: Iterator[sim_state.SimulationState]) -> None:
-        try:
-            for response in response_iterator:
-                # NOTE: All fields in Proto3 are optional. This is the recommended way
-                # to check if a field is present or not, or to exam which one-of field is
-                # fulfilled by this message.
-                if response.HasField("call_info"):
-                    self._on_call_info(response.call_info)
-                elif response.HasField("call_state"):
-                    self._on_call_state(response.call_state.state)
-                else:
-                    raise RuntimeError(
-                        "Received StreamCallResponse without call_info and call_state"
-                    )
-        except Exception as e:
-            self._opencda_responded.set()
-            raise
+    def _sim_state_watcher(self) -> None:
+        #try:
+        global tick_id
+        for response in self._stub.SimulationStateStream(sim_state.Empty()):  # this line will wait for new messages from the server!
+            if response.tick_id != tick_id:
+                self._on_sim_state_update(response)
+                print("R[{}] {}".format(response.state, response.tick_id))  # debugging statement
+        #         else:
+        #             raise RuntimeError(
+        #                 "Received StreamCallResponse without state and tick_id"
+        #             )
+        # except Exception as e:
+        #     global opencda_responded
+        #     opencda_responded.set()
+        #     raise
 
-    def _on_call_info(self, call_info: phone_pb2.CallInfo) -> None:
-        print("received stream message...")
-        self._session_id = call_info.session_id
-        self._audio_session_link = call_info.media
+    def _on_sim_state_update(self, sim_state_update: sim_state.SimulationState) -> None:
+        global sim_finished
+        global opencda_responded
+        global tick_id
+        global vehicle_index
+        global state
+        global lock
 
-    def _on_call_state(self, call_state: phone_pb2.CallState.State) -> None:
-        logging.info("Call toward [%s] enters [%s] state", self._phone_number,
-                     phone_pb2.CallState.State.Name(call_state))
-        self._call_state = call_state
-        if call_state == phone_pb2.CallState.State.ACTIVE:
-            self._opencda_responded.set()
-        if call_state == phone_pb2.CallState.State.ENDED:
-            self._opencda_responded.set()
-            #self._call_finished.set()
+        # did we get a new tick_id?
+        if tick_id != sim_state_update.tick_id:
+            print("received new tick...")
+            tick_id = sim_state_update.tick_id
+            #signal update
 
-    def call(self) -> None:
-        request = phone_pb2.StreamCallRequest()
-        request.phone_number = self._phone_number
-        response_iterator = self._stub.StreamCall(iter((request,)))
-        # Instead of consuming the response on current thread, spawn a consumption thread.
-        self._consumer_future = self._executor.submit(self._sim_state_watcher,
-                                                      response_iterator)
+        # check vehicle index to see if the message is for us
+        if sim_state_update.state == sim_state.State.START:
+            global test_scenario
+            global application
+            global version
 
-    def wait_opencda(self) -> bool:
-        logging.info("Waiting for OpenCDA to connect...")
-        self._opencda_responded.wait(timeout=None)
-        if self._consumer_future.done():
-            # If the future raises, forwards the exception here
-            self._consumer_future.result()
-        return self._call_state == sim_state.SimulationState.State.ACTIVE
+            test_scenario = sim_state_update.test_scenario
+            application = sim_state_update.application
+            version = sim_state_update.version
 
-    def subscribe_to_sim_state(self) -> None:
-        assert self._audio_session_link is not None
-        logging.info("Consuming audio resource [%s]", self._audio_session_link)
-        self._call_finished.wait(timeout=None)
-        logging.info("Audio session finished [%s]", self._audio_session_link)
+            print("test_scenario: " + test_scenario)
+            print("application: " + application)
+            print("version: " + version)
+
+            # signal main thread that we've got the start response
+            global opencda_started
+            opencda_started.set()
+
+            print("waiting for Carla data...")
+
+            carla_vehicle_created.wait(timeout=None)
+
+            self._actor_id = self._queue.get()
+            self._vid = self._queue.get()
+
+            print("sending Carla data...")
+            self.send_carla_data_to_opencda()
+
+        if state != sim_state.State.ACTIVE and sim_state_update.state == sim_state.State.ACTIVE:
+            print("simulation state is now ACTIVE")
+            with lock:
+                state = sim_state_update.state
+            opencda_responded.set()
+
+        if sim_state_update.state == sim_state.State.ENDED:
+            print("simulation state is now ENDED")
+            sim_finished.set()
+
+    def set_aid_and_vid(self, aid, vid) -> None:
+        self._actor_id = aid
+        self._vid = vid
+
+    def send_ping_to_opencda(self) -> None:
+        global vehicle_index
+
+        request = sim_state.VehicleUpdate()
+        request.tick_id = tick_id
+        request.vehicle_index = vehicle_index
+        self._stub.SendUpdate(request)     
+
+    def send_registration_to_opencda(self) -> None:
+        global vehicle_index
+
+        request = sim_state.VehicleUpdate()
+        request.vehicle_state = sim_state.VehicleState.REGISTERING
+        response = self._stub.RegisterVehicle(request)
+
+        vehicle_index = response.vehicle_index
+        print("Vehicle ID " + str(vehicle_index) + " received...")
+        assert response.state == sim_state.State.NEW
+        state = response.state
+
+    def send_carla_data_to_opencda(self) -> None:
+        global vehicle_index
+
+        message = {"vehicle_index": vehicle_index, "actor_id": self._actor_id, "vid": self._vid}
+        print(f"Vehicle: Sending Carla rpc {message}")
+
+        # send actor ID and vid to API
+        update = sim_state.VehicleUpdate()
+        update.vehicle_state = sim_state.VehicleState.CARLA_UPDATE
+        update.vehicle_index = vehicle_index
+        update.vid = self._vid
+        update.actor_id = self._actor_id
+        
+        response = None
+        response = self._stub.RegisterVehicle(update)
+        print("response...")
+
+        # signal main thread?
 
 
-def register_with_opencda(executor: ThreadPoolExecutor, channel: grpc.Channel) -> None:
-    opencda_client = Client(executor, channel)
-    opencda_client.call() # register with opencda
-    if opencda_client.wait_opencda():
-        opencda_client.subscribe_to_sim_state()
-        logging.info("Call finished!")
-    else:
-        logging.info("Call failed: peer didn't answer")
+def register_with_opencda(queue, channel: grpc.Channel) -> None:
+    opencda_client = Client(queue, channel)
+    opencda_client.send_registration_to_opencda()
+    logging.info("Registration with OpenCDA finished!")
+    opencda_client._sim_state_watcher() # listen on stream
 
-
-def run():
-    executor = ThreadPoolExecutor()
+def run(q):
+    #executor = ThreadPoolExecutor()
     with grpc.insecure_channel("localhost:50051") as channel:
-        future = executor.submit(register_with_opencda, executor, channel,
-                                 "555-0100-XXXX")
-        future.result()
+        #future = executor.submit(register_with_opencda, executor, channel)
+        #future.result()
+        register_with_opencda(q, channel)
 
 #end gRPC
 
@@ -138,9 +207,8 @@ def arg_parse():
 
 def main():
     # default params which can be over-written from the simulation controller
-    vehicle_index = 0
     application = ["single"]
-    version = "0.9.11"
+    version = "0.9.12"
 
     opt = arg_parse()
     print("OpenCDA Version: %s" % __version__)
@@ -153,37 +221,67 @@ def main():
     # gRPC start
 
     logging.basicConfig()
-    client_thread = threading.Thread(target=run, daemon=True)
+    q = Queue()
+    client_thread = threading.Thread(target=run, args=(q,), daemon=True)
     client_thread.start()
+
+    #run()
+
+    print("waiting for opencda sim_api to start")
+    opencda_started.wait(timeout=None) # send the start command below
+
+    print("opencda sim_api start")
 
     # gRPC end
 
-    _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    _socket.connect((opt.ipaddress, opt.port))
+    #_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #_socket.connect((opt.ipaddress, opt.port))
+
 
     # Wait for the START message from OpenCDA before going any further
-    print(f"Vehicle created. Waiting for start...", flush=True)
-    message = json.loads(_socket.recv(1024).decode('utf-8'))
-    print(f"Vehicle: received cmd {message}")
-    if message["cmd"] == "start":
-        test_scenario = message["params"]["scenario"]
-        vehicle_index = message["params"]["vehicle"]
-        application = message["params"]["application"]
-        version = message["params"]["version"]
+    # TODO: change this to gRPC response 
+    # print(f"Vehicle created. Waiting for start...", flush=True)
+    # message = json.loads(_socket.recv(1024).decode('utf-8'))
+    # print(f"Vehicle: received cmd {message}")
+    # if message["cmd"] == "start":
+    #     test_scenario = message["params"]["scenario"]
+    #     vehicle_index = message["params"]["vehicle"]
+    #     application = message["params"]["application"]
+    #     version = message["params"]["version"]
 
     if not os.path.isfile(test_scenario):
         sys.exit("%s not found!" % test_scenario)
 
+    print("main - test_scenario: " + test_scenario)
+    print("main - application: " + application[0])
+    print("main - version: " + version)
+
     # create CAV world
     cav_world = CavWorld(opt.apply_ml)
 
+    print("eCloud debug: creating VehicleManager vehicle_index: " + str(vehicle_index))
+
     vehicle_manager = VehicleManager(vehicle_index, test_scenario, application, cav_world, version)
 
-    message = {"actor_id": vehicle_manager.vehicle.id, "vid": vehicle_manager.vid}
-    print(f"Vehicle: Sending id {message}")
-    _socket.send(json.dumps(message).encode('utf-8'))
+    # send gRPC in response to start
+    with lock:
+        actor_id = vehicle_manager.vehicle.id
+        vid = vehicle_manager.vid
+        q.put(actor_id)
+        q.put(vid)
 
-    # run scenario testing
+    message = {"actor_id": actor_id, "vid": vid}
+    print(f"Vehicle: Sending id {message}")
+
+    carla_vehicle_created.set()
+
+    #_socket.send(json.dumps(message).encode('utf-8'))
+
+    while True:
+        time.sleep(10)
+        print('ready to run scenario testing...')
+
+    # run scenario testing --> replace with event-based on streaming connection
     while(True):
         message = json.loads(_socket.recv(1024).decode('utf-8'))
         cmd = message["cmd"]

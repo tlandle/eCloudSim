@@ -9,13 +9,14 @@ please use cosim_api.py.
 
 import math
 import random
+from sqlite3 import connect
 import sys
 from random import shuffle
 import socket
 import time
 
 # gRPC
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, thread
 import logging
 import threading
 import time
@@ -153,29 +154,83 @@ class ScenarioManager:
 
     connections_received = 0
     tick_id = 0 # current tick counter
-    sim_state_reponses = [] # list of responses per tick - e.g. sim_state_responses[tick_id = 1] = [veh_id = 1, veh_id = 2]
-    
+    sim_state_responses = [] # list of responses per tick - e.g. sim_state_responses[tick_id = 1] = [veh_id = 1, veh_id = 2]
+    sim_state_responses.append(0)
+    sim_state_responses[0] = []
+    tick_complete = threading.Event()
+    set_sim_active = threading.Event()
+    set_sim_started = threading.Event()
+    lock = threading.Lock()
+    vehicles = [] # vehicle_index -> tuple (actor_id, vid)
+    vehicle_count = 0
+
+    carla_version = None
+    application = ['single']
+    scenario = None
+
+
     class OpenCDA(rpc.OpenCDAServicer):
 
         def __init__(self):
-            self._id_counter = 0
+            self._id_counter = 0  
 
         def SimulationStateStream(self, request_iterator, context):
             last_tick_id = 0
+            has_printed = False
             while True:
-                global sim_state_responses
-                global tick_id
-                while last_tick_id < tick_id:
-                    last_tick_id = tick_id
+                ScenarioManager.set_sim_started.wait(timeout=None)
+                if not has_printed:
+                    print("setting simulation started...", flush=True)
+                    has_printed = True
+                sim_state_update = sim_state.SimulationState()
+                sim_state_update.test_scenario = ScenarioManager.scenario
+                sim_state_update.application = ScenarioManager.application[0]
+                sim_state_update.version = ScenarioManager.carla_version
+
+                sim_state_update.state = sim_state.State.START
+                sim_state_update.tick_id = ScenarioManager.tick_id
+                yield sim_state_update
+
+                ScenarioManager.set_sim_active.wait(timeout=None)
+                print("setting simulation active...", flush=True)
+
+                while last_tick_id < ScenarioManager.tick_id:
+                    print("Ticking " + str(ScenarioManager.tick_id) + "...")
+                    last_tick_id = ScenarioManager.tick_id
+                    ScenarioManager.sim_state_responses.append(ScenarioManager.tick_id)
+                    ScenarioManager.sim_state_responses[ScenarioManager.tick_id] = []
                     sim_state_update = sim_state.SimulationState()
-                    sim_state_update.state = sim_state.SimulationState.State.ACTIVE
-                    sim_state_update.tick_id = tick_id
+                    sim_state_update.state = sim_state.State.ACTIVE
+                    sim_state_update.tick_id = ScenarioManager.tick_id
                     yield sim_state_update
 
         def SendUpdate(self, request: sim_state.VehicleUpdate, context):
-            global sim_state_reponses
-            sim_state_responses[request.tick_id].append(request.vehicle_id)
-            return sim_state.Empty()            
+            with ScenarioManager.lock:
+                #make sure to add the tick_id to the root list when we do the tick
+                ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
+            return sim_state.Empty()   
+
+        
+        def RegisterVehicle(self, request: sim_state.VehicleUpdate, context):
+            #register the vehicle
+            if request.vehicle_state == sim_state.VehicleState.REGISTERING:
+                response = sim_state.SimulationState()
+                response.state = sim_state.State.NEW
+                response.tick_id = 0
+                response.vehicle_index = ScenarioManager.connections_received
+                with ScenarioManager.lock:
+                    ScenarioManager.connections_received += 1
+                return response  
+
+            if request.vehicle_state == sim_state.VehicleState.CARLA_UPDATE:
+                print("got a carla update")
+                response = sim_state.SimulationState()
+                response.state = sim_state.State.START # do we need a new state? like "registering"?
+                response.tick_id = 0
+                response.vehicle_index = request.vehicle_index
+                print("Request vehicle_index: " + str(request.vehicle_index) + " | actor_id: " + str(request.actor_id) + " | vid: " + str(request.vid)) 
+                ScenarioManager.vehicles.insert(request.vehicle_index, ( request.actor_id, request.vid ))
+                return response                    
 
 
     def serve(self, address: str) -> None:
@@ -198,9 +253,6 @@ class ScenarioManager:
         self.carla_version = carla_version
         self.config_file = config_file
         
-        global connections_received
-        connections_received = 0
-
         simulation_config = scenario_params['world']
 
         # set random seed if stated
@@ -255,19 +307,42 @@ class ScenarioManager:
         server_thread = threading.Thread(target=self.serve, args=("[::]:50051",))
         server_thread.start()
 
+        ScenarioManager.vehicle_count = 0
+        for i, cav_config in enumerate(
+                scenario_params['scenario']['single_cav_list']):
+            ScenarioManager.vehicle_count += 1
+
+        while ScenarioManager.connections_received < ScenarioManager.vehicle_count:
+            time.sleep(1)
+            print("sim_api sleeping...")
+            #should we wait for a threading event instead?
+
+        # message = { "cmd": "start",
+        # "params": {
+        ScenarioManager.scenario = self.config_file
+        ScenarioManager.carla_version = self.carla_version
+        # "vehicle": vehicle_index,
+        # "application": application,
+        # "version": carla_version
+        # } 
+        # }
+
+        # signal server to put ACTIVE on the wire
+        ScenarioManager.set_sim_started.set()
+
         # gRPC hello block end
 
         # Wait for vehicle clients to connect
-        print("Waiting for vehicles to connect...")
-        self._sockets = []
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("127.0.0.1", 5555))
-            while (len(self._sockets) < 2):
-                s.listen()
-                conn, addr = s.accept()
-                self._sockets.append(conn)
-                print(f"Vehicle at {addr} connected.")
-        print("Received sufficient vehicle connections. Continuing with simulation.")
+        # print("Waiting for vehicles to connect...")
+        # self._sockets = []
+        # with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        #     s.bind(("127.0.0.1", 5555))
+        #     while (len(self._sockets) < vehicle_count): # isn't this passed in as arg?
+        #         s.listen()
+        #         conn, addr = s.accept()
+        #         self._sockets.append(conn)
+        #         print(f"Vehicle at {addr} connected.")
+        # print("Received sufficient vehicle connections. Continuing with simulation.")
         
         #with conn:
         #    print(f"Accepted connection from {addr}")
@@ -331,14 +406,32 @@ class ScenarioManager:
                 self.scenario_params['scenario']['single_cav_list']):
             print(f"eCloud debug: Creating VehiceManagerProxy for vehicle {i}")
 
-
             # create vehicle manager for each cav
             vehicle_manager = VehicleManagerProxy(
-                i, self._sockets[i], self.config_file, application,
+                i, self.config_file, application,
                 self.carla_map, self.cav_world,
                 current_time=self.scenario_params['current_time'],
                 data_dumping=data_dump, carla_version=self.carla_version)
             print("eCloud debug: finished creating VehiceManagerProxy")
+
+            # send gRPC with START info
+            ScenarioManager.application = application
+
+            # update the vehicle manager
+            # keep a tuple of actor_id and vid in a list based on vehicle_index
+            actor_id = None
+            vid = None
+
+            while len(ScenarioManager.vehicles) < ScenarioManager.vehicle_count:
+                time.sleep(1)
+                print("waiting for Carla data")
+
+            actor_id = ScenarioManager.vehicles[i][0]
+            vid = ScenarioManager.vehicles[i][1]
+
+            print("eCloud debug: starting vehicle | actor_id: " + str(actor_id) + " | vid: " + str(vid))
+
+            vehicle_manager.start_vehicle(actor_id, vid)
 
             self.world.tick()
             print("eCloud debug: ticked world")
@@ -350,7 +443,10 @@ class ScenarioManager:
                                          y=cav_config['destination'][1],
                                          z=cav_config['destination'][2])
             print("eCloud debug: get location of destination")
-            vehicle_manager.update_info()
+            
+            #TODO gRPC variant
+            #vehicle_manager.update_info()
+            
             print("eCloud debug: update info")
             vehicle_manager.set_destination(
                 vehicle_manager.vehicle.get_location(),

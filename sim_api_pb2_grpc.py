@@ -24,6 +24,11 @@ class OpenCDAStub(object):
                 request_serializer=sim__api__pb2.VehicleUpdate.SerializeToString,
                 response_deserializer=sim__api__pb2.Empty.FromString,
                 )
+        self.RegisterVehicle = channel.unary_unary(
+                '/grpc.OpenCDA/RegisterVehicle',
+                request_serializer=sim__api__pb2.VehicleUpdate.SerializeToString,
+                response_deserializer=sim__api__pb2.SimulationState.FromString,
+                )
 
 
 class OpenCDAServicer(object):
@@ -41,6 +46,12 @@ class OpenCDAServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def RegisterVehicle(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_OpenCDAServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -53,6 +64,11 @@ def add_OpenCDAServicer_to_server(servicer, server):
                     servicer.SendUpdate,
                     request_deserializer=sim__api__pb2.VehicleUpdate.FromString,
                     response_serializer=sim__api__pb2.Empty.SerializeToString,
+            ),
+            'RegisterVehicle': grpc.unary_unary_rpc_method_handler(
+                    servicer.RegisterVehicle,
+                    request_deserializer=sim__api__pb2.VehicleUpdate.FromString,
+                    response_serializer=sim__api__pb2.SimulationState.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -95,5 +111,22 @@ class OpenCDA(object):
         return grpc.experimental.unary_unary(request, target, '/grpc.OpenCDA/SendUpdate',
             sim__api__pb2.VehicleUpdate.SerializeToString,
             sim__api__pb2.Empty.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def RegisterVehicle(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/grpc.OpenCDA/RegisterVehicle',
+            sim__api__pb2.VehicleUpdate.SerializeToString,
+            sim__api__pb2.SimulationState.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

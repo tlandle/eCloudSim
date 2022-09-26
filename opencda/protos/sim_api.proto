@@ -4,28 +4,39 @@ package grpc;
 
 message Empty {}
 
+enum State {
+  UNDEFINED = 0;
+  NEW = 1;
+  START = 2;
+  ACTIVE = 6;
+  ENDED = 7;
+}
+
+enum VehicleState {
+  REGISTERING = 0;
+  CARLA_UPDATE = 1;
+  TICK_UPDATE = 2;
+}
+
 message SimulationState {
-  enum State {
-    // The default state.
-    UNDEFINED = 0;
-    // The call is newly created.
-    NEW = 1;
-    // The call is connected.
-    ACTIVE = 6;
-    // The call is finished.
-    ENDED = 7;
-  }
-  State state = 2;
-  int32 tick_id = 3;
-  int32 vehicle_id = 4;
+  State state = 1;
+  int32 tick_id = 2;
+  int32 vehicle_index = 3;
+  string test_scenario = 4;
+  string application = 5;
+  string version = 6;
 }
 
 message VehicleUpdate {
   int32 tick_id = 1;
-  int32 vehicle_id = 2;
+  int32 vehicle_index = 2;
+  string vid = 3;
+  int32 actor_id = 4;
+  VehicleState vehicle_state = 5;
 }
 
 service OpenCDA {
   rpc SimulationStateStream (Empty) returns (stream SimulationState);
   rpc SendUpdate (VehicleUpdate) returns (Empty);
+  rpc RegisterVehicle (VehicleUpdate) returns (SimulationState);
 }
