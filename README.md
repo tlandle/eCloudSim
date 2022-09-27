@@ -64,15 +64,21 @@ Note: We continuously improve the performance of OpenCDA. Currently, it is mainl
 
 Activate the conda enviroment
 
-`conda activate opencda`
+```
+conda activate opencda
+```
 
-Create grpc stubs
+Create gRPC stubs
 
-`python -m grpc_tools.protoc -I./opencda/protos --python_out=. --grpc_python_out=. ./opencda//protos/sim_api.proto`
+```
+python -m grpc_tools.protoc -I./opencda/protos --python_out=. --grpc_python_out=. ./opencda//protos/sim_api.proto
+```
 
 Start the Carla server
 
-`./CarlaUE4.sh`
+```
+./CarlaUE4.sh
+```
 
 Run opencda vehicle test
 
@@ -83,7 +89,9 @@ python opencda.py -t multi_2lanefree_carla -v 0.9.12
 
 Create Vehicle Client
 
-`python vehiclesim.py`
+```
+python vehiclesim.py
+```
 
 ### Developer Guide
 
