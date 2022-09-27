@@ -62,6 +62,14 @@ Note: We continuously improve the performance of OpenCDA. Currently, it is mainl
 
 ### Usage
 
+Activate the conda enviroment
+
+`conda activate opencda`
+
+Create grpc stubs
+
+`python -m grpc_tools.protoc -I./opencda/protos --python_out=. --grpc_python_out=. ./opencda//protos/sim_api.proto`
+
 Start the Carla server
 
 `./CarlaUE4.sh`
