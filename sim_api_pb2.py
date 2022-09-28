@@ -13,23 +13,25 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rsim_api.proto\x12\x04grpc\"\x07\n\x05\x45mpty\"\x92\x01\n\x0fSimulationState\x12\x1a\n\x05state\x18\x01 \x01(\x0e\x32\x0b.grpc.State\x12\x0f\n\x07tick_id\x18\x02 \x01(\x05\x12\x15\n\rvehicle_index\x18\x03 \x01(\x05\x12\x15\n\rtest_scenario\x18\x04 \x01(\t\x12\x13\n\x0b\x61pplication\x18\x05 \x01(\t\x12\x0f\n\x07version\x18\x06 \x01(\t\"\x81\x01\n\rVehicleUpdate\x12\x0f\n\x07tick_id\x18\x01 \x01(\x05\x12\x15\n\rvehicle_index\x18\x02 \x01(\x05\x12\x0b\n\x03vid\x18\x03 \x01(\t\x12\x10\n\x08\x61\x63tor_id\x18\x04 \x01(\x05\x12)\n\rvehicle_state\x18\x05 \x01(\x0e\x32\x12.grpc.VehicleState*A\n\x05State\x12\r\n\tUNDEFINED\x10\x00\x12\x07\n\x03NEW\x10\x01\x12\t\n\x05START\x10\x02\x12\n\n\x06\x41\x43TIVE\x10\x06\x12\t\n\x05\x45NDED\x10\x07*B\n\x0cVehicleState\x12\x0f\n\x0bREGISTERING\x10\x00\x12\x10\n\x0c\x43\x41RLA_UPDATE\x10\x01\x12\x0f\n\x0bTICK_UPDATE\x10\x02\x32\xb7\x01\n\x07OpenCDA\x12=\n\x15SimulationStateStream\x12\x0b.grpc.Empty\x1a\x15.grpc.SimulationState0\x01\x12.\n\nSendUpdate\x12\x13.grpc.VehicleUpdate\x1a\x0b.grpc.Empty\x12=\n\x0fRegisterVehicle\x12\x13.grpc.VehicleUpdate\x1a\x15.grpc.SimulationStateb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rsim_api.proto\x12\x04grpc\"\x07\n\x05\x45mpty\"\xdd\x01\n\x0fSimulationState\x12\x1a\n\x05state\x18\x01 \x01(\x0e\x32\x0b.grpc.State\x12\x0f\n\x07tick_id\x18\x02 \x01(\x05\x12\x15\n\rvehicle_index\x18\x03 \x01(\x05\x12\x15\n\rtest_scenario\x18\x04 \x01(\t\x12\x13\n\x0b\x61pplication\x18\x05 \x01(\t\x12\x0f\n\x07version\x18\x06 \x01(\t\x12\x1e\n\x07\x63ommand\x18\x07 \x01(\x0e\x32\r.grpc.Command\x12\x13\n\x0bparams_json\x18\x08 \x01(\t\x12\x14\n\x0cmessage_hash\x18\t \x01(\x05\"\x97\x01\n\rVehicleUpdate\x12\x0f\n\x07tick_id\x18\x01 \x01(\x05\x12\x15\n\rvehicle_index\x18\x02 \x01(\x05\x12\x0b\n\x03vid\x18\x03 \x01(\t\x12\x10\n\x08\x61\x63tor_id\x18\x04 \x01(\x05\x12)\n\rvehicle_state\x18\x05 \x01(\x0e\x32\x12.grpc.VehicleState\x12\x14\n\x0cmessage_hash\x18\x06 \x01(\x05*A\n\x05State\x12\r\n\tUNDEFINED\x10\x00\x12\x07\n\x03NEW\x10\x01\x12\t\n\x05START\x10\x02\x12\n\n\x06\x41\x43TIVE\x10\x06\x12\t\n\x05\x45NDED\x10\x07*B\n\x07\x43ommand\x12\x08\n\x04TICK\x10\x00\x12\x0f\n\x0bUPDATE_INFO\x10\x01\x12\x13\n\x0fSET_DESTINATION\x10\x02\x12\x07\n\x03\x45ND\x10\x03*J\n\x0cVehicleState\x12\x0f\n\x0bREGISTERING\x10\x00\x12\x10\n\x0c\x43\x41RLA_UPDATE\x10\x01\x12\x0f\n\x0bTICK_UPDATE\x10\x02\x12\x06\n\x02OK\x10\x03\x32\xb7\x01\n\x07OpenCDA\x12=\n\x15SimulationStateStream\x12\x0b.grpc.Empty\x1a\x15.grpc.SimulationState0\x01\x12.\n\nSendUpdate\x12\x13.grpc.VehicleUpdate\x1a\x0b.grpc.Empty\x12=\n\x0fRegisterVehicle\x12\x13.grpc.VehicleUpdate\x1a\x15.grpc.SimulationStateb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'sim_api_pb2', globals())
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
-  _STATE._serialized_start=313
-  _STATE._serialized_end=378
-  _VEHICLESTATE._serialized_start=380
-  _VEHICLESTATE._serialized_end=446
+  _STATE._serialized_start=410
+  _STATE._serialized_end=475
+  _COMMAND._serialized_start=477
+  _COMMAND._serialized_end=543
+  _VEHICLESTATE._serialized_start=545
+  _VEHICLESTATE._serialized_end=619
   _EMPTY._serialized_start=23
   _EMPTY._serialized_end=30
   _SIMULATIONSTATE._serialized_start=33
-  _SIMULATIONSTATE._serialized_end=179
-  _VEHICLEUPDATE._serialized_start=182
-  _VEHICLEUPDATE._serialized_end=311
-  _OPENCDA._serialized_start=449
-  _OPENCDA._serialized_end=632
+  _SIMULATIONSTATE._serialized_end=254
+  _VEHICLEUPDATE._serialized_start=257
+  _VEHICLEUPDATE._serialized_end=408
+  _OPENCDA._serialized_start=622
+  _OPENCDA._serialized_end=805
 # @@protoc_insertion_point(module_scope)

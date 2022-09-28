@@ -8,12 +8,14 @@ please use cosim_api.py.
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import math
+from queue import Queue
 import random
 from sqlite3 import connect
 import sys
 from random import shuffle
 import socket
 import time
+import json
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor, thread
@@ -21,6 +23,7 @@ import logging
 import threading
 import time
 from typing import Iterable
+from queue import Queue
 
 from google.protobuf.json_format import MessageToJson
 import grpc
@@ -157,10 +160,12 @@ class ScenarioManager:
     sim_state_responses = [] # list of responses per tick - e.g. sim_state_responses[tick_id = 1] = [veh_id = 1, veh_id = 2]
     sim_state_responses.append(0)
     sim_state_responses[0] = []
+
     tick_complete = threading.Event()
     set_sim_active = threading.Event()
     set_sim_started = threading.Event()
     lock = threading.Lock()
+    
     vehicles = [] # vehicle_index -> tuple (actor_id, vid)
     vehicle_count = 0
 
@@ -168,11 +173,14 @@ class ScenarioManager:
     application = ['single']
     scenario = None
 
+    pushed_message = threading.Event()
+    popped_message = threading.Event()
 
     class OpenCDA(rpc.OpenCDAServicer):
 
-        def __init__(self):
-            self._id_counter = 0  
+        def __init__(self, q):
+            self._id_counter = 0
+            self._q = q  
 
         def SimulationStateStream(self, request_iterator, context):
             last_tick_id = 0
@@ -194,6 +202,23 @@ class ScenarioManager:
                 ScenarioManager.set_sim_active.wait(timeout=None)
                 print("setting simulation active...", flush=True)
 
+                # move to a queue? so that API can push whatever message object onto the queue?
+                # wait for event to start reading from the queue?
+                # or just read from queue until we get a threading event?
+                while True:
+                    ScenarioManager.pushed_message.wait(timeout=None)
+                    sim_state_update = self._q.get()
+                    assert( type(sim_state_update) == type(sim_state.SimulationState()) )
+                    if type(sim_state_update) != type(sim_state.SimulationState()):
+                        print("eCloud debug: got bad message in queue, skipping...")
+                        continue
+
+                           
+                    ScenarioManager.pushed_message.clear()
+                    ScenarioManager.popped_message.set()
+
+                    yield sim_state_update 
+
                 while last_tick_id < ScenarioManager.tick_id:
                     print("Ticking " + str(ScenarioManager.tick_id) + "...")
                     last_tick_id = ScenarioManager.tick_id
@@ -205,9 +230,17 @@ class ScenarioManager:
                     yield sim_state_update
 
         def SendUpdate(self, request: sim_state.VehicleUpdate, context):
-            with ScenarioManager.lock:
-                #make sure to add the tick_id to the root list when we do the tick
-                ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
+
+            # need to case handle based on response type... but we don't necessarily *need* this for acks (for now...)
+            if request.state == sim_state.VehicleState.OK:
+                pass
+
+            elif request.state == sim_state.VehicleState.TICK_UPDATE:
+
+                with ScenarioManager.lock:
+                    #make sure to add the tick_id to the root list when we do the tick
+                    ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
+            
             return sim_state.Empty()   
 
         
@@ -233,9 +266,9 @@ class ScenarioManager:
                 return response                    
 
 
-    def serve(self, address: str) -> None:
+    def serve(self, q: Queue(), address: str) -> None:
         server = grpc.server(ThreadPoolExecutor())
-        rpc.add_OpenCDAServicer_to_server(self.OpenCDA(), server)
+        rpc.add_OpenCDAServicer_to_server(self.OpenCDA(q), server)
         server.add_insecure_port(address)
         server.start()
         logging.info("Server serving at %s", address)
@@ -304,7 +337,8 @@ class ScenarioManager:
         # gRPC hello block begin
 
         logging.basicConfig(level=logging.INFO)
-        server_thread = threading.Thread(target=self.serve, args=("[::]:50051",))
+        self.message_queue = Queue()
+        server_thread = threading.Thread(target=self.serve, args=(self.message_queue, "[::]:50051",))
         server_thread.start()
 
         ScenarioManager.vehicle_count = 0
@@ -402,6 +436,8 @@ class ScenarioManager:
         print('Creating single CAVs.')
         single_cav_list = []
 
+        ScenarioManager.set_sim_active.set()
+
         for i, cav_config in enumerate(
                 self.scenario_params['scenario']['single_cav_list']):
             print(f"eCloud debug: Creating VehiceManagerProxy for vehicle {i}")
@@ -443,18 +479,55 @@ class ScenarioManager:
                                          y=cav_config['destination'][1],
                                          z=cav_config['destination'][2])
             print("eCloud debug: get location of destination")
-            
-            #TODO gRPC variant
+
             #vehicle_manager.update_info()
+
+            # gRPC update_info
+            sim_state_update = sim_state.SimulationState()
+            sim_state_update.state = sim_state.State.ACTIVE
+            sim_state_update.tick_id = ScenarioManager.tick_id
+            sim_state_update.command = sim_state.Command.UPDATE_INFO
+            sim_state_update.vehicle_index = i
+            self.message_queue.put(sim_state_update)
+            ScenarioManager.pushed_message.set()
+            # end gRPC update_info
             
-            print("eCloud debug: update info")
-            vehicle_manager.set_destination(
-                vehicle_manager.vehicle.get_location(),
-                destination,
-                clean=True)
-            print("eCloud debug: set destination")
+            print(f"eCloud debug: update info complete for vehicle_index {i}")
+            
+            # vehicle_manager.set_destination(
+            #     vehicle_manager.vehicle.get_location(),
+            #     destination,
+            #     clean=True)
+
+            # gRPC set_destination
+            ScenarioManager.popped_message.wait(timeout=None)
+            ScenarioManager.popped_message.clear()
+            sim_state_update = sim_state.SimulationState()
+            sim_state_update.state = sim_state.State.ACTIVE
+            sim_state_update.tick_id = ScenarioManager.tick_id
+            sim_state_update.vehicle_index = i
+
+            start_location = vehicle_manager.vehicle.get_location()
+            message = { 
+                    "params": {
+                    "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
+                    "end": {"x": destination.x, "y": destination.y, "z": destination.z},
+                    "clean": True, "reset": True
+                    }
+            }
+            sim_state_update.params_json = json.dumps(message).encode('utf-8')
+
+            sim_state_update.command = sim_state.Command.SET_DESTINATION
+            self.message_queue.put(sim_state_update)
+            ScenarioManager.pushed_message.set()
+            # end gRPC set_destination
+
+            print(f"eCloud debug: set destination complete for vehicle_index {i}")
 
             single_cav_list.append(vehicle_manager)
+
+            ScenarioManager.popped_message.wait(timeout=None)
+            ScenarioManager.popped_message.clear()
 
         print("eCloud debug: finished creating vehicle managers and returning cav list")
         return single_cav_list

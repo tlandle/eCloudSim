@@ -45,6 +45,9 @@ carla_vehicle_created = threading.Event() # to signal from main to gRPC thread
 sim_finished = threading.Event()
 lock = threading.Lock()
 
+pushed_message = threading.Event()
+popped_message = threading.Event()
+
 # sim params
 test_scenario = None #= message["params"]["scenario"]
 application = None #= message["params"]["application"]
@@ -87,6 +90,33 @@ class Client:
         global vehicle_index
         global state
         global lock
+
+        global pushed_message
+        global popped_message
+
+        # switch based on the command argument
+        if sim_state_update.command == sim_state.Command.SET_DESTINATION and sim_state_update.vehicle_index == vehicle_index:
+            print("received a set_destination command")
+
+            self._queue.put(sim_state_update)
+            pushed_message.set()
+            popped_message.wait(timeout=None)
+            popped_message.clear()
+
+            return
+
+        elif sim_state_update.command == sim_state.Command.SET_DESTINATION and sim_state_update.vehicle_index == vehicle_index:
+            print("received an update_info command")
+                        
+            self._queue.put(sim_state_update)
+            pushed_message.set()
+            popped_message.wait(timeout=None)
+            popped_message.clear()
+
+            return                
+
+
+        # put new messages into the queue and then signal
 
         # did we get a new tick_id?
         if tick_id != sim_state_update.tick_id:
@@ -277,42 +307,50 @@ def main():
 
     #_socket.send(json.dumps(message).encode('utf-8'))
 
-    while True:
-        time.sleep(10)
-        print('ready to run scenario testing...')
-
     # run scenario testing --> replace with event-based on streaming connection
-    while(True):
-        message = json.loads(_socket.recv(1024).decode('utf-8'))
-        cmd = message["cmd"]
-        if cmd != "TICK": # don't print tick message since there are too many
-            print(f"Vehicle: received cmd {cmd}")
+    while True:
+        pushed_message.wait(timeout=None)    
+        sim_state_update = q.get()
+        #message = json.loads(_socket.recv(1024).decode('utf-8'))
 
-        if cmd == "update_info":
+        assert( type(sim_state_update) == type(sim_state.SimulationState()) )
+        if type(sim_state_update) != type(sim_state.SimulationState()):
+            print("eCloud debug: got bad message in queue, skipping...")
+            continue
+
+        if sim_state_update.command != sim_state.Command.TICK: # don't print tick message since there are too many
+            print(f"Vehicle: received cmd {sim_state_update.command}")
+
+        if sim_state_update.command == sim_state.Command.UPDATE_INFO:
             vehicle_manager.update_info()
-            _socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
-        elif cmd == "set_destination":
-            destination = message["params"]
+            #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
+        elif sim_state_update.command == sim_state.Command.SET_DESTINATION:
+            destination = json.loads(sim_state_update.params_json)
             print(f"Vehicle: x=%s" % destination["start"]["x"])
             start_location = carla.Location(x=destination["start"]["x"], y=destination["start"]["y"], z=destination["start"]["z"])
             end_location = carla.Location(x=destination["end"]["x"], y=destination["end"]["y"], z=destination["end"]["z"])
             clean = bool(destination["clean"])
             end_reset = bool(destination["reset"])
             vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
-            _socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
-        elif cmd == "TICK":
+            #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
+        elif sim_state_update.command == sim_state.Command.TICK:
             vehicle_manager.update_info()
             control = vehicle_manager.run_step()
             if control is None:
-                _socket.send(json.dumps({"resp": "DONE"}).encode('utf-8'))
+                pass
+                #_socket.send(json.dumps({"resp": "DONE"}).encode('utf-8'))
             else:
                 vehicle_manager.apply_control(control)
-                _socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
-        elif cmd == "END":
+                pass
+                #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
+        elif sim_state_update.command == sim_state.Command.END:
             break
+
+        pushed_message.clear()    
+        popped_message.set()
     
     vehicle_manager.destroy()
-    _socket.close()
+    #_socket.close()
 
 if __name__ == '__main__':
     try:

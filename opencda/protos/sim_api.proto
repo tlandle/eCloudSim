@@ -12,10 +12,18 @@ enum State {
   ENDED = 7;
 }
 
+enum Command {
+  TICK = 0;
+  UPDATE_INFO = 1;
+  SET_DESTINATION = 2;
+  END = 3;
+}
+
 enum VehicleState {
   REGISTERING = 0;
   CARLA_UPDATE = 1;
   TICK_UPDATE = 2;
+  OK = 3;
 }
 
 message SimulationState {
@@ -25,6 +33,9 @@ message SimulationState {
   string test_scenario = 4;
   string application = 5;
   string version = 6;
+  Command command = 7;
+  string params_json = 8;
+  int32 message_hash = 9; // use as a UID for message indentification when Server needs an ack
 }
 
 message VehicleUpdate {
@@ -33,6 +44,7 @@ message VehicleUpdate {
   string vid = 3;
   int32 actor_id = 4;
   VehicleState vehicle_state = 5;
+  int32 message_hash = 6; // use as a UID for message indentification when Server needs an ack
 }
 
 service OpenCDA {
