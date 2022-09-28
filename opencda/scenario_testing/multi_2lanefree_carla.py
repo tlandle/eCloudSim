@@ -65,6 +65,13 @@ def run_scenario(opt, config_yaml):
         flag = True
         while flag:
             scenario_manager.tick()
+
+            # gRPC begin
+            # call sim_api to update tick
+            # loop here --> sim_api should not return True until tick completed
+
+            #gRPC end
+
             # TODO eCloud - figure out another way to have the vehicle follow a CAV. Perhaps still access the bp since it's read only?
             transform = single_cav_list[0].vehicle.get_transform()
             spectator.set_transform(carla.Transform(
@@ -74,13 +81,6 @@ def run_scenario(opt, config_yaml):
                 carla.Rotation(
                     pitch=-
                     90)))
-
-            # gRPC begin
-
-            # call sim_api to update tick
-            # loop here --> sim_api should not return True until tick completed
-
-            #gRPC end
 
             # for _, single_cav in enumerate(single_cav_list):
             #     result = single_cav.do_tick()
@@ -93,8 +93,9 @@ def run_scenario(opt, config_yaml):
             #         flag = False
             #         break
 
-        for _, single_cav in enumerate(single_cav_list):
-            single_cav.end_step()
+        # TODO gRPC    
+        #for _, single_cav in enumerate(single_cav_list):
+        #    single_cav.end_step()
 
     finally:
         print("Evaluating simulation results...")

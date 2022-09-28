@@ -212,7 +212,6 @@ class ScenarioManager:
                     if type(sim_state_update) != type(sim_state.SimulationState()):
                         print("eCloud debug: got bad message in queue, skipping...")
                         continue
-
                            
                     ScenarioManager.pushed_message.clear()
                     ScenarioManager.popped_message.set()
@@ -235,11 +234,28 @@ class ScenarioManager:
             if request.state == sim_state.VehicleState.OK:
                 pass
 
-            elif request.state == sim_state.VehicleState.TICK_UPDATE:
+            elif request.state == sim_state.VehicleState.TICK_OK:
+
+                with ScenarioManager.lock:
+                    print(f"received TICK_OK from vehicle {request.vehicle_index}")
+                    #make sure to add the tick_id to the root list when we do the tick
+                    ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
+
+                    if len(ScenarioManager.sim_state_responses[request.tick_id]) == ScenarioManager.vehicle_count:
+                        ScenarioManager.tick_complete.set()
+
+            elif request.state == sim_state.VehicleState.TICK_DONE:
 
                 with ScenarioManager.lock:
                     #make sure to add the tick_id to the root list when we do the tick
                     ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
+
+                # this means sim is done - end??    
+
+            elif request.state == sim_state.VehicleState.ERROR:
+
+                pass
+                # TODO handle graceful termination
             
             return sim_state.Empty()   
 
@@ -247,6 +263,7 @@ class ScenarioManager:
         def RegisterVehicle(self, request: sim_state.VehicleUpdate, context):
             #register the vehicle
             if request.vehicle_state == sim_state.VehicleState.REGISTERING:
+                print("got a registration update")
                 response = sim_state.SimulationState()
                 response.state = sim_state.State.NEW
                 response.tick_id = 0
@@ -436,6 +453,7 @@ class ScenarioManager:
         print('Creating single CAVs.')
         single_cav_list = []
 
+        print("main thread setting simulation active")
         ScenarioManager.set_sim_active.set()
 
         for i, cav_config in enumerate(
@@ -844,8 +862,32 @@ class ScenarioManager:
         """
         Tick the server.
         """
-        #TODO: put the gRPC broadcast call in here
         self.world.tick()
+
+        #TODO: put the gRPC broadcast call in here
+        ScenarioManager.tick_id = ScenarioManager.tick_id + 1
+
+        sim_state_update = sim_state.SimulationState()
+        sim_state_update.state = sim_state.State.ACTIVE
+        sim_state_update.tick_id = ScenarioManager.tick_id
+        sim_state_update.command = sim_state.Command.TICK
+        self.message_queue.put(sim_state_update)
+        ScenarioManager.pushed_message.set()
+
+        print(f"eCloud debug: queued tick {ScenarioManager.tick_id}")
+
+        ScenarioManager.popped_message.wait(timeout=None)
+        ScenarioManager.popped_message.clear()
+
+        print(f"eCloud debug: pushed tick {ScenarioManager.tick_id}")
+
+        ScenarioManager.tick_complete.wait(timeout=None)
+        ScenarioManager.tick_complete.clear()
+
+    def end(self):
+        """
+        broadcast end to all vehicles
+        """
 
     def destroyActors(self):
         """

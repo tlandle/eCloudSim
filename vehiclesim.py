@@ -38,7 +38,7 @@ import sim_api_pb2_grpc as rpc
 
 state = sim_state.State.UNDEFINED #do we need a global state?
 vehicle_index = None
-tick_id = None
+tick_id = 0
 opencda_responded = threading.Event() # to signal from gRPC thread to main. redundant to below? Just set-clear-set?
 opencda_started = threading.Event() # to signal from gRPC thread to main
 carla_vehicle_created = threading.Event() # to signal from main to gRPC thread
@@ -71,9 +71,9 @@ class Client:
         #try:
         global tick_id
         for response in self._stub.SimulationStateStream(sim_state.Empty()):  # this line will wait for new messages from the server!
-            if response.tick_id != tick_id:
-                self._on_sim_state_update(response)
-                print("R[{}] {}".format(response.state, response.tick_id))  # debugging statement
+            #if response.tick_id != tick_id:
+            print("R{} C{} T{}".format(response.state, response.command, response.tick_id))  # debugging statement
+            self._on_sim_state_update(response)
         #         else:
         #             raise RuntimeError(
         #                 "Received StreamCallResponse without state and tick_id"
@@ -105,7 +105,7 @@ class Client:
 
             return
 
-        elif sim_state_update.command == sim_state.Command.SET_DESTINATION and sim_state_update.vehicle_index == vehicle_index:
+        elif sim_state_update.command == sim_state.Command.UPDATE_INFO and sim_state_update.vehicle_index == vehicle_index:
             print("received an update_info command")
                         
             self._queue.put(sim_state_update)
@@ -120,12 +120,26 @@ class Client:
 
         # did we get a new tick_id?
         if tick_id != sim_state_update.tick_id:
-            print("received new tick...")
+            print(f"received new tick... {sim_state_update.tick_id}")
             tick_id = sim_state_update.tick_id
             #signal update
 
+            self._queue.put(sim_state_update)
+            pushed_message.set()
+            popped_message.wait(timeout=None)
+            popped_message.clear()
+
+            pushed_message.wait()
+            message = self._queue.get()
+            pushed_message.clear()    
+            self._stub.SendUpdate(message) 
+            popped_message.set()
+
+            return
+
         # check vehicle index to see if the message is for us
-        if sim_state_update.state == sim_state.State.START:
+        if sim_state_update.state == sim_state.State.START and state != sim_state.State.START:
+            print("simulation state is now STARTED")
             global test_scenario
             global application
             global version
@@ -325,7 +339,9 @@ def main():
             vehicle_manager.update_info()
             #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
         elif sim_state_update.command == sim_state.Command.SET_DESTINATION:
-            destination = json.loads(sim_state_update.params_json)
+            params_json = json.loads(sim_state_update.params_json)
+            destination = params_json['params']
+            print("JSON Params: " + sim_state_update.params_json)
             print(f"Vehicle: x=%s" % destination["start"]["x"])
             start_location = carla.Location(x=destination["start"]["x"], y=destination["start"]["y"], z=destination["start"]["z"])
             end_location = carla.Location(x=destination["end"]["x"], y=destination["end"]["y"], z=destination["end"]["z"])
@@ -336,13 +352,24 @@ def main():
         elif sim_state_update.command == sim_state.Command.TICK:
             vehicle_manager.update_info()
             control = vehicle_manager.run_step()
+            response = sim_state.VehicleUpdate()
+            response.tick_id = tick_id
+            response.vehicle_index = vehicle_index
             if control is None:
-                pass
-                #_socket.send(json.dumps({"resp": "DONE"}).encode('utf-8'))
+                
+                response.VehicleState = sim_state.VehicleState.TICK_DONE
+
             else:
+
                 vehicle_manager.apply_control(control)
-                pass
+                response.VehicleState = sim_state.VehicleState.TICK_OK
                 #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
+
+            q.put(response)
+            pushed_message.set()
+            popped_message.wait()
+            popped_message.clear()    
+
         elif sim_state_update.command == sim_state.Command.END:
             break
 

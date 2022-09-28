@@ -8,22 +8,26 @@ enum State {
   UNDEFINED = 0;
   NEW = 1;
   START = 2;
+  UPDATE_INFO = 3;
+  SET_DESTINATION = 4;
   ACTIVE = 6;
   ENDED = 7;
 }
 
 enum Command {
   TICK = 0;
-  UPDATE_INFO = 1;
-  SET_DESTINATION = 2;
-  END = 3;
+  END = 1;
 }
 
 enum VehicleState {
   REGISTERING = 0;
   CARLA_UPDATE = 1;
-  TICK_UPDATE = 2;
-  OK = 3;
+  UPDATE_INFO_OK = 2;
+  GET_DESTINATION = 3;
+  TICK_OK = 4; // regular OK / ack
+  TICK_DONE = 5; // simulation ended
+  OK = 6;
+  ERROR = 7;
 }
 
 message SimulationState {
@@ -51,4 +55,6 @@ service OpenCDA {
   rpc SimulationStateStream (Empty) returns (stream SimulationState);
   rpc SendUpdate (VehicleUpdate) returns (Empty);
   rpc RegisterVehicle (VehicleUpdate) returns (SimulationState);
+  rpc UpdateInfo (VehicleUpdate) returns (Empty);
+  rpc GetDestination (VehicleUpdate) returns (SimulationState);
 }
