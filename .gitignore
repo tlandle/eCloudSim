@@ -150,3 +150,5 @@ docs/tmp.py
 data_dumping
 video_dumping
 
+# gRPC Stubs
+*pb2*
