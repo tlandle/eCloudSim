@@ -70,9 +70,10 @@ class Client:
     def _sim_state_watcher(self) -> None:
         #try:
         global tick_id
-        for response in self._stub.SimulationStateStream(sim_state.Empty()):  # this line will wait for new messages from the server!
+        global vehicle_index
+        for response in self._stub.SimulationStateStream(sim_state.Ping( vehicle_index = vehicle_index )):  # this line will wait for new messages from the server!
             #if response.tick_id != tick_id:
-            print("R{} C{} T{}".format(response.state, response.command, response.tick_id))  # debugging statement
+            print("M{} - R{} C{} T{}".format(response.message_id, response.state, response.command, response.tick_id))  # debugging statement
             self._on_sim_state_update(response)
         #         else:
         #             raise RuntimeError(
@@ -187,6 +188,12 @@ class Client:
         request.tick_id = tick_id
         request.vehicle_index = vehicle_index
         self._stub.SendUpdate(request)     
+
+    def send_update_info_ok(self) -> None:
+        print("sending update info...")
+
+    def request_destination(self) -> None:
+        print("sending update info...")    
 
     def send_registration_to_opencda(self) -> None:
         global vehicle_index

@@ -16,6 +16,8 @@ from random import shuffle
 import socket
 import time
 import json
+import random
+import copy
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor, thread
@@ -24,6 +26,7 @@ import threading
 import time
 from typing import Iterable
 from queue import Queue
+import heapq
 
 from google.protobuf.json_format import MessageToJson
 import grpc
@@ -114,6 +117,8 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
 
     return blueprints
 
+message_stack = []
+
 class ScenarioManager:
     """
     The manager that controls simulation construction, backgound traffic
@@ -176,57 +181,102 @@ class ScenarioManager:
     pushed_message = threading.Event()
     popped_message = threading.Event()
 
+    random.seed(time.time())
+
+    message_stack = []
+
     class OpenCDA(rpc.OpenCDAServicer):
 
-        def __init__(self, q):
+        def __init__(self, q, message_stack):
             self._id_counter = 0
-            self._q = q  
+            self._q = q
+            self._message_stack = message_stack    
 
-        def SimulationStateStream(self, request_iterator, context):
+        def SimulationStateStream(self, request, context):
             last_tick_id = 0
             has_printed = False
-            while True:
-                ScenarioManager.set_sim_started.wait(timeout=None)
-                if not has_printed:
-                    print("setting simulation started...", flush=True)
-                    has_printed = True
-                sim_state_update = sim_state.SimulationState()
-                sim_state_update.test_scenario = ScenarioManager.scenario
-                sim_state_update.application = ScenarioManager.application[0]
-                sim_state_update.version = ScenarioManager.carla_version
 
-                sim_state_update.state = sim_state.State.START
-                sim_state_update.tick_id = ScenarioManager.tick_id
-                yield sim_state_update
+            print("request vehicle_index " + str(request.vehicle_index))    
 
-                ScenarioManager.set_sim_active.wait(timeout=None)
-                print("setting simulation active...", flush=True)
+            #while True:
+                # ScenarioManager.set_sim_started.wait(timeout=None)
+                # if not has_printed:
+                #     print("setting simulation started...", flush=True)
+                #     has_printed = True
+                # sim_state_update = sim_state.SimulationState()
+                # sim_state_update.test_scenario = ScenarioManager.scenario
+                # sim_state_update.application = ScenarioManager.application[0]
+                # sim_state_update.version = ScenarioManager.carla_version
+                # sim_state_update.message_id = random.randint(1, 1000)
+
+                # sim_state_update.state = sim_state.State.START
+                # sim_state_update.tick_id = ScenarioManager.tick_id
+                # print("SimulationStateStream - START - message id: " + str(sim_state_update.message_id) + " sent to " + str(request.vehicle_index))
+                # yield copy.deepcopy(sim_state_update)
+
+                # ScenarioManager.set_sim_active.wait(timeout=None)
+                # print("setting simulation active...", flush=True)
 
                 # move to a queue? so that API can push whatever message object onto the queue?
                 # wait for event to start reading from the queue?
                 # or just read from queue until we get a threading event?
-                while True:
-                    ScenarioManager.pushed_message.wait(timeout=None)
+            stack_index = 0 
+            print("before while stack_index: " + str(stack_index))
+            while True:
+                #print("eCloud debug: listening for new messages in queue")
+                #ScenarioManager.pushed_message.wait(timeout=None)
+                if not self._q.empty():
                     sim_state_update = self._q.get()
-                    assert( type(sim_state_update) == type(sim_state.SimulationState()) )
-                    if type(sim_state_update) != type(sim_state.SimulationState()):
-                        print("eCloud debug: got bad message in queue, skipping...")
-                        continue
-                           
-                    ScenarioManager.pushed_message.clear()
-                    ScenarioManager.popped_message.set()
+                    print("Popped sim_state_update: " + str(sim_state_update))
+                    if type(sim_state_update) == type(sim_state.SimulationState()):
+                        print("SimulationStateStream message_stack - message id: " + str(sim_state_update.message_id) + " | command: " + str(sim_state_update.command))
+                        with ScenarioManager.lock:
+                            found = False
+                            for message in ScenarioManager.message_stack:
+                                state = sim_state.SimulationState()
+                                state.ParseFromString(message)
+                                if state.message_id == sim_state_update.message_id:
+                                    found = True
+                            if not found:
+                                print("new message:")
+                                print(sim_state_update.SerializeToString()) 
+                                print("appended new message to stack")       
+                                ScenarioManager.message_stack.append(sim_state_update.SerializeToString())
 
-                    yield sim_state_update 
+                ScenarioManager.pushed_message.clear()
+                ScenarioManager.popped_message.set()  
 
-                while last_tick_id < ScenarioManager.tick_id:
-                    print("Ticking " + str(ScenarioManager.tick_id) + "...")
-                    last_tick_id = ScenarioManager.tick_id
-                    ScenarioManager.sim_state_responses.append(ScenarioManager.tick_id)
-                    ScenarioManager.sim_state_responses[ScenarioManager.tick_id] = []
-                    sim_state_update = sim_state.SimulationState()
-                    sim_state_update.state = sim_state.State.ACTIVE
-                    sim_state_update.tick_id = ScenarioManager.tick_id
-                    yield sim_state_update
+                #print("message_stack has " + str(len(self._message_stack)) + " messages...")
+                #print("stack_index" + str(stack_index))
+                while stack_index < len(ScenarioManager.message_stack):
+                    m = ScenarioManager.message_stack[stack_index]
+                    message = sim_state.SimulationState()
+                    message.ParseFromString(m)    
+                    print("in while stack_index: " + str(stack_index))
+                    print("SimulationStateStream yield - message id: " + str(message.message_id) + " | command: " + str(message.command))
+
+                    stack_index += 1
+
+                    yield message
+
+            stack_index = 0    
+            while stack_index < len(ScenarioManager.message_stack):
+                m = ScenarioManager.message_stack[stack_index]
+                message = sim_state.SimulationState().ParseFromString(m)
+                print("SimulationStateStream - message id: " + str(m.message_id)) 
+                stack_index += 1
+
+                yield message
+
+                # while last_tick_id < ScenarioManager.tick_id:
+                #     print("Ticking " + str(ScenarioManager.tick_id) + "...")
+                #     last_tick_id = ScenarioManager.tick_id
+                #     ScenarioManager.sim_state_responses.append(ScenarioManager.tick_id)
+                #     ScenarioManager.sim_state_responses[ScenarioManager.tick_id] = []
+                #     sim_state_update = sim_state.SimulationState()
+                #     sim_state_update.state = sim_state.State.ACTIVE
+                #     sim_state_update.tick_id = ScenarioManager.tick_id
+                #     yield sim_state_update
 
         def SendUpdate(self, request: sim_state.VehicleUpdate, context):
 
@@ -268,6 +318,8 @@ class ScenarioManager:
                 response.state = sim_state.State.NEW
                 response.tick_id = 0
                 response.vehicle_index = ScenarioManager.connections_received
+                response.message_id = random.randint(1, 1000)
+                print("RegisterVehicle - REGISTERING - message id: " + str(response.message_id))
                 with ScenarioManager.lock:
                     ScenarioManager.connections_received += 1
                 return response  
@@ -280,12 +332,13 @@ class ScenarioManager:
                 response.vehicle_index = request.vehicle_index
                 print("Request vehicle_index: " + str(request.vehicle_index) + " | actor_id: " + str(request.actor_id) + " | vid: " + str(request.vid)) 
                 ScenarioManager.vehicles.insert(request.vehicle_index, ( request.actor_id, request.vid ))
+                response.message_id = random.randint(1, 1000)
+                print("RegisterVehicle - CARLA_UPDATE - message id: " + str(response.message_id))
                 return response                    
 
-
-    def serve(self, q: Queue(), address: str) -> None:
+    def serve(self, q: Queue(), message_stack, address: str) -> None:
         server = grpc.server(ThreadPoolExecutor())
-        rpc.add_OpenCDAServicer_to_server(self.OpenCDA(q), server)
+        rpc.add_OpenCDAServicer_to_server(self.OpenCDA(q, message_stack), server)
         server.add_insecure_port(address)
         server.start()
         logging.info("Server serving at %s", address)
@@ -355,7 +408,8 @@ class ScenarioManager:
 
         logging.basicConfig(level=logging.INFO)
         self.message_queue = Queue()
-        server_thread = threading.Thread(target=self.serve, args=(self.message_queue, "[::]:50051",))
+        self.message_stack = []
+        server_thread = threading.Thread(target=self.serve, args=(self.message_queue, self.message_stack, "[::]:50051",))
         server_thread.start()
 
         ScenarioManager.vehicle_count = 0
@@ -365,7 +419,7 @@ class ScenarioManager:
 
         while ScenarioManager.connections_received < ScenarioManager.vehicle_count:
             time.sleep(1)
-            print("sim_api sleeping...")
+            print(f"received {ScenarioManager.connections_received} registrations. sim_api sleeping...")
             #should we wait for a threading event instead?
 
         # message = { "cmd": "start",
@@ -379,7 +433,24 @@ class ScenarioManager:
         # }
 
         # signal server to put ACTIVE on the wire
-        ScenarioManager.set_sim_started.set()
+        #ScenarioManager.set_sim_started.set()
+
+        sim_state_update = sim_state.SimulationState()
+        sim_state_update.test_scenario = ScenarioManager.scenario
+        sim_state_update.application = ScenarioManager.application[0]
+        sim_state_update.version = ScenarioManager.carla_version
+        sim_state_update.message_id = random.randint(1, 1000)
+
+        sim_state_update.state = sim_state.State.START
+        sim_state_update.tick_id = ScenarioManager.tick_id
+        self.message_queue.put(sim_state_update)
+
+        print("eCloud debug: pushed START")
+
+        ScenarioManager.pushed_message.set()
+
+        ScenarioManager.popped_message.wait(timeout=None)
+        ScenarioManager.popped_message.clear()
 
         # gRPC hello block end
 
@@ -454,7 +525,7 @@ class ScenarioManager:
         single_cav_list = []
 
         print("main thread setting simulation active")
-        ScenarioManager.set_sim_active.set()
+        #ScenarioManager.set_sim_active.set()
 
         for i, cav_config in enumerate(
                 self.scenario_params['scenario']['single_cav_list']):
@@ -506,6 +577,7 @@ class ScenarioManager:
             sim_state_update.tick_id = ScenarioManager.tick_id
             sim_state_update.command = sim_state.Command.UPDATE_INFO
             sim_state_update.vehicle_index = i
+            sim_state_update.message_id = random.randint(1, 1000)
             self.message_queue.put(sim_state_update)
             ScenarioManager.pushed_message.set()
             # end gRPC update_info
@@ -536,6 +608,7 @@ class ScenarioManager:
             sim_state_update.params_json = json.dumps(message).encode('utf-8')
 
             sim_state_update.command = sim_state.Command.SET_DESTINATION
+            sim_state_update.message_id = random.randint(1, 1000)
             self.message_queue.put(sim_state_update)
             ScenarioManager.pushed_message.set()
             # end gRPC set_destination
@@ -871,6 +944,7 @@ class ScenarioManager:
         sim_state_update.state = sim_state.State.ACTIVE
         sim_state_update.tick_id = ScenarioManager.tick_id
         sim_state_update.command = sim_state.Command.TICK
+        sim_state_update.message_id = random.randint(1, 1000)
         self.message_queue.put(sim_state_update)
         ScenarioManager.pushed_message.set()
 

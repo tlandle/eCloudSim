@@ -4,12 +4,16 @@ package grpc;
 
 message Empty {}
 
+message Ping {
+  int32 vehicle_index = 1;
+}
+
 enum State {
   UNDEFINED = 0;
   NEW = 1;
   START = 2;
-  UPDATE_INFO = 3;
-  SET_DESTINATION = 4;
+  UPDATE = 3;
+  DESTINATION = 4;
   ACTIVE = 6;
   ENDED = 7;
 }
@@ -17,6 +21,8 @@ enum State {
 enum Command {
   TICK = 0;
   END = 1;
+  SET_DESTINATION = 2;
+  UPDATE_INFO = 3;
 }
 
 enum VehicleState {
@@ -40,6 +46,7 @@ message SimulationState {
   Command command = 7;
   string params_json = 8;
   int32 message_hash = 9; // use as a UID for message indentification when Server needs an ack
+  int32 message_id = 10;
 }
 
 message VehicleUpdate {
@@ -49,10 +56,11 @@ message VehicleUpdate {
   int32 actor_id = 4;
   VehicleState vehicle_state = 5;
   int32 message_hash = 6; // use as a UID for message indentification when Server needs an ack
+  int32 message_id = 7;
 }
 
 service OpenCDA {
-  rpc SimulationStateStream (Empty) returns (stream SimulationState);
+  rpc SimulationStateStream (Ping) returns (stream SimulationState);
   rpc SendUpdate (VehicleUpdate) returns (Empty);
   rpc RegisterVehicle (VehicleUpdate) returns (SimulationState);
   rpc UpdateInfo (VehicleUpdate) returns (Empty);
