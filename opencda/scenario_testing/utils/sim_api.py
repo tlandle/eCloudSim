@@ -162,9 +162,7 @@ class ScenarioManager:
 
     connections_received = 0
     tick_id = 0 # current tick counter
-    sim_state_responses = [] # list of responses per tick - e.g. sim_state_responses[tick_id = 1] = [veh_id = 1, veh_id = 2]
-    sim_state_responses.append(0)
-    sim_state_responses[0] = []
+    sim_state_responses = [[]] # list of responses per tick - e.g. sim_state_responses[tick_id = 1] = [veh_id = 1, veh_id = 2]
 
     tick_complete = threading.Event()
     set_sim_active = threading.Event()
@@ -412,10 +410,7 @@ class ScenarioManager:
         server_thread = threading.Thread(target=self.serve, args=(self.message_queue, self.message_stack, "[::]:50051",))
         server_thread.start()
 
-        ScenarioManager.vehicle_count = 0
-        for i, cav_config in enumerate(
-                scenario_params['scenario']['single_cav_list']):
-            ScenarioManager.vehicle_count += 1
+        ScenarioManager.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
 
         while ScenarioManager.connections_received < ScenarioManager.vehicle_count:
             time.sleep(1)
