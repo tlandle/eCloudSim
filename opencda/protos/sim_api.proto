@@ -46,7 +46,7 @@ message SimulationState {
   Command command = 7;
   string params_json = 8;
   int32 message_hash = 9; // use as a UID for message indentification when Server needs an ack
-  int32 message_id = 10;
+  string message_id = 10;
 }
 
 message VehicleUpdate {
@@ -56,7 +56,7 @@ message VehicleUpdate {
   int32 actor_id = 4;
   VehicleState vehicle_state = 5;
   int32 message_hash = 6; // use as a UID for message indentification when Server needs an ack
-  int32 message_id = 7;
+  string message_id = 7;
 }
 
 service OpenCDA {

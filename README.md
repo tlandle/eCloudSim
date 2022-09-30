@@ -141,3 +141,17 @@ OpenCDA is supported by the [UCLA Mobility Lab](https://mobility-lab.seas.ucla.e
  - Dr. Yi Guo ([linkedin](https://www.linkedin.com/in/yi-guo-4008baaa/))
  - Dr. Xin Xia ([linkedin](https://www.linkedin.com/in/yi-guo-4008baaa/))
 
+### Scratchpad
+
+```
+python -m grpc_tools.protoc -Iprotos --python_out=. --grpc_python_out=. protos/sim_api.proto
+
+python opencda.py -t multi_2lanefree_carla -v 0.9.12
+
+python vehiclesim.py
+
+cd /opt/carla-simulator/
+
+./CarlaUE4.sh
+
+```

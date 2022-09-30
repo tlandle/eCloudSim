@@ -18,6 +18,7 @@ import time
 import json
 import random
 import copy
+import hashlib
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor, thread
@@ -179,8 +180,6 @@ class ScenarioManager:
     pushed_message = threading.Event()
     popped_message = threading.Event()
 
-    random.seed(time.time())
-
     message_stack = []
 
     class OpenCDA(rpc.OpenCDAServicer):
@@ -188,7 +187,8 @@ class ScenarioManager:
         def __init__(self, q, message_stack):
             self._id_counter = 0
             self._q = q
-            self._message_stack = message_stack    
+            self._message_stack = message_stack
+            random.seed(time.time())    
 
         def SimulationStateStream(self, request, context):
             last_tick_id = 0
@@ -205,7 +205,7 @@ class ScenarioManager:
                 # sim_state_update.test_scenario = ScenarioManager.scenario
                 # sim_state_update.application = ScenarioManager.application[0]
                 # sim_state_update.version = ScenarioManager.carla_version
-                # sim_state_update.message_id = random.randint(1, 1000)
+                # sim_state_update.message_id = abs(hash(response.SerializeToString()))
 
                 # sim_state_update.state = sim_state.State.START
                 # sim_state_update.tick_id = ScenarioManager.tick_id
@@ -219,15 +219,17 @@ class ScenarioManager:
                 # wait for event to start reading from the queue?
                 # or just read from queue until we get a threading event?
             stack_index = 0 
+            count = 0
+            big_count = 0
             print("before while stack_index: " + str(stack_index))
             while True:
                 #print("eCloud debug: listening for new messages in queue")
                 #ScenarioManager.pushed_message.wait(timeout=None)
                 if not self._q.empty():
                     sim_state_update = self._q.get()
-                    print("Popped sim_state_update: " + str(sim_state_update))
+                    print("Popped sim_state_update:\n" + str(sim_state_update))
                     if type(sim_state_update) == type(sim_state.SimulationState()):
-                        print("SimulationStateStream message_stack - message id: " + str(sim_state_update.message_id) + " | command: " + str(sim_state_update.command))
+                        print("SimulationStateStream message_stack - message id: " + str(sim_state_update.message_id) + " | command: " + str(sim_state_update.command) + " | tick: " + str(sim_state_update.tick_id))
                         with ScenarioManager.lock:
                             found = False
                             for message in ScenarioManager.message_stack:
@@ -236,13 +238,13 @@ class ScenarioManager:
                                 if state.message_id == sim_state_update.message_id:
                                     found = True
                             if not found:
-                                print("new message:")
-                                print(sim_state_update.SerializeToString()) 
+                                #print("new message:")
+                                #print(sim_state_update.SerializeToString()) 
                                 print("appended new message to stack")       
                                 ScenarioManager.message_stack.append(sim_state_update.SerializeToString())
 
-                ScenarioManager.pushed_message.clear()
-                ScenarioManager.popped_message.set()  
+                    ScenarioManager.pushed_message.clear()
+                    ScenarioManager.popped_message.set()  
 
                 #print("message_stack has " + str(len(self._message_stack)) + " messages...")
                 #print("stack_index" + str(stack_index))
@@ -251,11 +253,18 @@ class ScenarioManager:
                     message = sim_state.SimulationState()
                     message.ParseFromString(m)    
                     print("in while stack_index: " + str(stack_index))
-                    print("SimulationStateStream yield - message id: " + str(message.message_id) + " | command: " + str(message.command))
+                    print("SimulationStateStream yield - message id: " + str(message.message_id) + " | command: " + str(message.command) + " | tick: " + str(message.tick_id))
 
                     stack_index += 1
 
                     yield message
+                
+                count += 1
+                time.sleep(0.1)
+                if count % 100 == 0:
+                    count = 0
+                    big_count += 1
+                    print("looping " + str(big_count) + "...")    
 
             stack_index = 0    
             while stack_index < len(ScenarioManager.message_stack):
@@ -279,10 +288,10 @@ class ScenarioManager:
         def SendUpdate(self, request: sim_state.VehicleUpdate, context):
 
             # need to case handle based on response type... but we don't necessarily *need* this for acks (for now...)
-            if request.state == sim_state.VehicleState.OK:
+            if request.vehicle_state == sim_state.VehicleState.OK:
                 pass
 
-            elif request.state == sim_state.VehicleState.TICK_OK:
+            elif request.vehicle_state == sim_state.VehicleState.TICK_OK:
 
                 with ScenarioManager.lock:
                     print(f"received TICK_OK from vehicle {request.vehicle_index}")
@@ -292,7 +301,7 @@ class ScenarioManager:
                     if len(ScenarioManager.sim_state_responses[request.tick_id]) == ScenarioManager.vehicle_count:
                         ScenarioManager.tick_complete.set()
 
-            elif request.state == sim_state.VehicleState.TICK_DONE:
+            elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
 
                 with ScenarioManager.lock:
                     #make sure to add the tick_id to the root list when we do the tick
@@ -300,7 +309,7 @@ class ScenarioManager:
 
                 # this means sim is done - end??    
 
-            elif request.state == sim_state.VehicleState.ERROR:
+            elif request.vehicle_state == sim_state.VehicleState.ERROR:
 
                 pass
                 # TODO handle graceful termination
@@ -316,7 +325,7 @@ class ScenarioManager:
                 response.state = sim_state.State.NEW
                 response.tick_id = 0
                 response.vehicle_index = ScenarioManager.connections_received
-                response.message_id = random.randint(1, 1000)
+                response.message_id = str(hashlib.sha256(response.SerializeToString()).hexdigest())
                 print("RegisterVehicle - REGISTERING - message id: " + str(response.message_id))
                 with ScenarioManager.lock:
                     ScenarioManager.connections_received += 1
@@ -330,7 +339,7 @@ class ScenarioManager:
                 response.vehicle_index = request.vehicle_index
                 print("Request vehicle_index: " + str(request.vehicle_index) + " | actor_id: " + str(request.actor_id) + " | vid: " + str(request.vid)) 
                 ScenarioManager.vehicles.insert(request.vehicle_index, ( request.actor_id, request.vid ))
-                response.message_id = random.randint(1, 1000)
+                response.message_id = str(hashlib.sha256(response.SerializeToString()).hexdigest())
                 print("RegisterVehicle - CARLA_UPDATE - message id: " + str(response.message_id))
                 return response                    
 
@@ -355,6 +364,8 @@ class ScenarioManager:
         self.config_file = config_file
         
         simulation_config = scenario_params['world']
+
+        random.seed(time.time())
 
         # set random seed if stated
         if 'seed' in simulation_config:
@@ -434,7 +445,7 @@ class ScenarioManager:
         sim_state_update.test_scenario = ScenarioManager.scenario
         sim_state_update.application = ScenarioManager.application[0]
         sim_state_update.version = ScenarioManager.carla_version
-        sim_state_update.message_id = random.randint(1, 1000)
+        sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
 
         sim_state_update.state = sim_state.State.START
         sim_state_update.tick_id = ScenarioManager.tick_id
@@ -572,7 +583,7 @@ class ScenarioManager:
             sim_state_update.tick_id = ScenarioManager.tick_id
             sim_state_update.command = sim_state.Command.UPDATE_INFO
             sim_state_update.vehicle_index = i
-            sim_state_update.message_id = random.randint(1, 1000)
+            sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
             self.message_queue.put(sim_state_update)
             ScenarioManager.pushed_message.set()
             # end gRPC update_info
@@ -603,7 +614,7 @@ class ScenarioManager:
             sim_state_update.params_json = json.dumps(message).encode('utf-8')
 
             sim_state_update.command = sim_state.Command.SET_DESTINATION
-            sim_state_update.message_id = random.randint(1, 1000)
+            sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
             self.message_queue.put(sim_state_update)
             ScenarioManager.pushed_message.set()
             # end gRPC set_destination
@@ -934,12 +945,15 @@ class ScenarioManager:
 
         #TODO: put the gRPC broadcast call in here
         ScenarioManager.tick_id = ScenarioManager.tick_id + 1
+        with ScenarioManager.lock:
+            ScenarioManager.sim_state_responses.append(ScenarioManager.tick_id)
+            ScenarioManager.sim_state_responses[ScenarioManager.tick_id] = []
 
         sim_state_update = sim_state.SimulationState()
         sim_state_update.state = sim_state.State.ACTIVE
         sim_state_update.tick_id = ScenarioManager.tick_id
         sim_state_update.command = sim_state.Command.TICK
-        sim_state_update.message_id = random.randint(1, 1000)
+        sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
         self.message_queue.put(sim_state_update)
         ScenarioManager.pushed_message.set()
 
