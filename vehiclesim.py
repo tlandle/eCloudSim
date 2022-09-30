@@ -21,7 +21,7 @@ from opencda.core.common.vehicle_manager import VehicleManager
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor
-import logging
+import coloredlogs, logging
 import threading
 import time
 from typing import Iterator
@@ -60,6 +60,10 @@ version = None #= message["params"]["version"]
 actor_id = None
 vid = None
 
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', logger=logger)
+logger.setLevel(logging.INFO)
+
 class Client:
 
     def __init__(self, queue, channel: grpc.Channel) -> None:
@@ -76,7 +80,7 @@ class Client:
         global vehicle_index
         for response in self._stub.SimulationStateStream(sim_state.Ping( vehicle_index = vehicle_index )):  # this line will wait for new messages from the server!
             #if response.tick_id != tick_id:
-            print("M{} - S{} C{} T{}".format(response.message_id, response.state, response.command, response.tick_id))  # debugging statement
+            logger.debug(f"M{response.message_id} - S{response.state} C{response.command} T{response.tick_id}")
             self._on_sim_state_update(response)
         #         else:
         #             raise RuntimeError(
@@ -100,26 +104,26 @@ class Client:
 
         # switch based on the command argument
         if sim_state_update.command == sim_state.Command.SET_DESTINATION and sim_state_update.vehicle_index == vehicle_index:
-            print("received a set_destination command")
+            logger.debug("received a set_destination command")
 
             self._queue.put(sim_state_update)
             pushed_message.set()
             popped_message.wait(timeout=None)
             popped_message.clear()
 
-            print("processed a set_destination command")
+            logger.debug("processed a set_destination command")
 
             return
 
         elif sim_state_update.command == sim_state.Command.UPDATE_INFO and sim_state_update.vehicle_index == vehicle_index:
-            print("received an update_info command")
+            logger.debug("received an update_info command")
                         
             self._queue.put(sim_state_update)
             pushed_message.set()
             popped_message.wait(timeout=None)
             popped_message.clear()
 
-            print("processed an update_info command")
+            logger.debug("processed an update_info command")
 
             return                
 
@@ -128,7 +132,7 @@ class Client:
 
         # did we get a new tick_id?
         if tick_id != sim_state_update.tick_id:
-            print(f"received new tick... {sim_state_update.tick_id}")
+            logger.info(f"received new tick... {sim_state_update.tick_id}")
             tick_id = sim_state_update.tick_id
             #signal update
 
@@ -140,8 +144,8 @@ class Client:
             pushed_response.wait()
             message = self._queue.get()
             pushed_response.clear()
-            print("responding to tick...")
-            print(message.SerializeToString())    
+            logger.info("responding to tick...")
+            logger.debug(message.SerializeToString())    
             self._stub.SendUpdate(message) 
             popped_response.set()
 
@@ -149,7 +153,7 @@ class Client:
 
         # check vehicle index to see if the message is for us
         if sim_state_update.state == sim_state.State.START and state != sim_state.State.START:
-            print("simulation state is now STARTED")
+            logger.info("simulation state is now STARTED")
             global test_scenario
             global application
             global version
@@ -158,54 +162,54 @@ class Client:
             application = sim_state_update.application
             version = sim_state_update.version
 
-            print("test_scenario: " + test_scenario)
-            print("application: " + application)
-            print("version: " + version)
+            logger.debug(f"test_scenario: {test_scenario}")
+            logger.debug(f"application: {application}")
+            logger.debug(f"version: {version}")
 
             # signal main thread that we've got the start response
             global opencda_started
             opencda_started.set()
 
-            print("waiting for Carla data...")
+            logger.info("waiting for Carla data...")
 
             carla_vehicle_created.wait(timeout=None)
 
             self._actor_id = self._queue.get()
             self._vid = self._queue.get()
 
-            print("sending Carla data...")
+            logger.info("sending Carla data...")
             self.send_carla_data_to_opencda()
 
         if state != sim_state.State.ACTIVE and sim_state_update.state == sim_state.State.ACTIVE:
-            print("simulation state is now ACTIVE")
+            logger.info("simulation state is now ACTIVE")
             with lock:
                 state = sim_state_update.state
-                print("eCloud debug: updated state to ACTIVE")
+                logger.debug("eCloud debug: updated state to ACTIVE")
             #opencda_responded.set()
 
         if sim_state_update.state == sim_state.State.ENDED:
-            print("simulation state is now ENDED")
+            logger.info("simulation state is now ENDED")
             sim_finished.set()
 
-        print("exiting _on_sim_state_update")    
+        logger.debug("exiting _on_sim_state_update")    
 
     def set_aid_and_vid(self, aid, vid) -> None:
         self._actor_id = aid
         self._vid = vid
 
-    def send_ping_to_opencda(self) -> None:
-        global vehicle_index
+    # def send_ping_to_opencda(self) -> None:
+    #     global vehicle_index
 
-        request = sim_state.VehicleUpdate()
-        request.tick_id = tick_id
-        request.vehicle_index = vehicle_index
-        self._stub.SendUpdate(request)     
+    #     request = sim_state.VehicleUpdate()
+    #     request.tick_id = tick_id
+    #     request.vehicle_index = vehicle_index
+    #     self._stub.SendUpdate(request)     
 
-    def send_update_info_ok(self) -> None:
-        print("sending update info...")
+    # def send_update_info_ok(self) -> None:
+    #     logger.debug("sending update info...")
 
-    def request_destination(self) -> None:
-        print("sending update info...")    
+    # def request_destination(self) -> None:
+    #     logger.debug("sending update info...")    
 
     def send_registration_to_opencda(self) -> None:
         global vehicle_index
@@ -215,7 +219,7 @@ class Client:
         response = self._stub.RegisterVehicle(request)
 
         vehicle_index = response.vehicle_index
-        print("Vehicle ID " + str(vehicle_index) + " received...")
+        logger.debug(f"Vehicle ID {vehicle_index} received...")
         assert response.state == sim_state.State.NEW
         state = response.state
 
@@ -223,7 +227,7 @@ class Client:
         global vehicle_index
 
         message = {"vehicle_index": vehicle_index, "actor_id": self._actor_id, "vid": self._vid}
-        print(f"Vehicle: Sending Carla rpc {message}")
+        logger.debug(f"Vehicle: Sending Carla rpc {message}")
 
         # send actor ID and vid to API
         update = sim_state.VehicleUpdate()
@@ -234,7 +238,7 @@ class Client:
         
         response = None
         response = self._stub.RegisterVehicle(update)
-        print("response...")
+        logger.debug("response...")
 
         # signal main thread?
 
@@ -242,7 +246,7 @@ class Client:
 def register_with_opencda(queue, channel: grpc.Channel) -> None:
     opencda_client = Client(queue, channel)
     opencda_client.send_registration_to_opencda()
-    logging.info("Registration with OpenCDA finished!")
+    logger.info("Registration with OpenCDA finished!")
     opencda_client._sim_state_watcher() # listen on stream
 
 def run(q):
@@ -264,6 +268,10 @@ def arg_parse():
                         help="Specifies the ip address of the server to connect to. [Default: 127.0.0.1]")
     parser.add_argument('-p', "--port", type=int, default=5555,
                         help="Specifies the port to connect to. [Default: 5555]")
+    parser.add_argument('-v', "--verbose", action="store_true",
+                            help="Make more noise")
+    parser.add_argument('-q', "--quiet", action="store_true",
+                            help="Make no noise")
 
     opt = parser.parse_args()
     return opt
@@ -274,7 +282,11 @@ def main():
     version = "0.9.12"
 
     opt = arg_parse()
-    print("OpenCDA Version: %s" % __version__)
+    if opt.verbose:
+        logger.setLevel(logging.DEBUG)
+    elif opt.quiet:
+        logger.setLevel(logging.WARNING)
+    logger.debug(f"OpenCDA Version: {version}")
 
     # Use zmq for interprocess communication between OpenCDA and each vehicle
 #    context = zmq.Context()
@@ -290,10 +302,10 @@ def main():
 
     #run()
 
-    print("waiting for opencda sim_api to start")
+    logger.info("waiting for opencda sim_api to start")
     opencda_started.wait(timeout=None) # send the start command below
 
-    print("opencda sim_api start")
+    logger.info("opencda sim_api start")
 
     # gRPC end
 
@@ -315,14 +327,14 @@ def main():
     if not os.path.isfile(test_scenario):
         sys.exit("%s not found!" % test_scenario)
 
-    print("main - test_scenario: " + test_scenario)
-    print("main - application: " + application[0])
-    print("main - version: " + version)
+    logger.debug(f"main - test_scenario: {test_scenario}")
+    logger.debug(f"main - application: {application[0]}")
+    logger.debug(f"main - version: {version}")
 
     # create CAV world
     cav_world = CavWorld(opt.apply_ml)
 
-    print("eCloud debug: creating VehicleManager vehicle_index: " + str(vehicle_index))
+    logger.debug(f"eCloud debug: creating VehicleManager vehicle_index: {vehicle_index}")
 
     vehicle_manager = VehicleManager(vehicle_index, test_scenario, application, cav_world, version)
 
@@ -334,7 +346,7 @@ def main():
         q.put(vid)
 
     message = {"actor_id": actor_id, "vid": vid}
-    print(f"Vehicle: Sending id {message}")
+    logger.debug(f"Vehicle: Sending id {message}")
 
     carla_vehicle_created.set()
 
@@ -348,11 +360,11 @@ def main():
 
         assert( type(sim_state_update) == type(sim_state.SimulationState()) )
         if type(sim_state_update) != type(sim_state.SimulationState()):
-            print("eCloud debug: got bad message in queue, skipping...")
+            logger.warning("eCloud debug: got bad message in queue, skipping...")
             continue
 
         if sim_state_update.command != sim_state.Command.TICK: # don't print tick message since there are too many
-            print(f"Vehicle: received cmd {sim_state_update.command}")
+            logger.info(f"Vehicle: received cmd {sim_state_update.command}")
 
         if sim_state_update.command == sim_state.Command.UPDATE_INFO:
             vehicle_manager.update_info()
@@ -362,8 +374,8 @@ def main():
         elif sim_state_update.command == sim_state.Command.SET_DESTINATION:
             params_json = json.loads(sim_state_update.params_json)
             destination = params_json['params']
-            print("JSON Params: " + sim_state_update.params_json)
-            print(f"Vehicle: x=%s" % destination["start"]["x"])
+            logger.debug("JSON Params: " + sim_state_update.params_json)
+            logger.debug(f"Vehicle: x=%s" % destination["start"]["x"])
             start_location = carla.Location(x=destination["start"]["x"], y=destination["start"]["y"], z=destination["start"]["z"])
             end_location = carla.Location(x=destination["end"]["x"], y=destination["end"]["y"], z=destination["end"]["z"])
             clean = bool(destination["clean"])
@@ -408,4 +420,4 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print(' - Exited by user.')
+        logger.info(' - Exited by user.')
