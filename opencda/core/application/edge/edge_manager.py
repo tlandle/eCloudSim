@@ -400,9 +400,18 @@ class EdgeManager(object):
             y_res = self.ycars[j,i]
             processed_array.append(np.array([[x_res],[y_res]]))
             print("Appending to waypoints_rev")
+          print(processed_array)
           back = self.processor.process_back(processed_array)
+
+          print(waypoints_rev)
+          print(waypoints_rev.keys())
           for j in range(0,self.numcars):
-            waypoints_rev[str(j+1)] = np.hstack((waypoints_rev[str(j+1)],back[str(j)]))
+            print(len(back))
+            print(j)
+            # print(waypoints_rev[str(j+1)])
+            # print(back[str(j)])
+            # print(np.hstack((waypoints_rev[str(j+1)],back[str(j)])))
+            waypoints_rev[str(j+1)] = np.hstack((waypoints_rev[str(j+1)],back[j]))
 
         # processed_array = []
         # for k in range(0,4): #Added 16/03 outer loop to check if waypoint horizon influenced things, it did not seem to.

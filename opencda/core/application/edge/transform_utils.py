@@ -114,9 +114,9 @@ class transform_processor():
         counter = 0
         rot_inverted = []
 
-        for i in range(0,len(self.waypoints.keys())):
+        for i in range(0,len(processed_forward_array)):# len(self.waypoints.keys())):
             if processed_forward_array[i][1,0] != 0:
-                processed_forward_array[i][1,0] = (processed_forward_array[i][1,0]+1)/self.scaling[counter]
+                processed_forward_array[i][1,0] = (processed_forward_array[i][1,0]+1)/self.scaling[int(processed_forward_array[i][1,0])]# counter]
 
             rot_inverted.append(inverse_transform(processed_forward_array[i][0,0],processed_forward_array[i][1,0],
                 self.inverse_rotation_mat,-self.offset))

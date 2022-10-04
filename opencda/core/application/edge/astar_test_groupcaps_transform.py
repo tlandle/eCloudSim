@@ -517,7 +517,7 @@ def get_slices_clustered(Traffic_Tracker,numcars):
     argsort_indices = np.argsort(np.array(carlist_posx))
     argsort_indices = argsort_indices.tolist()
 
-    cluster_list = KMeansConstrained(n_clusters=2, size_min=None, size_max=2,random_state=0).fit_predict(position_features)
+    cluster_list = KMeansConstrained(n_clusters=int(numcars/2 + 1), size_min=None, size_max=2,random_state=0).fit_predict(position_features)
     group_number = np.amax(cluster_list)+1
 
     for i in range(0,group_number):
