@@ -154,4 +154,12 @@ cd /opt/carla-simulator/
 
 ./CarlaUE4.sh
 
+# DOCKER
+
+docker build -f Dockerfile.vehiclesim -t vehiclesim:latest .
+
+# --network="host" means the container just uses the host's network; need to fix for actual deployment
+docker run -d --privileged --name=veh2 --network="host" vehiclesim:latest tail -f /dev/null 
+
+
 ```

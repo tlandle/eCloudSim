@@ -15,13 +15,15 @@ RUN python3.7 -m pip install --upgrade pip && python3.7 -m pip install --upgrade
 
 RUN python3.7 -m pip install grpcio && python3.7 -m pip install protobuf
 
-COPY . .
+COPY requirements.txt .
 
 RUN python3.7 -m pip install -r requirements.txt
 
 RUN python3.7 -m pip install carla==0.9.12
 
 RUN python3.7 -m pip install coloredlogs
+
+COPY . .
 
 EXPOSE 5555/tcp
 
