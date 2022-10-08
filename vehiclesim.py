@@ -9,8 +9,6 @@ from atexit import register
 from curses import A_DIM
 import os
 import sys
-import zmq
-import socket
 import json
 
 import carla
@@ -159,6 +157,7 @@ class Client:
             global version
 
             test_scenario = sim_state_update.test_scenario
+            test_scenario = test_scenario[ test_scenario.find("opencda/"): ] # strip off any pathing from host
             application = sim_state_update.application
             version = sim_state_update.version
 
