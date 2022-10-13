@@ -87,10 +87,19 @@ python opencda.py -t single_2lanefree_carla -v 0.9.12
 python opencda.py -t multi_2lanefree_carla -v 0.9.12
 ```
 
-Create Vehicle Client
-
+Build Docker image for vehicle clients
 ```
-python vehiclesim.py
+sudo docker build -t vehicle-sim .
+```
+
+Run vehicle containers
+```
+sudo bash start_vehicles.sh
+```
+
+Stop and remove vehicle containers
+```
+sudo bash stop_vehicles.sh
 ```
 
 ### Developer Guide
