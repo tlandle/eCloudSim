@@ -33,6 +33,9 @@ RESULT_SUCCESS = 0 # Step ran ok
 RESULT_ERROR = 1 # Step resulted in an error
 RESULT_END = 2 # Step resulted in the vehicle simulation ending
 
+cloud_config = load_yaml("cloud_config.yaml")
+CARLA_IP = cloud_config["carla_server_public_ip"]
+
 class VehicleManagerProxy(object):
     """
     A class manager to embed different modules with vehicle together.
@@ -143,7 +146,7 @@ class VehicleManagerProxy(object):
             random.seed(simulation_config['seed'])
 
         self.client = \
-            carla.Client('localhost', simulation_config['client_port'])
+            carla.Client(CARLA_IP, simulation_config['client_port'])
         self.client.set_timeout(10.0)
         self.world = self.client.get_world()
         self.carla_map = self.world.get_map()

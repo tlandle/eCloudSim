@@ -47,9 +47,13 @@ from opencda.core.application.platooning.platooning_manager import \
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.utils.customized_map_api import \
     load_customized_world, bcolors
+from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
+
+cloud_config = load_yaml("cloud_config.yaml")
+CARLA_IP = cloud_config["carla_server_public_ip"]
 
 def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
     """
@@ -375,7 +379,7 @@ class ScenarioManager:
             random.seed(simulation_config['seed'])
 
         self.client = \
-            carla.Client('localhost', simulation_config['client_port'])
+            carla.Client(CARLA_IP, simulation_config['client_port'])
         self.client.set_timeout(10.0)
 
         if xodr_path:

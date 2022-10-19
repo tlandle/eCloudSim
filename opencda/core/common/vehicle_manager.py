@@ -31,6 +31,9 @@ import coloredlogs, logging
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
 
+cloud_config = load_yaml("cloud_config.yaml")
+CARLA_IP = cloud_config["carla_server_public_ip"]
+
 class VehicleManager(object):
     """
     A class manager to embed different modules with vehicle together.
@@ -177,7 +180,7 @@ class VehicleManager(object):
             random.seed(simulation_config['seed'])
 
         self.client = \
-            carla.Client('localhost', simulation_config['client_port'])
+            carla.Client(CARLA_IP, simulation_config['client_port'])
         self.client.set_timeout(10.0)
         self.world = self.client.get_world()
         self.carla_map = self.world.get_map()

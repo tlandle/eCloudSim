@@ -24,7 +24,7 @@ import threading
 import time
 from typing import Iterator
 from queue import Queue
-
+from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from google.protobuf.json_format import MessageToJson
 import grpc
 
@@ -62,6 +62,9 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
 logger.setLevel(logging.INFO)
 
+cloud_config = load_yaml("cloud_config.yaml")
+CARLA_IP = cloud_config["carla_server_public_ip"]
+
 class Client:
 
     def __init__(self, queue, channel: grpc.Channel) -> None:
@@ -72,6 +75,7 @@ class Client:
         self._vid = None
         self._queue = queue
 
+    
     def _sim_state_watcher(self) -> None:
         #try:
         global tick_id
@@ -250,7 +254,7 @@ def register_with_opencda(queue, channel: grpc.Channel) -> None:
 
 def run(q):
     #executor = ThreadPoolExecutor()
-    with grpc.insecure_channel("localhost:50051") as channel:
+    with grpc.insecure_channel(f"{CARLA_IP}:50051") as channel:
         #future = executor.submit(register_with_opencda, executor, channel)
         #future.result()
         register_with_opencda(q, channel)
@@ -263,8 +267,8 @@ def arg_parse():
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                              'Set it to true only when you have installed the pytorch/sklearn package.')
-    parser.add_argument('-i', "--ipaddress", type=str, default="127.0.0.1",
-                        help="Specifies the ip address of the server to connect to. [Default: 127.0.0.1]")
+    parser.add_argument('-i', "--ipaddress", type=str, default=CARLA_IP,
+                        help="Specifies the ip address of the server to connect to. [Default: localhost]")
     parser.add_argument('-p', "--port", type=int, default=5555,
                         help="Specifies the port to connect to. [Default: 5555]")
     parser.add_argument('-v', "--verbose", action="store_true",
