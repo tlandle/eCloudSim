@@ -23,31 +23,22 @@ def run_scenario(opt, config_yaml):
     try:
         scenario_params = load_yaml(config_yaml)
 
-        current_path = os.path.dirname(os.path.realpath(__file__))
-        xodr_path = os.path.join(
-            current_path,
-            '../assets/2lane_freeway_simplified/2lane_freeway_simplified.xodr')
-
-        # create CAV world
         cav_world = CavWorld(opt.apply_ml)
         # create scenario manager
         scenario_manager = sim_api.ScenarioManager(scenario_params,
                                                    opt.apply_ml,
                                                    opt.version,
-                                                   xodr_path=xodr_path,
+                                                   town='Town06',
                                                    cav_world=cav_world,
                                                    config_file=config_yaml)
 
-        print("scenario manager created...", flush=True)                                           
-
         if opt.record:
             scenario_manager.client. \
-                start_recorder("single_2lanefree_carla.log", True)
+                start_recorder("ecloud_4lane.log", True)
 
+        # create single cavs
         single_cav_list = \
-            scenario_manager.create_vehicle_manager(application=['single'],
-                                                    map_helper=map_api.
-                                                    spawn_helper_2lanefree)
+            scenario_manager.create_vehicle_manager(application=['single'])
 
         # create background traffic in carla
         traffic_manager, bg_veh_list = \
@@ -56,7 +47,7 @@ def run_scenario(opt, config_yaml):
         # create evaluation manager
         eval_manager = \
             EvaluationManager(scenario_manager.cav_world,
-                              script_name='single_2lanefree_carla',
+                              script_name='ecloud_4lane_scenario',
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
@@ -77,7 +68,7 @@ def run_scenario(opt, config_yaml):
             spectator.set_transform(carla.Transform(
                 transform.location +
                 carla.Location(
-                    z=120),
+                    z=80),
                 carla.Rotation(
                     pitch=-
                     90)))
