@@ -359,9 +359,8 @@ class PerceptionManager:
 
         # if data dump is true, semantic lidar is also spawned
         self.data_dump = data_dump
-        if data_dump:
-            self.semantic_lidar = SemanticLidarSensor(vehicle,
-                                                      config_yaml['lidar'])
+        self.semantic_lidar = SemanticLidarSensor(vehicle,
+                                                    config_yaml['lidar'])
 
         # count how many steps have been passed
         self.count = 0

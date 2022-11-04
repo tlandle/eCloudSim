@@ -12,7 +12,10 @@ import os
 import sys
 
 from opencda.version import __version__
+import coloredlogs, logging
 
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='INFO', logger=logger)
 
 def arg_parse():
     parser = argparse.ArgumentParser(description="OpenCDA scenario runner.")
@@ -30,14 +33,17 @@ def arg_parse():
     parser.add_argument('-v', "--version", type=str, default='0.9.11',
                         help='Specify the CARLA simulator version, default'
                              'is 0.9.11, 0.9.12 is also supported.')
-
+    parser.add_argument("--verbose", action="store_true",
+                            help="Make more noise")
+    parser.add_argument('-q', "--quiet", action="store_true",
+                            help="Make no noise")
     opt = parser.parse_args()
     return opt
 
 
 def main():
     opt = arg_parse()
-    print("OpenCDA Version: %s" % __version__)
+    logger.info("OpenCDA Version: %s" % __version__)
 
     try:
         testing_scenario = importlib.import_module("opencda.scenario_testing.%s" % opt.test_scenario)
@@ -58,4 +64,4 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print(' - Exited by user.')
+        logger.info(' - Exited by user.')

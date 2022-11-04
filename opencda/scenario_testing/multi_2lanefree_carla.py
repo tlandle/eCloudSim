@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Scenario testing: Single vehicle dring in the customized 2 lane highway map.
+Scenario testing: two vehicle driving in the customized 2 lane highway map.
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
@@ -8,6 +8,7 @@ Scenario testing: Single vehicle dring in the customized 2 lane highway map.
 import os
 
 import carla
+from opencda.core.common.vehicle_manager_proxy import VehicleManagerProxy
 
 import opencda.scenario_testing.utils.sim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
@@ -37,6 +38,8 @@ def run_scenario(opt, config_yaml):
                                                    cav_world=cav_world,
                                                    config_file=config_yaml)
 
+        print("scenario manager created...", flush=True)                                           
+
         if opt.record:
             scenario_manager.client. \
                 start_recorder("single_2lanefree_carla.log", True)
@@ -45,7 +48,6 @@ def run_scenario(opt, config_yaml):
             scenario_manager.create_vehicle_manager(application=['single'],
                                                     map_helper=map_api.
                                                     spawn_helper_2lanefree)
-        print("eCloud debug: completed create_vehicle_manager")
 
         # create background traffic in carla
         traffic_manager, bg_veh_list = \
@@ -60,26 +62,43 @@ def run_scenario(opt, config_yaml):
         spectator = scenario_manager.world.get_spectator()
         # run steps
        
-        while True:
+        flag = True
+        while flag:
             scenario_manager.tick()
+
+            # gRPC begin
+            # call sim_api to update tick
+            # loop here --> sim_api should not return True until tick completed
+
+            #gRPC end
+
             # TODO eCloud - figure out another way to have the vehicle follow a CAV. Perhaps still access the bp since it's read only?
             transform = single_cav_list[0].vehicle.get_transform()
             spectator.set_transform(carla.Transform(
                 transform.location +
                 carla.Location(
-                    z=70),
+                    z=120),
                 carla.Rotation(
                     pitch=-
                     90)))
 
-            for i, single_cav in enumerate(single_cav_list):
-                single_cav._socket.send(b"TICK")
-                single_cav._socket.recv(1024)
-                #single_cav.update_info()
-                #control = single_cav.run_step()
-                #single_cav.apply_control(control)
+            # for _, single_cav in enumerate(single_cav_list):
+            #     result = single_cav.do_tick()
+            #     if result == 1: # Need to figure out how to use a const
+            #         print("Unexpected termination: Sending END to all vehicles and ending.")
+            #         flag = False
+            #         break
+            #     elif result == 2:
+            #         print("Simulation ended: Sending END to all vehicles and ending.")
+            #         flag = False
+            #         break
+
+        # TODO gRPC    
+        #for _, single_cav in enumerate(single_cav_list):
+        #    single_cav.end_step()
 
     finally:
+        print("Evaluating simulation results...")
         eval_manager.evaluate()
 
         if opt.record:

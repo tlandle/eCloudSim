@@ -783,8 +783,8 @@ class BehaviorAgent(object):
 
         # 0. Simulation ends condition
         if self.is_close_to_destination():
-            print('Simulation is Over')
-            sys.exit(0)
+            return -1, None # eCloud: Use -1 to indicate simulation end. Need a better way than this.
+#            sys.exit(0)
 
         # 1. Traffic light management
         if self.traffic_light_manager(ego_vehicle_wp) != 0:

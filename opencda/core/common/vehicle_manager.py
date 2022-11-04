@@ -5,10 +5,16 @@ Basic class of CAV
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import random
 import uuid
 import opencda.logging_ecloud
 import logging
 import time
+
+import carla
+import numpy as np
+
+from opencda.core.common.cav_world import CavWorld
 from opencda.core.actuation.control_manager \
     import ControlManager
 from opencda.core.application.platooning.platoon_behavior_agent\
@@ -22,7 +28,14 @@ from opencda.core.sensing.perception.perception_manager \
 from opencda.core.plan.behavior_agent \
     import BehaviorAgent
 from opencda.core.common.data_dumper import DataDumper
+from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
+import coloredlogs, logging
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', logger=logger)
+
+cloud_config = load_yaml("cloud_config.yaml")
+CARLA_IP = cloud_config["carla_server_public_ip"]
 
 class VehicleManager(object):
     """
@@ -34,7 +47,7 @@ class VehicleManager(object):
         The carla.Vehicle. We need this class to spawn our gnss and imu sensor.
 
     config_yaml : dict
-        The configuration dictionary of the localization module.
+        The configuration dictionary of this CAV.
 
     application : list
         The application category, currently support:['single','platoon'].
@@ -75,60 +88,105 @@ class VehicleManager(object):
 
     def __init__(
             self,
-            vehicle,
-            config_yaml,
+            vehicle_index,
+            config_file,
             application,
-            carla_map,
             cav_world,
+            carla_version,
             current_time='',
             data_dumping=False):
 
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
-        self.vehicle = vehicle
-        self.carla_map = carla_map
+
+        self.scenario_params = load_yaml(config_file)
+
+        self.initialize_process()
+        self.carla_version = carla_version
+
+        # By default, we use lincoln as our cav model.
+        default_model = 'vehicle.lincoln.mkz2017' \
+            if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
+
+        cav_vehicle_bp = \
+            self.world.get_blueprint_library().find(default_model)
+
+        # if the spawn position is a single scalar, we need to use map
+        # helper to transfer to spawn transform
+        cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index]
+        if 'spawn_special' not in cav_config:
+            spawn_transform = carla.Transform(
+                carla.Location(
+                    x=cav_config['spawn_position'][0],
+                    y=cav_config['spawn_position'][1],
+                    z=cav_config['spawn_position'][2]),
+                carla.Rotation(
+                    pitch=cav_config['spawn_position'][5],
+                    yaw=cav_config['spawn_position'][4],
+                    roll=cav_config['spawn_position'][3]))
+# TODO eCloud Need to put this back in. Is not being used for simple scenario I'm working with currently
+#        else:
+#            spawn_transform = map_helper(self.carla_version,
+#                                         *cav_config['spawn_special'])
+
+        cav_vehicle_bp.set_attribute('color', '0, 0, 255')
+        self.vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
 
         # retrieve the configure for different modules
-        sensing_config = config_yaml['sensing']
-        behavior_config = config_yaml['behavior']
-        control_config = config_yaml['controller']
-        v2x_config = config_yaml['v2x']
+        sensing_config = cav_config['sensing']
+        behavior_config = cav_config['behavior']
+        control_config = cav_config['controller']
+        v2x_config = cav_config['v2x']
 
         # v2x module
         self.v2x_manager = V2XManager(cav_world, v2x_config, self.vid)
         # localization module
         self.localizer = LocalizationManager(
-            vehicle, sensing_config['localization'], carla_map)
+            self.vehicle, sensing_config['localization'], self.carla_map)
         # perception module
         self.perception_manager = PerceptionManager(
-            vehicle, sensing_config['perception'], cav_world,
+            self.vehicle, sensing_config['perception'], cav_world,
             data_dumping)
 
         # behavior agent
         self.agent = None
         if 'platooning' in application:
-            platoon_config = config_yaml['platoon']
+            platoon_config = cav_config['platoon']
             self.agent = PlatooningBehaviorAgent(
-                vehicle,
+                self.vehicle,
                 self,
                 self.v2x_manager,
                 behavior_config,
                 platoon_config,
-                carla_map)
+                self.carla_map)
         else:
-            self.agent = BehaviorAgent(vehicle, carla_map, behavior_config)
+            self.agent = BehaviorAgent(self.vehicle, self.carla_map, behavior_config)
 
         # Control module
         self.controller = ControlManager(control_config)
 
         if data_dumping:
             self.data_dumper = DataDumper(self.perception_manager,
-                                          vehicle.id,
+                                          self.vehicle.id,
                                           save_time=current_time)
         else:
             self.data_dumper = None
 
         cav_world.update_vehicle_manager(self)
+
+    def initialize_process(self):
+        simulation_config = self.scenario_params['world']
+
+        # set random seed if stated
+        if 'seed' in simulation_config:
+            np.random.seed(simulation_config['seed'])
+            random.seed(simulation_config['seed'])
+
+        self.client = \
+            carla.Client(CARLA_IP, simulation_config['client_port'])
+        self.client.set_timeout(10.0)
+        self.world = self.client.get_world()
+        self.carla_map = self.world.get_map()
 
     def set_destination(
             self,
@@ -210,6 +268,9 @@ class VehicleManager(object):
         target_speed, target_pos = self.agent.run_step(target_speed)
         end_time = time.time()
         logging.debug("Agent step time: %s" %(end_time - pre_vehicle_step_time))
+        if target_speed == -1:
+            logger.info("run_step: simulation is over")
+            return None # -1 indicates the simulation is over. TODO Need a const here.
         control = self.controller.run_step(target_speed, target_pos)
         post_vehicle_step_time = time.time()
         logging.debug("Controller step time: %s" %(post_vehicle_step_time - end_time))
@@ -222,6 +283,12 @@ class VehicleManager(object):
                                       self.agent)
 
         return control
+
+    def apply_control(self, control):
+        """
+        Apply the controls to the vehicle
+        """
+        self.vehicle.apply_control(control)
 
     def destroy(self):
         """

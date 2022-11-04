@@ -23,6 +23,7 @@ share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+env37/
 MANIFEST
 
 # PyInstaller
@@ -152,3 +153,5 @@ video_dumping
 
 # Vim
 *.sw*
+# gRPC Stubs
+*pb2*
