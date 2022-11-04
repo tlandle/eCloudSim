@@ -27,7 +27,12 @@ from opencda.core.plan.behavior_agent \
 from opencda.core.common.data_dumper import DataDumper
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
+import coloredlogs, logging
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', logger=logger)
 
+cloud_config = load_yaml("cloud_config.yaml")
+CARLA_IP = cloud_config["carla_server_public_ip"]
 
 class VehicleManager(object):
     """
@@ -175,7 +180,7 @@ class VehicleManager(object):
             random.seed(simulation_config['seed'])
 
         self.client = \
-            carla.Client('localhost', simulation_config['client_port'])
+            carla.Client(CARLA_IP, simulation_config['client_port'])
         self.client.set_timeout(10.0)
         self.world = self.client.get_world()
         self.carla_map = self.world.get_map()
@@ -238,7 +243,7 @@ class VehicleManager(object):
         """
         target_speed, target_pos = self.agent.run_step(target_speed)
         if target_speed == -1:
-            print("run_step: simulation is over")
+            logger.info("run_step: simulation is over")
             return None # -1 indicates the simulation is over. TODO Need a const here.
         control = self.controller.run_step(target_speed, target_pos)
 

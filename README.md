@@ -60,6 +60,48 @@ Also, under this LICENSE, OpenCDA is for non-commercial research only. Researche
 Note: We continuously improve the performance of OpenCDA. Currently, it is mainly tested in our customized maps and
  Carla town06 map; therefore, we <strong>DO NOT </strong> guarantee the same level of  robustness in other maps.
 
+### Usage
+
+Activate the conda enviroment
+
+```
+conda activate opencda
+```
+
+Create gRPC stubs
+
+```
+python -m grpc_tools.protoc -I./opencda/protos --python_out=. --grpc_python_out=. ./opencda//protos/sim_api.proto
+```
+
+Start the Carla server
+
+```
+./CarlaUE4.sh
+```
+
+Run opencda vehicle test
+
+```
+python opencda.py -t single_2lanefree_carla -v 0.9.12
+python opencda.py -t multi_2lanefree_carla -v 0.9.12
+```
+
+Build Docker image for vehicle clients
+```
+sudo docker build -t vehicle-sim .
+```
+
+Run vehicle containers
+```
+sudo bash start_vehicles.sh
+```
+
+Stop and remove vehicle containers
+```
+sudo bash stop_vehicles.sh
+```
+
 ### Developer Guide
 
 *  [Class Design](https://opencda-documentation.readthedocs.io/en/latest/md_files/developer_tutorial.html)
@@ -108,3 +150,25 @@ OpenCDA is supported by the [UCLA Mobility Lab](https://mobility-lab.seas.ucla.e
  - Dr. Yi Guo ([linkedin](https://www.linkedin.com/in/yi-guo-4008baaa/))
  - Dr. Xin Xia ([linkedin](https://www.linkedin.com/in/yi-guo-4008baaa/))
 
+### Scratchpad
+
+```
+python -m grpc_tools.protoc -Iprotos --python_out=. --grpc_python_out=. protos/sim_api.proto
+
+python opencda.py -t multi_2lanefree_carla -v 0.9.12
+
+python vehiclesim.py
+
+cd /opt/carla-simulator/
+
+./CarlaUE4.sh
+
+# DOCKER
+
+docker build -f Dockerfile.vehiclesim -t vehiclesim:latest .
+
+# --network="host" means the container just uses the host's network; need to fix for actual deployment
+docker run -d --privileged --name=veh2 --network="host" vehiclesim:latest tail -f /dev/null 
+
+
+```
