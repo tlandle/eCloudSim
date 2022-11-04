@@ -74,7 +74,7 @@ class transform_processor():
 
         for i in self.waypoints.keys():
 
-            print("Initial: ", self.waypoints[i]['x'][indice],self.waypoints[i]['y'][indice])
+            #print("Initial: ", self.waypoints[i]['x'][indice],self.waypoints[i]['y'][indice])
 
             rot_end.append(transform(self.waypoints[i]['x'][indice],self.waypoints[i]['y'][indice],self.rotation_mat,self.offset))
             # lane_number = -int(rot_end[-1][1,0]/self.lanewidth)
@@ -83,12 +83,12 @@ class transform_processor():
             if rot_end[-1][1,0] != 0:
                 rot_end[-1][1,0] = self.scaling[counter]*rot_end[-1][1,0]-1
 
-            print("Transformed: ", rot_end[-1])
+            #print("Transformed: ", rot_end[-1])
             if rot_end[-1][1,0] != 0:
                 rot_end[-1][1,0] = (rot_end[-1][1,0]+1)/self.scaling[counter]
 
             rot_inverted.append(inverse_transform(rot_end[-1][0,0],rot_end[-1][1,0],self.inverse_rotation_mat,-self.offset))
-            print("Inverted: ", rot_inverted[-1])
+            #print("Inverted: ", rot_inverted[-1])
             counter += 1
 
         return rot_end, rot_inverted
@@ -99,13 +99,13 @@ class transform_processor():
         rot_end = []
 
         for i in self.waypoints.keys():
-            print("Initial: ", self.waypoints[i]['x'][indice],self.waypoints[i]['y'][indice])
+            #print("Initial: ", self.waypoints[i]['x'][indice],self.waypoints[i]['y'][indice])
             rot_end.append(transform(self.waypoints[i]['x'][indice],self.waypoints[i]['y'][indice],self.rotation_mat,self.offset))
             # lane_number = -int(rot_end[-1][1,0]/self.lanewidth)
             # rot_end[-1][1,0] = lane_number
             if rot_end[-1][1,0] != 0:
                 rot_end[-1][1,0] = self.scaling[counter]*rot_end[-1][1,0]-1
-            print("Transformed: ", rot_end[-1])
+            #print("Transformed: ", rot_end[-1])
             counter += 1
         return rot_end
 
@@ -120,7 +120,7 @@ class transform_processor():
 
             rot_inverted.append(inverse_transform(processed_forward_array[i][0,0],processed_forward_array[i][1,0],
                 self.inverse_rotation_mat,-self.offset))
-            print("Inverted: ", rot_inverted[-1])
+            #print("Inverted: ", rot_inverted[-1])
             counter += 1
 
         return rot_inverted

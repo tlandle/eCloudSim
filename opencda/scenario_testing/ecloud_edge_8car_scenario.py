@@ -12,6 +12,9 @@ import carla
 
 import opencda.scenario_testing.utils.sim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
+import opencda.logging_ecloud
+import logging
+import time
 
 from opencda.core.common.cav_world import CavWorld
 
@@ -60,8 +63,16 @@ def run_scenario(opt, config_yaml):
         while True:
             eval_time += 1
             print("Stepping, ", eval_time*0.2)
+            pre_tick  = time.time()
             scenario_manager.tick()
+            post_tick = time.time()
+            logging.debug("Scenario Manager Tick Time: %s"%(post_tick - pre_tick))
+          
+            pre_tick  = time.time()
             transform = spectator_vehicle.get_transform()
+            post_tick  = time.time()
+            logging.debug("Camera Getting Transform Time: %s"%(post_tick - pre_tick))   
+            pre_tick = time.time()
             spectator.set_transform(
                 carla.Transform(
                     transform.location +
@@ -70,10 +81,18 @@ def run_scenario(opt, config_yaml):
                     carla.Rotation(
                         pitch=-
                         90)))
+            post_tick = time.time()
+            logging.debug("Camera Setting Transform Time: %s"%(post_tick - pre_tick))
 
             for edge in edge_list:
+              pre_tick = time.time()
               edge.update_information()
+              post_tick = time.time()
+              logging.debug("Edge update Information Time: %s"%(post_tick - pre_tick))
+              pre_tick = time.time()
               edge.run_step()
+              post_tick = time.time()
+              logging.debug("Edge Total Step Time: %s"%(post_tick - pre_tick))
 
     finally:
         eval_manager.evaluate()
