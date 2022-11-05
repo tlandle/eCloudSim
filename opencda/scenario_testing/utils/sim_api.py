@@ -41,14 +41,17 @@ import sim_api_pb2_grpc as rpc
 import carla
 import numpy as np
 
+#import k_means_constrained
+
 from opencda.core.common.vehicle_manager_proxy import VehicleManagerProxy
+#from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.application.platooning.platooning_manager import \
     PlatooningManager
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.utils.customized_map_api import \
     load_customized_world, bcolors
 from opencda.core.application.edge.edge_manager import \
-    EdgeManager
+     EdgeManager
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
 logger = logging.getLogger(__name__)
@@ -763,7 +766,7 @@ class ScenarioManager:
                                                  spawn_transform)
 
                 # create vehicle manager for each cav
-                vehicle_manager = VehicleManager(
+                vehicle_manager = VehicleManagerProxy(
                     vehicle, cav, ['edge'],
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
@@ -784,37 +787,37 @@ class ScenarioManager:
         return edge_list
 
 
-    def create_rsu_manager(self, data_dump):
-        """
-        Create a list of RSU.
+    # def create_rsu_manager(self, data_dump):
+    #     """
+    #     Create a list of RSU.
 
-        Parameters
-        ----------
-        data_dump : bool
-            Whether to dump sensor data.
+    #     Parameters
+    #     ----------
+    #     data_dump : bool
+    #         Whether to dump sensor data.
 
-        Returns
-        -------
-        single_cav_list : list
-            A list contains all single CAVs' vehicle manager.
+    #     Returns
+    #     -------
+    #     single_cav_list : list
+    #         A list contains all single CAVs' vehicle manager.
 
-        rsu_list : list
-            A list contains all rsu managers..
-        """
-        logger.info('Creating RSU.')
-        rsu_list = []
-        for i, rsu_config in enumerate(
-                self.scenario_params['scenario']['rsu_list']):
+    #     rsu_list : list
+    #         A list contains all rsu managers..
+    #     """
+    #     logger.info('Creating RSU.')
+    #     rsu_list = []
+    #     for i, rsu_config in enumerate(
+    #             self.scenario_params['scenario']['rsu_list']):
 
-            rsu_manager = RSUManager(self.world, rsu_config,
-                                     self.carla_map,
-                                     self.cav_world,
-                                     self.scenario_params['current_time'],
-                                     data_dump)
+    #         rsu_manager = RSUManager(self.world, rsu_config,
+    #                                  self.carla_map,
+    #                                  self.cav_world,
+    #                                  self.scenario_params['current_time'],
+    #                                  data_dump)
 
-            rsu_list.append(rsu_manager)
+    #         rsu_list.append(rsu_manager)
 
-        return rsu_list
+    #     return rsu_list
 
 
     def spawn_vehicles_by_list(self, tm, traffic_config, bg_list):
