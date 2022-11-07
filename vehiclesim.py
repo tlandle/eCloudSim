@@ -356,7 +356,8 @@ def main():
     #_socket.send(json.dumps(message).encode('utf-8'))
 
     # run scenario testing --> replace with event-based on streaming connection
-    while True:
+    flag = True
+    while flag:
         pushed_message.wait(timeout=None)    
         sim_state_update = q.get()
         #message = json.loads(_socket.recv(1024).decode('utf-8'))
@@ -416,7 +417,7 @@ def main():
             popped_message.set()
             break
     
-    vehicle_manager.destroy()
+    # vehicle_manager.destroy() # let the scenario manager destroy...
     #_socket.close()
 
 if __name__ == '__main__':

@@ -42,7 +42,7 @@ def run_scenario(opt, config_yaml):
 
         if opt.record:
             scenario_manager.client. \
-                start_recorder("single_2lanefree_carla.log", True)
+                start_recorder("multi_2lanefree_carla.log", True)
 
         single_cav_list = \
             scenario_manager.create_vehicle_manager(application=['single'],
@@ -56,7 +56,7 @@ def run_scenario(opt, config_yaml):
         # create evaluation manager
         eval_manager = \
             EvaluationManager(scenario_manager.cav_world,
-                              script_name='single_2lanefree_carla',
+                              script_name='multi_2lanefree_carla',
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
@@ -64,7 +64,7 @@ def run_scenario(opt, config_yaml):
        
         flag = True
         while flag:
-            scenario_manager.tick()
+            flag = scenario_manager.tick()
 
             # gRPC begin
             # call sim_api to update tick
@@ -82,7 +82,8 @@ def run_scenario(opt, config_yaml):
                     pitch=-
                     90)))
 
-            # for _, single_cav in enumerate(single_cav_list):
+            for _, single_cav in enumerate(single_cav_list):
+                single_cav.update_info()
             #     result = single_cav.do_tick()
             #     if result == 1: # Need to figure out how to use a const
             #         print("Unexpected termination: Sending END to all vehicles and ending.")
@@ -97,6 +98,9 @@ def run_scenario(opt, config_yaml):
         #for _, single_cav in enumerate(single_cav_list):
         #    single_cav.end_step()
 
+        scenario_manager.end()
+        #scenario_manager.destroyActors()
+
     finally:
         print("Evaluating simulation results...")
         eval_manager.evaluate()
@@ -107,6 +111,14 @@ def run_scenario(opt, config_yaml):
         scenario_manager.close()
 
         for v in single_cav_list:
-            v.destroy()
+            print("destroying single CAV")
+            try:
+                v.destroy()
+            except:
+                print("failed to destroy single CAV")    
         for v in bg_veh_list:
-            v.destroy()
+            print("destroying background vehicle")
+            try:
+                v.destroy()
+            except:
+                print("failed to destroy background vehicle")  

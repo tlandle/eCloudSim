@@ -1,4 +1,5 @@
-FROM ubuntu:20.04
+#FROM ubuntu:20.04
+FROM nvidia/cuda:11.0.3-base-ubuntu20.04
 
 WORKDIR /root
 
@@ -38,10 +39,3 @@ EXPOSE 2000/tcp
 RUN python3.7 -m grpc_tools.protoc -I./opencda/protos --python_out=. --grpc_python_out=. ./opencda//protos/sim_api.proto
 
 CMD python3.7 vehiclesim.py
-
-
-
-
-
-
-

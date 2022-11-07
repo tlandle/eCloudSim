@@ -146,6 +146,8 @@ scenario:
         perception:
           <<: *base_perception
           camera_visualize: 0
+        localization:
+          <<: *base_localize 
 
     - <<: *vehicle_base
       spawn_position: [-400, 8.3, 0.3, 0, 0, 0]
@@ -168,4 +170,6 @@ scenario:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          camera_visualize: 0    
+          camera_visualize: 0  
+        localization:
+          <<: *base_localize     

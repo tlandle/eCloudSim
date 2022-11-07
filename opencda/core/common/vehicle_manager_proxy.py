@@ -101,6 +101,8 @@ class VehicleManagerProxy(object):
         self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index]
         self.cav_world = cav_world
         self.data_dumping = data_dumping
+        self.application = application
+        self.current_time = current_time
 
         self.initialize_process(config_yaml)
 
@@ -134,6 +136,30 @@ class VehicleManagerProxy(object):
         self.perception_manager = PerceptionManager(
             vehicle, sensing_config['perception'], self.cav_world,
             self.data_dumping)
+
+        # behavior agent
+        self.agent = None
+        if 'platooning' in self.application:
+            platoon_config = self.cav_config['platoon']
+            self.agent = PlatooningBehaviorAgent(
+                self.vehicle,
+                self,
+                self.v2x_manager,
+                behavior_config,
+                platoon_config,
+                self.carla_map)
+        else:
+            self.agent = BehaviorAgent(self.vehicle, self.carla_map, behavior_config)
+
+        # Control module
+        self.controller = ControlManager(control_config)
+
+        if self.data_dumping:
+            self.data_dumper = DataDumper(self.perception_manager,
+                                          self.vehicle.id,
+                                          save_time=self.current_time)
+        else:
+            self.data_dumper = None
 
         self.cav_world.update_vehicle_manager(self)
 
@@ -179,15 +205,15 @@ class VehicleManagerProxy(object):
         """
         print("OpenCDA: set_destination")
 
-        message = { "cmd": "set_destination",
-                    "params": {
-                    "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
-                    "end": {"x": end_location.x, "y": end_location.y, "z": end_location.z},
-                    "clean": clean, "reset": end_reset
-                    }
-        }
-        self._socket.send(json.dumps(message).encode('utf-8'))
-        resp = json.loads(self._socket.recv(1024).decode('utf-8'))
+        # message = { "cmd": "set_destination",
+        #             "params": {
+        #             "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
+        #             "end": {"x": end_location.x, "y": end_location.y, "z": end_location.z},
+        #             "clean": clean, "reset": end_reset
+        #             }
+        # }
+        # self._socket.send(json.dumps(message).encode('utf-8'))
+        # resp = json.loads(self._socket.recv(1024).decode('utf-8'))
         return
 
     def update_info(self):
@@ -197,8 +223,25 @@ class VehicleManagerProxy(object):
         """
         print("OpenCDA: update_info called")
 
-        self._socket.send(json.dumps({"cmd": "update_info"}).encode('utf-8'))
-        resp = json.loads(self._socket.recv(1024).decode('utf-8'))
+        # localization
+        self.localizer.localize()
+
+        ego_pos = self.localizer.get_ego_pos()
+        ego_spd = self.localizer.get_ego_spd()
+
+        # object detection
+        objects = self.perception_manager.detect(ego_pos)
+
+        # update ego position and speed to v2x manager,
+        # and then v2x manager will search the nearby cavs
+        self.v2x_manager.update_info(ego_pos, ego_spd)
+
+        self.agent.update_information(ego_pos, ego_spd, objects)
+        # pass position and speed info to controller
+        self.controller.update_info(ego_pos, ego_spd)
+
+        # self._socket.send(json.dumps({"cmd": "update_info"}).encode('utf-8'))
+        # resp = json.loads(self._socket.recv(1024).decode('utf-8'))
         return 
 
     def run_step(self, target_speed=None):
@@ -229,18 +272,18 @@ class VehicleManagerProxy(object):
         Tells the vehicle that it should advance a single step in the simulation
         """
         success = RESULT_SUCCESS
-        self._socket.send(json.dumps({"cmd": "TICK"}).encode('utf-8'))
-        resp = json.loads(self._socket.recv(1024).decode('utf-8'))
-        if (resp["resp"] == "DONE"):
-            success = RESULT_END
+        # self._socket.send(json.dumps({"cmd": "TICK"}).encode('utf-8'))
+        # resp = json.loads(self._socket.recv(1024).decode('utf-8'))
+        # if (resp["resp"] == "DONE"):
+        #     success = RESULT_END
         return success
 
     def end_step(self):
         """
         Sends the END command to the vehicle to tell it to end gracefully
         """
-        self._socket.send(json.dumps({"cmd": "END"}).encode('utf-8'))
-        resp = json.loads(self._socket.recv(1024).decode('utf-8'))
+        # self._socket.send(json.dumps({"cmd": "END"}).encode('utf-8'))
+        # resp = json.loads(self._socket.recv(1024).decode('utf-8'))
 
     def destroy(self):
         """
@@ -249,4 +292,4 @@ class VehicleManagerProxy(object):
         self.perception_manager.destroy()
         self.localizer.destroy()
         self.vehicle.destroy()
-        self._socket.close()
+        #self._socket.close()
