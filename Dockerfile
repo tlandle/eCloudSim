@@ -1,5 +1,5 @@
-#FROM ubuntu:20.04
-FROM nvidia/cuda:11.0.3-base-ubuntu20.04
+FROM ubuntu:20.04
+# FROM nvidia/cuda:11.0.3-base-ubuntu20.04
 
 WORKDIR /root
 
@@ -12,7 +12,7 @@ RUN	add-apt-repository ppa:deadsnakes/ppa && \
 	apt-get install -y python3.7-distutils && \
 	apt-get install -y python3-apt
 
-RUN python3.7 -m pip install --upgrade pip && python3.7 -m pip install --upgrade setuptools 
+RUN python3.7 -m pip install --upgrade pip && python3.7 -m pip install --upgrade setuptools
 
 RUN python3.7 -m pip install grpcio && python3.7 -m pip install protobuf
 
@@ -31,7 +31,7 @@ COPY . .
 EXPOSE 5555/tcp
 
 # gRPC
-EXPOSE 50051/tcp 
+EXPOSE 50051/tcp
 
 # Carla
 EXPOSE 2000/tcp
