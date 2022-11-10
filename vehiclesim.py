@@ -129,8 +129,26 @@ class Client:
 
             return                
 
+        elif sim_state_update.command == sim_state.Command.WAYPOINT_INJECTION and sim_state_update.vehicle_index == vehicle_index:
+            logger.debug("received an waypoint_injection command")
+                        
+            self._queue.put(sim_state_update)
+            pushed_message.set()
+            popped_message.wait(timeout=None)
+            popped_message.clear()
 
-        # put new messages into the queue and then signal
+            logger.debug("processed an waypoint_injection command")
+
+            pushed_response.wait()
+            message = self._queue.get()
+            pushed_response.clear()
+            logger.info("responding to waypoint_injection...")
+            logger.debug(message.SerializeToString())    
+            self._stub.SendUpdate(message) 
+            popped_response.set()
+
+            return       
+        
 
         # did we get a new tick_id?
         if tick_id != sim_state_update.tick_id:
@@ -355,7 +373,12 @@ def main():
 
     #_socket.send(json.dumps(message).encode('utf-8'))
 
-    # run scenario testing --> replace with event-based on streaming connection
+
+    # run scenario testing
+    # TODO
+    # - replace with event-based on streaming connection
+    # - split the if/elif/elif into helper functions
+
     flag = True
     while flag:
         pushed_message.wait(timeout=None)    
@@ -370,11 +393,15 @@ def main():
         if sim_state_update.command != sim_state.Command.TICK: # don't print tick message since there are too many
             logger.info(f"Vehicle: received cmd {sim_state_update.command}")
 
+        # HANDLE UPDATE INFO
         if sim_state_update.command == sim_state.Command.UPDATE_INFO:
+
             vehicle_manager.update_info()
             #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
             pushed_message.clear()    
             popped_message.set()
+        
+        # HANDLE SET DESTINATION
         elif sim_state_update.command == sim_state.Command.SET_DESTINATION:
             params_json = json.loads(sim_state_update.params_json)
             destination = params_json['params']
@@ -388,6 +415,8 @@ def main():
             #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
             pushed_message.clear()    
             popped_message.set()
+        
+        # HANDLE TICK
         elif sim_state_update.command == sim_state.Command.TICK:
             vehicle_manager.update_info()
             control = vehicle_manager.run_step()
@@ -412,6 +441,22 @@ def main():
             popped_response.wait()
             popped_response.clear()    
 
+        # HANDLE ECLOUD WAYPOINT INJECTION
+        elif sim_state_update.command == sim_state.Command.WAYPOINT_INJECTION:
+            response = sim_state.VehicleUpdate()
+            response.message_hash = sim_state_update.message_hash
+            response.vehicle_index = vehicle_index
+            response.vehicle_state = sim_state.VehicleState.WAYPOINT_OK
+            
+            pushed_message.clear()    
+            popped_message.set()
+
+            q.put(response)
+            pushed_response.set()
+            popped_response.wait()
+            popped_response.clear()    
+
+        # HANDLE END
         elif sim_state_update.command == sim_state.Command.END:
             pushed_message.clear()    
             popped_message.set()

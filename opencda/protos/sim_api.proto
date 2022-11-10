@@ -23,6 +23,7 @@ enum Command {
   END = 1;
   SET_DESTINATION = 2;
   UPDATE_INFO = 3;
+  WAYPOINT_INJECTION = 4;
 }
 
 enum VehicleState {
@@ -34,6 +35,7 @@ enum VehicleState {
   TICK_DONE = 5; // simulation ended
   OK = 6;
   ERROR = 7;
+  WAYPOINT_OK = 8;
 }
 
 message SimulationState {
@@ -45,8 +47,16 @@ message SimulationState {
   string version = 6;
   Command command = 7;
   string params_json = 8;
-  int32 message_hash = 9; // use as a UID for message indentification when Server needs an ack
-  string message_id = 10;
+  int32 message_hash = 9; // unused; use ID instead
+  string message_id = 10; // use as a UID for message indentification when Server needs an ack
+  repeated Waypoint waypoint_buffer = 11;
+}
+
+message Waypoint {
+  int32 x = 1;
+  int32 y = 2;
+  int32 z = 3;
+  int32 waypoint_id = 4; 
 }
 
 message VehicleUpdate {
@@ -55,8 +65,8 @@ message VehicleUpdate {
   string vid = 3;
   int32 actor_id = 4;
   VehicleState vehicle_state = 5;
-  int32 message_hash = 6; // use as a UID for message indentification when Server needs an ack
-  string message_id = 7;
+  int32 message_hash = 6; // unused; use ID instead
+  string message_id = 7; // use as a UID for message indentification when Server needs an ack
 }
 
 service OpenCDA {

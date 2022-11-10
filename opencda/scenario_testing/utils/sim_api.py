@@ -903,11 +903,24 @@ class ScenarioManager:
 
     def tick(self):
         """
-        Tick the server.
+        Tick the server; just a pass-through to broadcast_tick to preserve backwards compatibility for now...
+
+        returns bool 
         """
+        success = self.broadcast_tick()
+        return success
+
+    def broadcast_tick(self):
+        """
+        Tick the server - broadcasts a message to all vehicles
+
+        returns bool
+        """
+
+        #TODO change tick_id to msg_id
+        
         self.world.tick()
 
-        #TODO: put the gRPC broadcast call in here
         ScenarioManager.tick_id = ScenarioManager.tick_id + 1
         with ScenarioManager.lock:
             ScenarioManager.sim_state_responses.append(ScenarioManager.tick_id)
@@ -934,7 +947,50 @@ class ScenarioManager:
         if len(ScenarioManager.sim_state_completions) == ScenarioManager.vehicle_count:
             return False # TODO - make a better flag
         else:  
-            return True     
+            return True
+
+    def vehicle_waypoint_injection(self, vehicle_index=None, vid=None, actor_id=None):
+        """
+        Sends a waypoint injection message to a specific vehicle
+
+        returns bool
+        """             
+
+        #TODO: vid? actor_id? Get the vehicle index from the actor_id or vid?
+        # actor_id = ScenarioManager.vehicles[i][0]
+        # vid = ScenarioManager.vehicles[i][1]
+        # - need to update the proto
+        # - need to update vehiclesim.py to process waypoint injection message
+        if vehicle_index == None:
+            if vid != None or actor_id != None:
+                for idx, veh_info in ScenarioManager.vehicles:
+                    if vid != None and vid == veh_info[1]:
+                        vehicle_index = idx
+                        break
+                    elif actor_id != None and actor_id == veh_info[0]:
+                        vehicle_index = idx
+                        break
+
+        assert( vehicle_index != None, "failed to find a valid vehicle index" )
+        if vehicle_index == None:
+            return False        
+        
+        sim_state_update = sim_state.SimulationState()
+        sim_state_update.state = sim_state.State.ACTIVE
+        sim_state_update.command = sim_state.Command.WAYPOINT_INJECTION
+        sim_state_update.vehicle_index = vehicle_index
+        sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
+        self.message_queue.put(sim_state_update)
+        ScenarioManager.pushed_message.set()
+
+        logger.debug(f"queued WAYPOINT_INJECTION for Veh #{vehicle_index}")
+
+        ScenarioManager.popped_message.wait(timeout=None)
+        ScenarioManager.popped_message.clear()
+
+        logger.debug(f"pushed WAYPOINT_INJECTION for Veh #{vehicle_index}")
+         
+        return True
 
     def end(self):
         """
