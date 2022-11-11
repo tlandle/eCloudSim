@@ -1,0 +1,87 @@
+---
+- hosts: vehicles
+  gather_facts: false
+
+  vars_prompt:
+    - name: password
+      prompt: "Enter password for ssh user"
+
+  vars:
+    ansible_user: azureuser
+    ansible_password: "{{ password }}"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+  tasks:
+    - name: Install Docker
+      block:
+        - name: Update apt cache
+          apt: update_cache=yes cache_valid_time=3600
+        - name: Upgrade all apt packages
+          apt: upgrade=dist
+        - name: Install dependencies
+          apt:
+            name: "{{ packages }}"
+            state: present
+            update_cache: yes
+          vars:
+            packages:
+            - apt-transport-https
+            - ca-certificates
+            - curl
+            - software-properties-common
+            - gnupg-agent
+            - python3-pip
+        - name: Add an apt signing key for Docker
+          apt_key:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            state: present
+        - name: Add apt repository for stable version
+          apt_repository:
+            repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
+            state: present
+        - name: Install Docker
+          apt:
+            name: "{{ packages }}"
+            state: present
+            update_cache: yes
+          vars:
+            packages:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+        - name: Ensure docker deamon is running
+          service:
+            name: docker
+            state: started
+            enabled: yes
+        - name: Ensure group "docker" exists
+          ansible.builtin.group:
+            name: docker
+            state: present
+        - name: Add user to docker group
+          user:
+            name: "{{ansible_user}}"
+            group: docker
+      become: True
+
+
+    - name: Clone OpenCDA (8_cars branch)
+      ansible.builtin.git:
+        repo: https://github.com/tlandle/OpenCDA.git
+        dest: /home/azureuser/OpenCDA
+        version: 8_cars
+        force: True
+      become: True
+
+    - name: Build docker image using DockerFile
+      docker_image:
+        name: vehicle-sim
+        build:
+          path: /home/azureuser/OpenCDA
+        source: build
+      become: True
+
+
+
+
+

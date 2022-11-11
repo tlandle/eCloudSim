@@ -1,0 +1,8 @@
+plugin: azure_rm
+include_vm_resource_groups:
+  - carla-server_group_10111734
+auth_source: auto
+plain_host_names: yes
+conditional_groups:
+  vehicles: "'0001-com-ubuntu-server-focal' in image.offer"
+ansible_python_interpreter: /usr/bin/python3

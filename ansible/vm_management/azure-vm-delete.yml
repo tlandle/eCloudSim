@@ -1,0 +1,14 @@
+---
+# use this command to execute this file
+# ansible-playbook azure-vm-delete.yml --extra-vars "name=<virtualmachine_group>"
+
+- hosts: localhost
+  vars_files:
+    - ./vars/vars.yml
+  tasks:
+    - name: Remove a VM and all resources that were autocreated
+      azure_rm_virtualmachine:
+        resource_group: "{{ resource_group }}"
+        name: "{{ name }}"
+        remove_on_absent: all_autocreated
+        state: absent
