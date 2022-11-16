@@ -444,7 +444,7 @@ def main():
         # HANDLE ECLOUD WAYPOINT INJECTION
         elif sim_state_update.command == sim_state.Command.WAYPOINT_INJECTION:
             response = sim_state.VehicleUpdate()
-            response.message_hash = sim_state_update.message_hash
+            response.message_id = sim_state_update.message_id
             response.vehicle_index = vehicle_index
             response.vehicle_state = sim_state.VehicleState.WAYPOINT_OK
             

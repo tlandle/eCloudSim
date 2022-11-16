@@ -53,10 +53,35 @@ message SimulationState {
 }
 
 message Waypoint {
-  int32 x = 1;
-  int32 y = 2;
-  int32 z = 3;
-  int32 waypoint_id = 4; 
+  int32 id = 1;
+  Transform transform = 2;
+  int32 road_id = 3;
+  int32 section_id = 4;
+  int32 lane_id = 5;
+  float s = 6;
+  bool is_junction = 7;
+  float lane_width = 8;
+  int32 lane_change = 9; // unused - enum if needed
+  int32 lane_type = 10; // unused - enum if needed
+  int32 right_lane_marking = 11; // unused - enum if needed
+  int32 left_lane_marking = 12; // unused - enum if needed
+}
+
+message Transform {
+  Location location = 1;
+  Rotation rotation = 2;
+}
+
+message Location {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+message Rotation {
+  float yaw = 1;
+  float pitch = 2;
+  float roll = 3;
 }
 
 message VehicleUpdate {

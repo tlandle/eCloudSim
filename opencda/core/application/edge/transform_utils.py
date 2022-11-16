@@ -2,6 +2,13 @@ import pickle
 import numpy as np
 import sys
 
+from google.protobuf.json_format import MessageToJson
+import grpc
+import sim_api_pb2 as sim_state
+import sim_api_pb2_grpc as rpc
+
+import carla
+
 def save_obj(obj, name ):
     with open('obj/'+ name + '.pkl', 'wb') as f:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
@@ -44,6 +51,60 @@ def get_scaling(waypoints):
         if count > 1:
             scaling.append(count/(rot_1[-1][1,0]-rot_1[0][1,0]))
     return scaling
+
+def serialize_waypoint(waypoint):
+
+    serialized_waypoint = sim_state.Waypoint()
+    serialized_waypoint.id = waypoint.id
+    
+    serialized_waypoint.transform = sim_state.Transform()
+    
+    serialized_waypoint.transform.location   = sim_state.Location()
+    serialized_waypoint.transform.location.x = waypoint.location.x
+    serialized_waypoint.transform.location.y = waypoint.location.y
+    serialized_waypoint.transform.location.z = waypoint.location.z
+
+    serialized_waypoint.transform.rotation       = sim_state.Rotation()
+    serialized_waypoint.transform.rotation.yaw   = waypoint.rotation.yaw
+    serialized_waypoint.transform.rotation.pitch = waypoint.rotation.pitch
+    serialized_waypoint.transform.rotation.roll  = waypoint.rotation.roll
+
+    serialized_waypoint.road_id     = waypoint.road_id
+    serialized_waypoint.section_id  = waypoint.section_id
+    serialized_waypoint.lane_id     = waypoint.lane_id
+    serialized_waypoint.s           = waypoint.s
+    serialized_waypoint.is_junction = waypoint.is_junction
+    serialized_waypoint.lane_width  = waypoint.lane_width
+
+    # int32 lane_change = 9; // unused - enum if needed
+    # int32 lane_type = 10; // unused - enum if needed
+    # int32 right_lane_marking = 11; // unused - enum if needed
+    # int32 left_lane_marking = 12; // unused - enum if needed
+
+    return serialized_waypoint    
+
+def deserialize_waypoint(serialized_waypoint):
+
+    waypoint = carla.waypoint
+
+    waypoint.id = serialized_waypoint.id
+    
+    waypoint.location.x = serialized_waypoint.transform.location.x 
+    waypoint.location.y = serialized_waypoint.transform.location.y
+    waypoint.location.z = serialized_waypoint.transform.location.z
+
+    waypoint.location.yaw   = serialized_waypoint.transform.rotation.yaw
+    waypoint.rotation.pitch = serialized_waypoint.transform.rotation.pitch
+    waypoint.rotation.roll  = serialized_waypoint.transform.rotation.roll
+
+    waypoint.road_id     = serialized_waypoint.road_id
+    waypoint.section_id  = serialized_waypoint.section_id
+    waypoint.lane_id     = serialized_waypoint.lane_id
+    waypoint.s           = serialized_waypoint.s
+    waypoint.is_junction = serialized_waypoint.is_junction
+    waypoint.lane_width  = serialized_waypoint.lane_width
+
+    return waypoint
 
 class transform_processor():
     def __init__(self,waypoints):
