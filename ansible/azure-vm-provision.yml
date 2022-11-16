@@ -49,6 +49,7 @@
               - docker-ce
               - docker-ce-cli
               - containerd.io
+              - python3-docker
         - name: Ensure docker deamon is running
           service:
             name: docker
