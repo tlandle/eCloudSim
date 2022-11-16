@@ -2,7 +2,7 @@
 
 ### Summary
 
-Ansible is used to provision our infrastructure in Azure. Specifically it will ssh into each one of our 
+Ansible is used to provision our infrastructure in Azure. Specifically it will ssh into each one of our VMs and run the modules within the ansible playbooks.
 
 ### Inventory
 
