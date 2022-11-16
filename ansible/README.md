@@ -32,8 +32,11 @@ The vars file in vm_management/vars/vars.yml is used by the notebooks in vm_mana
 
 #### Stop and delete containers on all VMs:
 
-```ansible-playbook -i ./inventory/myazure_rm.yml azure-vm-docker-cleanup.yml```
+```ansible-playbook -i ./inventory/myazure_rm.yml azure-vm-container-cleanup.yml```
 
+#### Delete docker images on all VMs:
+
+```ansible-playbook -i ./inventory/myazure_rm.yml azure-vm-image-cleanup.yml```
 
 #### To stop all VMS:
 
