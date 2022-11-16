@@ -150,5 +150,8 @@ docs/tmp.py
 data_dumping
 video_dumping
 
+
+# Vim
+*.sw*
 # gRPC Stubs
 *pb2*

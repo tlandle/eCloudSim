@@ -10,7 +10,9 @@
 import math
 import random
 import sys
-
+import time
+import logging
+import opencda.logging_ecloud
 import numpy as np
 import carla
 
@@ -788,6 +790,7 @@ class BehaviorAgent(object):
         if self.traffic_light_manager(ego_vehicle_wp) != 0:
             return 0, None
 
+        start_time = time.time()
         # 2. when the temporary route is finished, we return to the global route
         if len(self.get_local_planner().get_waypoints_queue()) == 0 \
                 and len(self.get_local_planner().get_waypoint_buffer()) <= 2:
@@ -802,6 +805,8 @@ class BehaviorAgent(object):
                 self.end_waypoint.transform.location,
                 clean=True,
                 clean_history=True)
+        end_time = time.time()
+        logging.debug("Local planner destination reached block: %s" %(end_time - start_time))
 
         # intersection behavior. if the car is near a intersection, no overtake is allowed
         if is_intersection:
@@ -809,8 +814,11 @@ class BehaviorAgent(object):
         else:
             self.overtake_allowed = True and self.overtake_allowed_origin
 
+        start_time = time.time()
         # Path generation based on the global route
         rx, ry, rk, ryaw = self._local_planner.generate_path()
+        end_time = time.time()
+        logging.debug("Local planner path generation time: %s" %(end_time - start_time))
 
 
         # check whether lane change is allowed
@@ -829,6 +837,7 @@ class BehaviorAgent(object):
         # 4. push case. Push the car to a temporary destination when original lane change action can't be executed
         # The case that the vehicle is doing lane change as planned
         # but found vehicle blocking on the other lane
+        start_time = time.time()
         if not self.lane_change_allowed and \
                 self.get_local_planner().potential_curved_road \
                 and not self.destination_push_flag and \
@@ -844,7 +853,7 @@ class BehaviorAgent(object):
                 clean=True,
                 end_reset=False)
             rx, ry, rk, ryaw = self._local_planner.generate_path()
-
+        
         # 5. the case that vehicle is blocking in front and overtake not
         # allowed or it is doing overtaking the second condition is to
         # prevent successive overtaking
@@ -872,6 +881,8 @@ class BehaviorAgent(object):
                     car_following_flag = self.overtake_management(obstacle_vehicle)
                 else:
                     car_following_flag = True
+        end_time = time.time()
+        logging.debug("Lane change not allowed so path regenerated or overtake issue or overtake handling: %s" %(end_time - start_time))
 
         # 7. Car following behavior
         if car_following_flag:
@@ -884,9 +895,12 @@ class BehaviorAgent(object):
             return target_speed, target_loc
 
         # 8. Normal behavior
+        start_time = time.time()
         target_speed, target_loc = self._local_planner.run_step(
             rx, ry, rk, target_speed=self.max_speed - self.speed_lim_dist
             if not target_speed else target_speed)
+        end_time = time.time()
+        logging.debug("Local planner run step time: %s" %(end_time - start_time))
         return target_speed, target_loc
 
 
