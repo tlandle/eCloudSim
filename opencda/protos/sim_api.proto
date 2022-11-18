@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package grpc;
+
+message Empty {}
+
+message Ping {
+  int32 vehicle_index = 1;
+}
+
+enum State {
+  UNDEFINED = 0;
+  NEW = 1;
+  START = 2;
+  UPDATE = 3;
+  DESTINATION = 4;
+  ACTIVE = 6;
+  ENDED = 7;
+}
+
+enum Command {
+  TICK = 0;
+  END = 1;
+  SET_DESTINATION = 2;
+  UPDATE_INFO = 3;
+}
+
+enum VehicleState {
+  REGISTERING = 0;
+  CARLA_UPDATE = 1;
+  UPDATE_INFO_OK = 2;
+  GET_DESTINATION = 3;
+  TICK_OK = 4; // regular OK / ack
+  TICK_DONE = 5; // simulation ended
+  OK = 6;
+  ERROR = 7;
+}
+
+message SimulationState {
+  State state = 1;
+  int32 tick_id = 2;
+  int32 vehicle_index = 3; // vehicle_uid
+  string test_scenario = 4;
+  string application = 5;
+  string version = 6;
+  Command command = 7;
+  string params_json = 8;
+  string message_id = 9; // use as a UID for message indentification when Server needs an ack
+  repeated WaypointBuffer all_waypoint_buffers = 10;
+}
+
+message WaypointBuffer {
+  int32 vehicle_index = 1; // vehicle_uid
+  repeated Waypoint waypoint_buffer = 2;
+}
+
+message Waypoint {
+  int32 id = 1;
+  Transform transform = 2;
+  int32 road_id = 3;
+  int32 section_id = 4;
+  int32 lane_id = 5;
+  float s = 6;
+  bool is_junction = 7;
+  float lane_width = 8;
+  int32 lane_change = 9; // unused - enum if needed
+  int32 lane_type = 10; // unused - enum if needed
+  int32 right_lane_marking = 11; // unused - enum if needed
+  int32 left_lane_marking = 12; // unused - enum if needed
+}
+
+message Transform {
+  Location location = 1;
+  Rotation rotation = 2;
+}
+
+message Location {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+message Rotation {
+  float yaw = 1;
+  float pitch = 2;
+  float roll = 3;
+}
+
+message VehicleUpdate {
+  int32 tick_id = 1;
+  int32 vehicle_index = 2;
+  string vid = 3;
+  int32 actor_id = 4;
+  VehicleState vehicle_state = 5;
+  string message_id = 6; // use as a UID for message indentification when Server needs an ack
+}
+
+service OpenCDA {
+  rpc SimulationStateStream (Ping) returns (stream SimulationState);
+  rpc SendUpdate (VehicleUpdate) returns (Empty);
+  rpc RegisterVehicle (VehicleUpdate) returns (SimulationState);
+  rpc UpdateInfo (VehicleUpdate) returns (Empty);
+  rpc GetDestination (VehicleUpdate) returns (SimulationState);
+}

@@ -33,6 +33,9 @@ RESULT_SUCCESS = 0 # Step ran ok
 RESULT_ERROR = 1 # Step resulted in an error
 RESULT_END = 2 # Step resulted in the vehicle simulation ending
 
+cloud_config = load_yaml("cloud_config.yaml")
+CARLA_IP = cloud_config["carla_server_public_ip"]
+
 class VehicleManagerProxy(object):
     """
     A class manager to embed different modules with vehicle together.
@@ -85,7 +88,7 @@ class VehicleManagerProxy(object):
     def __init__(
             self,
             vehicle_index,
-            conn,
+            #conn,
             config_file,
             application,
             carla_map,
@@ -95,7 +98,11 @@ class VehicleManagerProxy(object):
             data_dumping=False):
 
         config_yaml = load_yaml(config_file)
-        cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index]
+        self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index]
+        self.cav_world = cav_world
+        self.data_dumping = data_dumping
+        self.application = application
+        self.current_time = current_time
 
         self.initialize_process(config_yaml)
 
@@ -104,42 +111,57 @@ class VehicleManagerProxy(object):
         self.carla_map = carla_map
 
         # Use sockets for interprocess communication between OpenCDA and each vehicle
-        self._socket = conn
+        #self._socket = conn
 
-        # Send the START message to the vehicle with simulation parameters
-        message = { "cmd": "start",
-                    "params": {
-                        "scenario": config_file,
-                        "vehicle": vehicle_index,
-                        "application": application,
-                        "version": carla_version
-                    } 
-        }
-        self._socket.send(json.dumps(message).encode('utf-8'))
-        message = json.loads(self._socket.recv(1024).decode('utf-8'))
-        print(f"OpenCDA: received {message}")
-        actor_id = message["actor_id"] # Vehicle sends back the actor id so we can get a handle to the actor in Carla        
-        self.vid = message["vid"] # Vehicle sends back the uuid id we use as unique identifier
+    def start_vehicle(self, actor_id, vid):
+        # Send the START message to the vehicle with simulation parameters       
+        self.vid = vid # message["vid"] # Vehicle sends back the uuid id we use as unique identifier
+
+        print("eCloud debug | actor_id: " + str(actor_id))
 
         vehicle = self.world.get_actor(actor_id)
         self.vehicle = vehicle
 
         # retrieve the configure for different modules
-        sensing_config = cav_config['sensing']
-        behavior_config = cav_config['behavior']
-        control_config = cav_config['controller']
-        v2x_config = cav_config['v2x']
+        sensing_config = self.cav_config['sensing']
+        behavior_config = self.cav_config['behavior']
+        control_config = self.cav_config['controller']
+        v2x_config = self.cav_config['v2x']
         # v2x module
-        self.v2x_manager = V2XManager(cav_world, v2x_config, self.vid)
+        self.v2x_manager = V2XManager(self.cav_world, v2x_config, self.vid)
         # localization module
         self.localizer = LocalizationManager(
-            vehicle, sensing_config['localization'], carla_map)
+            vehicle, sensing_config['localization'], self.carla_map)
         # perception module
         self.perception_manager = PerceptionManager(
-            vehicle, sensing_config['perception'], cav_world,
-            data_dumping)
+            vehicle, sensing_config['perception'], self.cav_world,
+            self.data_dumping)
 
-        cav_world.update_vehicle_manager(self)
+        # behavior agent
+        self.agent = None
+        if 'platooning' in self.application:
+            platoon_config = self.cav_config['platoon']
+            self.agent = PlatooningBehaviorAgent(
+                self.vehicle,
+                self,
+                self.v2x_manager,
+                behavior_config,
+                platoon_config,
+                self.carla_map)
+        else:
+            self.agent = BehaviorAgent(self.vehicle, self.carla_map, behavior_config)
+
+        # Control module
+        self.controller = ControlManager(control_config)
+
+        if self.data_dumping:
+            self.data_dumper = DataDumper(self.perception_manager,
+                                          self.vehicle.id,
+                                          save_time=self.current_time)
+        else:
+            self.data_dumper = None
+
+        self.cav_world.update_vehicle_manager(self)
 
     def initialize_process(self, config_yaml):
         simulation_config = config_yaml['world']
@@ -150,7 +172,7 @@ class VehicleManagerProxy(object):
             random.seed(simulation_config['seed'])
 
         self.client = \
-            carla.Client('localhost', simulation_config['client_port'])
+            carla.Client(CARLA_IP, simulation_config['client_port'])
         self.client.set_timeout(10.0)
         self.world = self.client.get_world()
         self.carla_map = self.world.get_map()
@@ -183,15 +205,15 @@ class VehicleManagerProxy(object):
         """
         print("OpenCDA: set_destination")
 
-        message = { "cmd": "set_destination",
-                    "params": {
-                    "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
-                    "end": {"x": end_location.x, "y": end_location.y, "z": end_location.z},
-                    "clean": clean, "reset": end_reset
-                    }
-        }
-        self._socket.send(json.dumps(message).encode('utf-8'))
-        resp = json.loads(self._socket.recv(1024).decode('utf-8'))
+        # message = { "cmd": "set_destination",
+        #             "params": {
+        #             "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
+        #             "end": {"x": end_location.x, "y": end_location.y, "z": end_location.z},
+        #             "clean": clean, "reset": end_reset
+        #             }
+        # }
+        # self._socket.send(json.dumps(message).encode('utf-8'))
+        # resp = json.loads(self._socket.recv(1024).decode('utf-8'))
         return
 
     def update_info(self):
@@ -201,8 +223,25 @@ class VehicleManagerProxy(object):
         """
         print("OpenCDA: update_info called")
 
-        self._socket.send(json.dumps({"cmd": "update_info"}).encode('utf-8'))
-        resp = json.loads(self._socket.recv(1024).decode('utf-8'))
+        # localization
+        self.localizer.localize()
+
+        ego_pos = self.localizer.get_ego_pos()
+        ego_spd = self.localizer.get_ego_spd()
+
+        # object detection
+        objects = self.perception_manager.detect(ego_pos)
+
+        # update ego position and speed to v2x manager,
+        # and then v2x manager will search the nearby cavs
+        self.v2x_manager.update_info(ego_pos, ego_spd)
+
+        self.agent.update_information(ego_pos, ego_spd, objects)
+        # pass position and speed info to controller
+        self.controller.update_info(ego_pos, ego_spd)
+
+        # self._socket.send(json.dumps({"cmd": "update_info"}).encode('utf-8'))
+        # resp = json.loads(self._socket.recv(1024).decode('utf-8'))
         return 
 
     def run_step(self, target_speed=None):
@@ -233,18 +272,18 @@ class VehicleManagerProxy(object):
         Tells the vehicle that it should advance a single step in the simulation
         """
         success = RESULT_SUCCESS
-        self._socket.send(json.dumps({"cmd": "TICK"}).encode('utf-8'))
-        resp = json.loads(self._socket.recv(1024).decode('utf-8'))
-        if (resp["resp"] == "DONE"):
-            success = RESULT_END
+        # self._socket.send(json.dumps({"cmd": "TICK"}).encode('utf-8'))
+        # resp = json.loads(self._socket.recv(1024).decode('utf-8'))
+        # if (resp["resp"] == "DONE"):
+        #     success = RESULT_END
         return success
 
     def end_step(self):
         """
         Sends the END command to the vehicle to tell it to end gracefully
         """
-        self._socket.send(json.dumps({"cmd": "END"}).encode('utf-8'))
-        resp = json.loads(self._socket.recv(1024).decode('utf-8'))
+        # self._socket.send(json.dumps({"cmd": "END"}).encode('utf-8'))
+        # resp = json.loads(self._socket.recv(1024).decode('utf-8'))
 
     def destroy(self):
         """
@@ -253,4 +292,4 @@ class VehicleManagerProxy(object):
         self.perception_manager.destroy()
         self.localizer.destroy()
         self.vehicle.destroy()
-        self._socket.close()
+        #self._socket.close()

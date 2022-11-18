@@ -7,6 +7,9 @@ Basic class of CAV
 
 import random
 import uuid
+import opencda.logging_ecloud
+import logging
+import time
 
 import carla
 import numpy as np
@@ -27,7 +30,12 @@ from opencda.core.plan.behavior_agent \
 from opencda.core.common.data_dumper import DataDumper
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
+import coloredlogs, logging
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', logger=logger)
 
+cloud_config = load_yaml("cloud_config.yaml")
+CARLA_IP = cloud_config["carla_server_public_ip"]
 
 class VehicleManager(object):
     """
@@ -175,7 +183,7 @@ class VehicleManager(object):
             random.seed(simulation_config['seed'])
 
         self.client = \
-            carla.Client('localhost', simulation_config['client_port'])
+            carla.Client(CARLA_IP, simulation_config['client_port'])
         self.client.set_timeout(10.0)
         self.world = self.client.get_world()
         self.carla_map = self.world.get_map()
@@ -216,32 +224,58 @@ class VehicleManager(object):
         retrieve surrounding info an ego position.
         """
         # localization
+        start_time = time.time()
         self.localizer.localize()
+        end_time = time.time()
+        logging.debug("Localizer time: %s" %(end_time - start_time))
 
+        start_time = time.time()
         ego_pos = self.localizer.get_ego_pos()
         ego_spd = self.localizer.get_ego_spd()
+        end_time = time.time()
+        logging.debug("Localizer time: %s" %(end_time - start_time)) 
 
         # object detection
+        start_time = time.time()
         objects = self.perception_manager.detect(ego_pos)
+        end_time = time.time()
+        logging.debug("Perception time: %s" %(end_time - start_time)) 
 
         # update ego position and speed to v2x manager,
         # and then v2x manager will search the nearby cavs
+        start_time = time.time()
         self.v2x_manager.update_info(ego_pos, ego_spd)
+        end_time = time.time()
+        logging.debug("v2x manager update info time: %s" %(end_time - start_time)) 
 
+        start_time = time.time()
         self.agent.update_information(ego_pos, ego_spd, objects)
+        end_time = time.time()
+        logging.debug("Agent Update info time: %s" %(end_time - start_time)) 
         # pass position and speed info to controller
+        start_time = time.time()
         self.controller.update_info(ego_pos, ego_spd)
+        end_time = time.time()
+        logging.debug("Controller update time: %s" %(end_time - start_time)) 
 
     def run_step(self, target_speed=None):
         """
         Execute one step of navigation.
         """
+        
+
+        pre_vehicle_step_time = time.time()
         target_speed, target_pos = self.agent.run_step(target_speed)
+        end_time = time.time()
+        logging.debug("Agent step time: %s" %(end_time - pre_vehicle_step_time))
         if target_speed == -1:
-            print("run_step: simulation is over")
+            logger.info("run_step: simulation is over")
             return None # -1 indicates the simulation is over. TODO Need a const here.
         control = self.controller.run_step(target_speed, target_pos)
-
+        post_vehicle_step_time = time.time()
+        logging.debug("Controller step time: %s" %(post_vehicle_step_time - end_time))
+        logging.debug("Vehicle step time: %s" %(post_vehicle_step_time - pre_vehicle_step_time))        
+ 
         # dump data
         if self.data_dumper:
             self.data_dumper.run_step(self.perception_manager,
