@@ -16,6 +16,8 @@ import carla
 from opencda.version import __version__
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
+from opencda.core.application.edge.transform_utils import *
+from opencda.core.plan.local_planner_behavior import RoadOption
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor
@@ -127,28 +129,7 @@ class Client:
 
             logger.debug("processed an update_info command")
 
-            return                
-
-        elif sim_state_update.command == sim_state.Command.WAYPOINT_INJECTION and sim_state_update.vehicle_index == vehicle_index:
-            logger.debug("received an waypoint_injection command")
-                        
-            self._queue.put(sim_state_update)
-            pushed_message.set()
-            popped_message.wait(timeout=None)
-            popped_message.clear()
-
-            logger.debug("processed an waypoint_injection command")
-
-            pushed_response.wait()
-            message = self._queue.get()
-            pushed_response.clear()
-            logger.info("responding to waypoint_injection...")
-            logger.debug(message.SerializeToString())    
-            self._stub.SendUpdate(message) 
-            popped_response.set()
-
-            return       
-        
+            return                      
 
         # did we get a new tick_id?
         if tick_id != sim_state_update.tick_id:
@@ -418,7 +399,28 @@ def main():
         
         # HANDLE TICK
         elif sim_state_update.command == sim_state.Command.TICK:
+            # update info runs BEFORE waypoint injection
             vehicle_manager.update_info()
+
+            # find waypoint buffer for our vehicle
+            waypoint_proto = None
+            for wpb in sim_state_update.all_waypoint_buffers:
+                if wpb.vehicle_index == vehicle_index:
+                    waypoint_proto = wpb
+                    break
+            
+            if waypoint_proto != None:
+                #override waypoints
+                waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+                # print(waypoint_buffer)
+                # for waypoints in waypoint_buffer:
+                #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
+                waypoint_buffer.clear() #EDIT MADE
+
+                for swp in waypoint_proto:
+                    wp = deserialize_waypoint(swp)
+                    waypoint_buffer.append((wp, RoadOption.STRAIGHT))
+
             control = vehicle_manager.run_step()
             response = sim_state.VehicleUpdate()
             response.tick_id = tick_id
@@ -439,22 +441,7 @@ def main():
             q.put(response)
             pushed_response.set()
             popped_response.wait()
-            popped_response.clear()    
-
-        # HANDLE ECLOUD WAYPOINT INJECTION
-        elif sim_state_update.command == sim_state.Command.WAYPOINT_INJECTION:
-            response = sim_state.VehicleUpdate()
-            response.message_id = sim_state_update.message_id
-            response.vehicle_index = vehicle_index
-            response.vehicle_state = sim_state.VehicleState.WAYPOINT_OK
-            
-            pushed_message.clear()    
-            popped_message.set()
-
-            q.put(response)
-            pushed_response.set()
-            popped_response.wait()
-            popped_response.clear()    
+            popped_response.clear()       
 
         # HANDLE END
         elif sim_state_update.command == sim_state.Command.END:

@@ -177,6 +177,8 @@ class ScenarioManager:
     sim_state_responses = [[]] # list of responses per tick - e.g. sim_state_responses[tick_id = 1] = [veh_id = 1, veh_id = 2]
     sim_state_completions = [] # list of veh_ids that are complete
 
+    waypoint_buffer_overrides = []
+
     tick_complete = threading.Event()
     set_sim_active = threading.Event()
     set_sim_started = threading.Event()
@@ -1010,6 +1012,7 @@ class ScenarioManager:
         sim_state_update.state = sim_state.State.ACTIVE
         sim_state_update.tick_id = ScenarioManager.tick_id
         sim_state_update.command = sim_state.Command.TICK
+        sim_state_update.all_waypoint_buffers.extend(ScenarioManager.waypoint_buffer_overrides)
         sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
         self.message_queue.put(sim_state_update)
         ScenarioManager.pushed_message.set()
@@ -1024,14 +1027,18 @@ class ScenarioManager:
         ScenarioManager.tick_complete.wait(timeout=None)
         ScenarioManager.tick_complete.clear()
 
+        ScenarioManager.waypoint_buffer_overrides.clear()
+
         if len(ScenarioManager.sim_state_completions) == ScenarioManager.vehicle_count:
             return False # TODO - make a better flag
         else:  
             return True
 
-    def vehicle_waypoint_injection(self, vehicle_index=None, vid=None, actor_id=None):
+    def add_waypoint_buffer_to_tick(self, waypoint_buffer): #, vehicle_index=None, vid=None, actor_id=None):
         """
-        Sends a waypoint injection message to a specific vehicle
+        adds a waypoint buffer for a specific vehicle to the current tick message
+
+        currently assumes the scenario has constructed a WaypointBuffer protobuf with explicit vehicle_index UID
 
         returns bool
         """             
@@ -1039,38 +1046,27 @@ class ScenarioManager:
         #TODO: vid? actor_id? Get the vehicle index from the actor_id or vid?
         # actor_id = ScenarioManager.vehicles[i][0]
         # vid = ScenarioManager.vehicles[i][1]
-        # - need to update the proto
-        # - need to update vehiclesim.py to process waypoint injection message
-        if vehicle_index == None:
-            if vid != None or actor_id != None:
-                for idx, veh_info in ScenarioManager.vehicles:
-                    if vid != None and vid == veh_info[1]:
-                        vehicle_index = idx
-                        break
-                    elif actor_id != None and actor_id == veh_info[0]:
-                        vehicle_index = idx
-                        break
+        # if vehicle_index == None:
+        #     if vid != None or actor_id != None:
+        #         for idx, veh_info in ScenarioManager.vehicles:
+        #             if vid != None and vid == veh_info[1]:
+        #                 vehicle_index = idx
+        #                 break
+        #             elif actor_id != None and actor_id == veh_info[0]:
+        #                 vehicle_index = idx
+        #                 break
 
-        assert( vehicle_index != None, "failed to find a valid vehicle index" )
-        if vehicle_index == None:
-            return False        
-        
-        sim_state_update = sim_state.SimulationState()
-        sim_state_update.state = sim_state.State.ACTIVE
-        sim_state_update.command = sim_state.Command.WAYPOINT_INJECTION
-        sim_state_update.vehicle_index = vehicle_index
-        sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
-        self.message_queue.put(sim_state_update)
-        ScenarioManager.pushed_message.set()
+        # assert( vehicle_index != None, "failed to find a valid vehicle index" )
+        # if vehicle_index == None:
+        #     return False     
 
-        logger.debug(f"queued WAYPOINT_INJECTION for Veh #{vehicle_index}")
+        # necessary? will the simulation ever not know the index of the vehicle?
+        #if ( waypoint_buffer.vehicle_index == -1 ):
+        #    waypoint_buffer.vehicle_index = vehicle_index
 
-        ScenarioManager.popped_message.wait(timeout=None)
-        ScenarioManager.popped_message.clear()
+        ScenarioManager.waypoint_buffer_overrides.append( waypoint_buffer )
 
-        logger.debug(f"pushed WAYPOINT_INJECTION for Veh #{vehicle_index}")
-         
-        return True
+        return True       
 
     def end(self):
         """
@@ -1089,7 +1085,6 @@ class ScenarioManager:
         ScenarioManager.popped_message.clear()
 
         logger.debug(f"pushed END")
-        
 
     def destroyActors(self):
         """
