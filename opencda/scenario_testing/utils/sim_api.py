@@ -508,13 +508,6 @@ class ScenarioManager:
                 data_dumping=data_dump, carla_version=self.carla_version)
             logger.debug("finished creating VehiceManagerProxy")
 
-            # vehicle_manager = VehicleManager(
-            #     i, self.config_file, application,
-            #     self.carla_map, self.cav_world,
-            #     current_time=self.scenario_params['current_time'],
-            #     data_dumping=data_dump)
-            # logger.debug("finished creating VehiceManager")
-
             # send gRPC with START info
             ScenarioManager.application = application
 
@@ -819,40 +812,6 @@ class ScenarioManager:
 
         return edge_list
 
-
-    # def create_rsu_manager(self, data_dump):
-    #     """
-    #     Create a list of RSU.
-
-    #     Parameters
-    #     ----------
-    #     data_dump : bool
-    #         Whether to dump sensor data.
-
-    #     Returns
-    #     -------
-    #     single_cav_list : list
-    #         A list contains all single CAVs' vehicle manager.
-
-    #     rsu_list : list
-    #         A list contains all rsu managers..
-    #     """
-    #     logger.info('Creating RSU.')
-    #     rsu_list = []
-    #     for i, rsu_config in enumerate(
-    #             self.scenario_params['scenario']['rsu_list']):
-
-    #         rsu_manager = RSUManager(self.world, rsu_config,
-    #                                  self.carla_map,
-    #                                  self.cav_world,
-    #                                  self.scenario_params['current_time'],
-    #                                  data_dump)
-
-    #         rsu_list.append(rsu_manager)
-
-    #     return rsu_list
-
-
     def spawn_vehicles_by_list(self, tm, traffic_config, bg_list):
         """
         Spawn the traffic vehicles by the given list.
@@ -1115,27 +1074,6 @@ class ScenarioManager:
 
         returns bool
         """             
-
-        #TODO: vid? actor_id? Get the vehicle index from the actor_id or vid?
-        # actor_id = ScenarioManager.vehicles[i][0]
-        # vid = ScenarioManager.vehicles[i][1]
-        # if vehicle_index == None:
-        #     if vid != None or actor_id != None:
-        #         for idx, veh_info in ScenarioManager.vehicles:
-        #             if vid != None and vid == veh_info[1]:
-        #                 vehicle_index = idx
-        #                 break
-        #             elif actor_id != None and actor_id == veh_info[0]:
-        #                 vehicle_index = idx
-        #                 break
-
-        # assert( vehicle_index != None, "failed to find a valid vehicle index" )
-        # if vehicle_index == None:
-        #     return False     
-
-        # necessary? will the simulation ever not know the index of the vehicle?
-        #if ( waypoint_buffer.vehicle_index == -1 ):
-        #    waypoint_buffer.vehicle_index = vehicle_index
         assert( len(ScenarioManager.waypoint_buffer_overrides) == 0 )
 
         # TODO: clone?
