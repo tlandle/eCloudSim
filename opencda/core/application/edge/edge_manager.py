@@ -306,6 +306,7 @@ class EdgeManager(object):
             self.spawn_x.append(x)
             self.spawn_y.append(y)
             self.spawn_v.append(v_scalar)
+            print(f"update_information for vehicle_{i} - x:{x}, y:{y}")
         end_time = time.time()
         logger.debug("Update Info Transform Forward Time: %s" %(end_time - start_time))
         #print(self.spawn_x)
