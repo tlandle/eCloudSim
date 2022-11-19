@@ -295,6 +295,7 @@ class EdgeManager(object):
         start_time = time.time()
         for i in range(len(self.vehicle_manager_list)):
             self.vehicle_manager_list[i].update_info()
+            print(f"Updated location for vehicle {i} - x:{self.vehicle_manager_list[i].vehicle.get_location().x}, y:{self.vehicle_manager_list[i].vehicle.get_location().y}")
         end_time = time.time()
         logger.debug("Vehicle Manager Update Info Time: %s" %(end_time - start_time))
         start_time = time.time()
@@ -457,7 +458,7 @@ class EdgeManager(object):
         for car, car_array in waypoints_rev.items():
           for i in range(0,len(car_array[0])):
             location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
-            #print(location)
+            print(f"algorith_step: vehicle_{i} location - {location}")
             self.locations.append(location)
 
         #print("Locations appended: ", self.locations)

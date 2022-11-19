@@ -342,6 +342,12 @@ def main():
 
     vehicle_manager = VehicleManager(vehicle_index, test_scenario, application, cav_world, version)
 
+    scenario_yaml = load_yaml(test_scenario)
+    target_speed = None
+    if 'edge_list' in scenario_yaml['scenario']:
+        # TODO: support multiple edges... 
+        target_speed = scenario_yaml['scenario']['edge_list'][0]['target_speed']
+
     # send gRPC in response to start
     with lock:
         actor_id = vehicle_manager.vehicle.id
@@ -429,10 +435,20 @@ def main():
                 dao = GlobalRoutePlannerDAO(world.get_map(), 2)
                 for swp in waypoint_proto.waypoint_buffer:
                     #logger.debug(swp.SerializeToString())
+                    logger.debug(f"Override Waypoint x:{swp.transform.location.x}, y:{swp.transform.location.y}, z:{swp.transform.location.z}, rl:{swp.transform.rotation.roll}, pt:{swp.transform.rotation.pitch}, yw:{swp.transform.rotation.yaw}")
                     wp = deserialize_waypoint(swp, dao)
+                    logger.debug(f"DAO Waypoint x:{wp.transform.location.x}, y:{wp.transform.location.y}, z:{wp.transform.location.z}, rl:{wp.transform.rotation.roll}, pt:{wp.transform.rotation.pitch}, yw:{wp.transform.rotation.yaw}")
                     waypoint_buffer.append((wp, RoadOption.STRAIGHT))
 
-            control = vehicle_manager.run_step()
+                waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+                for waypoints in waypoints_buffer_printer:
+                    print("Waypoints transform for Vehicle: ", waypoints[0].transform)
+
+            waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+            for waypoints in waypoints_buffer_printer:
+                print("Waypoints transform for Vehicle: ", waypoints[0].transform)
+
+            control = vehicle_manager.run_step(target_speed=target_speed)
             response = sim_state.VehicleUpdate()
             response.tick_id = tick_id
             response.vehicle_index = vehicle_index

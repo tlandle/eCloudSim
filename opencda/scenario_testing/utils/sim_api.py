@@ -256,7 +256,7 @@ class ScenarioManager:
                 
                 count += 1
                 time.sleep(0.1)
-                if count % 100 == 0:
+                if count % 1000 == 0:
                     count = 0
                     big_count += 1
                     logger.debug("looping " + str(big_count) + "...")
@@ -1050,7 +1050,7 @@ class ScenarioManager:
         sim_state_update.tick_id = ScenarioManager.tick_id
         sim_state_update.command = sim_state.Command.TICK
         for waypoint_buffer_proto in ScenarioManager.waypoint_buffer_overrides:
-            logger.debug(waypoint_buffer_proto.SerializeToString())
+            #logger.debug(waypoint_buffer_proto.SerializeToString())
             sim_state_update.all_waypoint_buffers.extend([waypoint_buffer_proto])
         sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
         self.message_queue.put(sim_state_update)

@@ -114,6 +114,8 @@ def deserialize_waypoint(serialized_waypoint, dao):
     waypoint.is_junction = serialized_waypoint.is_junction
     waypoint.lane_width  = serialized_waypoint.lane_width'''
 
+    #print(f"deserializing waypint - x:{serialized_waypoint.transform.location.x}, y:{serialized_waypoint.transform.location.y}, z:{serialized_waypoint.transform.location.z}, rl:{serialized_waypoint.transform.rotation.roll}, pt:{serialized_waypoint.transform.rotation.pitch}, yw:{serialized_waypoint.transform.rotation.yaw}")
+
     waypoint = dao.get_waypoint(carla.Location(x=serialized_waypoint.transform.location.x, y=serialized_waypoint.transform.location.y, z=serialized_waypoint.transform.location.z))
 
     return waypoint
