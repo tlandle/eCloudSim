@@ -125,7 +125,8 @@ class VehicleManager(object):
                     yaw=cav_config['spawn_position'][4],
                     roll=cav_config['spawn_position'][3]))
 # TODO eCloud Need to put this back in. Is not being used for simple scenario I'm working with currently
-#        else:
+        else:
+            assert( False, "['spawn_special'] not supported in Edge currently")
 #            spawn_transform = map_helper(self.carla_version,
 #                                         *cav_config['spawn_special'])
 

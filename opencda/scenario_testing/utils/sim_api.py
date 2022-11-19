@@ -677,7 +677,9 @@ class ScenarioManager:
         return platoon_list
 
 
-    def create_edge_manager(self, map_helper=None, data_dump=False):
+    def create_edge_manager(self, application,
+                            map_helper=None,
+                            data_dump=False):
         """
         Create a list of edges.
 
@@ -691,50 +693,118 @@ class ScenarioManager:
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        print('Creating edge vehicles/')
+
+        # TODO: needs to support multiple edges. 
+        # Probably a more significant refactor, 
+        # since I think each edge wants its own gRPC server
+
+        logger.info('Creating edge CAVs.')
         edge_list = []
-        self.cav_world = CavWorld(self.apply_ml)
-
-        # we use lincoln as default choice since our UCLA mobility lab use the
-        # same car
-        default_model = 'vehicle.lincoln.mkz2017' \
-            if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
-
-        cav_vehicle_bp = \
-            self.world.get_blueprint_library().find(default_model)
 
         # create edges
         for i, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
             edge_manager = EdgeManager(edge, self.cav_world)
             for j, cav in enumerate(edge['members']):
-                if 'spawn_special' not in cav:
-                    spawn_transform = carla.Transform(
-                        carla.Location(
-                            x=cav['spawn_position'][0],
-                            y=cav['spawn_position'][1],
-                            z=cav['spawn_position'][2]),
-                        carla.Rotation(
-                            pitch=cav['spawn_position'][5],
-                            yaw=cav['spawn_position'][4],
-                            roll=cav['spawn_position'][3]))
-                else:
-                    spawn_transform = map_helper(self.carla_version,
-                                                 *cav['spawn_special'])
 
-                cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-                vehicle = self.world.spawn_actor(cav_vehicle_bp,
-                                                 spawn_transform)
+                logger.debug(f"Creating VehiceManagerProxy for vehicle {i}")
 
                 # create vehicle manager for each cav
                 vehicle_manager = VehicleManagerProxy(
-                    vehicle, cav, ['edge'],
+                    i, self.config_file, application,
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
-                    data_dumping=data_dump)
+                    data_dumping=data_dump, carla_version=self.carla_version)
+                logger.debug("finished creating VehiceManagerProxy")
+
+                # vehicle_manager = VehicleManager(
+                #     i, self.config_file, application,
+                #     self.carla_map, self.cav_world,
+                #     current_time=self.scenario_params['current_time'],
+                #     data_dumping=data_dump)
+                # logger.debug("finished creating VehiceManager")
+
+                # send gRPC with START info
+                ScenarioManager.application = application
+
+                # update the vehicle manager
+                # keep a tuple of actor_id and vid in a list based on vehicle_index
+                actor_id = None
+                vid = None
+
+                while len(ScenarioManager.vehicles) < ScenarioManager.vehicle_count:
+                    time.sleep(1)
+                    logger.info("waiting for Carla data")
+
+                actor_id = ScenarioManager.vehicles[i][0]
+                vid = ScenarioManager.vehicles[i][1]
+
+                logger.debug("starting vehicle | actor_id: " + str(actor_id) + " | vid: " + str(vid))
+
+                vehicle_manager.start_vehicle(actor_id, vid)
+
+                self.world.tick()
+                logger.debug("ticked world")
+
+                vehicle_manager.v2x_manager.set_platoon(None)
+                logger.debug("set platoon on vehicle manager")
+
+                destination = carla.Location(x=cav['destination'][0],
+                                            y=cav['destination'][1],
+                                            z=cav['destination'][2])
+                logger.debug("get location of destination")
+
+                #vehicle_manager.update_info()
+
+                # gRPC update_info
+                sim_state_update = sim_state.SimulationState()
+                sim_state_update.state = sim_state.State.ACTIVE
+                sim_state_update.tick_id = ScenarioManager.tick_id
+                sim_state_update.command = sim_state.Command.UPDATE_INFO
+                sim_state_update.vehicle_index = i
+                sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
+                self.message_queue.put(sim_state_update)
+                ScenarioManager.pushed_message.set()
+                # end gRPC update_info
+                
+                logger.debug(f"update info complete for vehicle_index {i}")
+                
+                # vehicle_manager.set_destination(
+                #     vehicle_manager.vehicle.get_location(),
+                #     destination,
+                #     clean=True)
+
+                # gRPC set_destination
+                ScenarioManager.popped_message.wait(timeout=None)
+                ScenarioManager.popped_message.clear()
+                sim_state_update = sim_state.SimulationState()
+                sim_state_update.state = sim_state.State.ACTIVE
+                sim_state_update.tick_id = ScenarioManager.tick_id
+                sim_state_update.vehicle_index = i
+
+                start_location = vehicle_manager.vehicle.get_location()
+                message = { 
+                        "params": {
+                        "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
+                        "end": {"x": destination.x, "y": destination.y, "z": destination.z},
+                        "clean": True, "reset": True
+                        }
+                }
+                sim_state_update.params_json = json.dumps(message).encode('utf-8')
+
+                sim_state_update.command = sim_state.Command.SET_DESTINATION
+                sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
+                self.message_queue.put(sim_state_update)
+                ScenarioManager.pushed_message.set()
+                # end gRPC set_destination
+
+                logger.debug(f"set destination complete for vehicle_index {i}")
 
                 # add the vehicle manager to platoon
                 edge_manager.add_member(vehicle_manager)
+
+                ScenarioManager.popped_message.wait(timeout=None)
+                ScenarioManager.popped_message.clear()         
 
             self.world.tick()
             destination = carla.Location(x=edge['destination'][0],
@@ -742,7 +812,9 @@ class ScenarioManager:
                                          z=edge['destination'][2])
 
             edge_manager.set_destination(destination)
+            
             edge_manager.start_edge()
+            
             edge_list.append(edge_manager)
 
         return edge_list
@@ -989,6 +1061,8 @@ class ScenarioManager:
 
         returns bool 
         """
+        self.world.tick()
+
         success = self.broadcast_tick()
         return success
 
@@ -1000,8 +1074,6 @@ class ScenarioManager:
         """
 
         #TODO change tick_id to msg_id
-        
-        self.world.tick()
 
         ScenarioManager.tick_id = ScenarioManager.tick_id + 1
         with ScenarioManager.lock:
@@ -1012,7 +1084,8 @@ class ScenarioManager:
         sim_state_update.state = sim_state.State.ACTIVE
         sim_state_update.tick_id = ScenarioManager.tick_id
         sim_state_update.command = sim_state.Command.TICK
-        sim_state_update.all_waypoint_buffers.extend(ScenarioManager.waypoint_buffer_overrides)
+        for waypoint_buffer_proto in ScenarioManager.waypoint_buffer_overrides:
+            sim_state_update.all_waypoint_buffers.extend(waypoint_buffer_proto)
         sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
         self.message_queue.put(sim_state_update)
         ScenarioManager.pushed_message.set()
@@ -1063,8 +1136,10 @@ class ScenarioManager:
         # necessary? will the simulation ever not know the index of the vehicle?
         #if ( waypoint_buffer.vehicle_index == -1 ):
         #    waypoint_buffer.vehicle_index = vehicle_index
+        assert( len(ScenarioManager.waypoint_buffer_overrides) == 0 )
 
-        ScenarioManager.waypoint_buffer_overrides.append( waypoint_buffer )
+        # TODO: clone?
+        ScenarioManager.waypoint_buffer_overrides = waypoint_buffer
 
         return True       
 

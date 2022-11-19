@@ -57,10 +57,14 @@ def run_scenario(opt, config_yaml):
         # run steps
 
         eval_time = 0
-        while True:
+        flag = True
+        waypoint_buffer = []
+        while flag:
             eval_time += 1
             print("Stepping, ", eval_time*0.2)
-            scenario_manager.tick()
+
+            scenario_manager.add_waypoint_buffer_to_tick(waypoint_buffer)
+            flag = scenario_manager.tick()
             transform = spectator_vehicle.get_transform()
             spectator.set_transform(
                 carla.Transform(
@@ -70,10 +74,11 @@ def run_scenario(opt, config_yaml):
                     carla.Rotation(
                         pitch=-
                         90)))
-
+                        
+            waypoint_buffer.clear()
             for edge in edge_list:
               edge.update_information()
-              edge.run_step()
+              waypoint_buffer = edge.run_step()
 
     finally:
         eval_manager.evaluate()

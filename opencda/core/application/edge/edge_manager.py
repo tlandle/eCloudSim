@@ -15,14 +15,20 @@ import numpy as np
 import time 
 import opencda.logging_ecloud
 import logging
+import sys
+
+sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/") 
 
 import opencda.core.plan.drive_profile_plotting as open_plt
 from opencda.core.application.edge.astar_test_groupcaps_transform import *
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.local_planner_behavior import RoadOption
-import sys
-sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/") 
+from opencda.core.application.edge.transform_utils import *
+
+import grpc
+import sim_api_pb2 as sim_state
+import sim_api_pb2_grpc as rpc
 
 class EdgeManager(object):
     """
@@ -461,47 +467,53 @@ class EdgeManager(object):
             The control command list for all vehicles.
         """
 
+        # TODO: make a dist version...
+
         # run algorithm
         pre_algo_time = time.time()
         self.algorithm_step()
         post_algo_time = time.time()
         logging.debug("Algorithm completion time: %s" %(post_algo_time - pre_algo_time))
+        all_waypoint_buffers = []
         #print("completed Algorithm Step")
         # output algorithm waypoints to waypoint buffer of each vehicle
-        i = 0
-        for vehicle_manager in self.vehicle_manager_list:
-          # print(i)
-          waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-          # print(waypoint_buffer)
-          # for waypoints in waypoint_buffer:
-          #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
-          waypoint_buffer.clear() #EDIT MADE 16/03
+        for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
+        #   # print(i)
+        #   waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+        #   # print(waypoint_buffer)
+        #   # for waypoints in waypoint_buffer:
+        #   #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
+        #   waypoint_buffer.clear() #EDIT MADE 16/03
+            waypoint_buffer_proto = sim_state.WaypointBuffer()
+            waypoint_buffer_proto.vehicle_index = idx
+
+            for k in range(0,1):
+                waypoint_buffer_proto.waypoint_buffer.extend(serialize_waypoint(self.locations[i*1+k]))#, RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
           
-          for k in range(0,1):
-            waypoint_buffer.append((self.locations[i*1+k], RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
-          
+            all_waypoint_buffers.append(waypoint_buffer_proto)
           # for waypoints in waypoint_buffer:
           #   print("Waypoints transform for Vehicle After Clearing: " + str(i) + " : ", waypoints[0].transform)
           # sys.exit()
           # # print(waypoint_buffer)
-          i += 1
 
-        #print("\n ########################\n")
-        #print("Length of vehicle manager list: ", len(self.vehicle_manager_list))
+        return all_waypoint_buffers    
 
-        control_list = []
-        for i in range(len(self.vehicle_manager_list)):
-            waypoints_buffer_printer = self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer()
-            #for waypoints in waypoints_buffer_printer:
-                #print("Waypoints transform for Vehicle: " + str(i) + " : ", waypoints[0].transform)
-            # print(self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer().transform())
-            control = self.vehicle_manager_list[i].run_step(self.target_speed)
-            control_list.append(control)
+        # #print("\n ########################\n")
+        # #print("Length of vehicle manager list: ", len(self.vehicle_manager_list))
 
-        for (i, control) in enumerate(control_list):
-            self.vehicle_manager_list[i].vehicle.apply_control(control)
+        # control_list = []
+        # for i in range(len(self.vehicle_manager_list)):
+        #     waypoints_buffer_printer = self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer()
+        #     #for waypoints in waypoints_buffer_printer:
+        #         #print("Waypoints transform for Vehicle: " + str(i) + " : ", waypoints[0].transform)
+        #     # print(self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer().transform())
+        #     control = self.vehicle_manager_list[i].run_step(self.target_speed)
+        #     control_list.append(control)
 
-        return control_list
+        # for (i, control) in enumerate(control_list):
+        #     self.vehicle_manager_list[i].vehicle.apply_control(control)
+
+        # return control_list
 
     def evaluate(self):
         """
