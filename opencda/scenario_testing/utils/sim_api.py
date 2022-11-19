@@ -401,7 +401,13 @@ class ScenarioManager:
         self.server_thread = threading.Thread(target=self.serve, args=(self.message_queue, self.message_stack, "[::]:50051",))
         self.server_thread.start()
 
-        ScenarioManager.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
+        if 'single_cav_list' in scenario_params['scenario']:
+            ScenarioManager.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
+        elif 'edge_list' in scenario_params['scenario']:
+            # TODO: support multiple edges... 
+            ScenarioManager.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['members'])
+        else:
+            assert(False, "no known vehicle indexing format found")
 
         while ScenarioManager.connections_received < ScenarioManager.vehicle_count:
             time.sleep(1)
@@ -695,10 +701,10 @@ class ScenarioManager:
         edge_list = []
 
         # create edges
-        for i, edge in enumerate(
+        for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
             edge_manager = EdgeManager(edge, self.cav_world)
-            for j, cav in enumerate(edge['members']):
+            for i, cav in enumerate(edge['members']):
 
                 logger.debug(f"Creating VehiceManagerProxy for vehicle {i}")
 
@@ -1044,7 +1050,8 @@ class ScenarioManager:
         sim_state_update.tick_id = ScenarioManager.tick_id
         sim_state_update.command = sim_state.Command.TICK
         for waypoint_buffer_proto in ScenarioManager.waypoint_buffer_overrides:
-            sim_state_update.all_waypoint_buffers.extend(waypoint_buffer_proto)
+            logger.debug(waypoint_buffer_proto.SerializeToString())
+            sim_state_update.all_waypoint_buffers.extend([waypoint_buffer_proto])
         sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
         self.message_queue.put(sim_state_update)
         ScenarioManager.pushed_message.set()

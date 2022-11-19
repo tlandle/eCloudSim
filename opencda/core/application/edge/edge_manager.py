@@ -14,8 +14,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time 
 import opencda.logging_ecloud
-import logging
+import coloredlogs, logging
 import sys
+
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', logger=logger)
+logger.setLevel(logging.DEBUG)
 
 sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/") 
 
@@ -63,14 +67,14 @@ class EdgeManager(object):
         self.spawn_x = []
         self.spawn_y = []
         self.spawn_v = [] # probably 0s but can be target vel too
-        self.xcars = np.empty((8, 0))
-        self.ycars = np.empty((8, 0))
+        self.xcars = np.empty((4, 0)) # TODO: data drive
+        self.ycars = np.empty((4, 0)) # TODO: data drive
         self.x_states = None
         self.y_states = None
         self.tv = None
         self.v = None
-        self.target_velocities = np.empty((8, 0))
-        self.velocities = np.empty((8,0))
+        self.target_velocities = np.empty((4, 0)) # TODO: datadrive
+        self.velocities = np.empty((4,0)) # TODO: datadrive
         self.Traffic_Tracker = None
         self.numcars = 0
         self.waypoints_dict = {}
@@ -86,7 +90,7 @@ class EdgeManager(object):
       self.processor = transform_processor(self.waypoints_dict)
       _, _ = self.processor.process_waypoints_bidirectional(0)
       inverted = self.processor.process_forward(0)
-      print(len(inverted))
+      logger.debug(len(inverted))
       i = 0
 
       # for k in inverted:
@@ -113,10 +117,11 @@ class EdgeManager(object):
           self.spawn_y.append(spawn_coords[1])# inverted[i][1,0])
           i += 1
 
-          vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
+          # TODO: DIST --> do we need to clear at start in containers?  
+          #vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
       self.dt = .200
       self.numlanes = 4
-      self.numcars = 8
+      self.numcars = 4 # TODO - data drive
       self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
     
     def get_four_lane_waypoints_dict(self):
@@ -132,7 +137,7 @@ class EdgeManager(object):
       indices_source = indices_source.astype(int)
       indices_dest = indices_dest.astype(int)
 
-      print("Source Shape: ", indices_source.shape)
+      #print("Source Shape: ", indices_source.shape)
 
       a = carla.Location(waypoints[indices_source[0,1]].transform.location)
       b = carla.Location(waypoints[indices_dest[0,1]].transform.location)
@@ -148,10 +153,10 @@ class EdgeManager(object):
       w3 = grp.trace_route(e, f) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
       w4 = grp.trace_route(g, j) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
 
-      print(a)
-      print(b)
-      print(c)
-      print(d)
+      logger.debug(a)
+      logger.debug(b)
+      logger.debug(c)
+      logger.debug(d)
 
       i = 0
       for w in w1:
@@ -275,10 +280,10 @@ class EdgeManager(object):
         Set destination of the vehicle managers in the platoon.
         """
         self.destination = destination
-        for i in range(len(self.vehicle_manager_list)):
-            self.vehicle_manager_list[i].set_destination(
-                self.vehicle_manager_list[i].vehicle.get_location(),
-                destination, clean=True)
+        # for i in range(len(self.vehicle_manager_list)):
+        #     self.vehicle_manager_list[i].set_destination(
+        #         self.vehicle_manager_list[i].vehicle.get_location(),
+        #         destination, clean=True)
 
     def update_information(self):
         """
@@ -292,7 +297,7 @@ class EdgeManager(object):
         for i in range(len(self.vehicle_manager_list)):
             self.vehicle_manager_list[i].update_info()
         end_time = time.time()
-        logging.debug("Vehicle Manager Update Info Time: %s" %(end_time - start_time))
+        logger.debug("Vehicle Manager Update Info Time: %s" %(end_time - start_time))
         start_time = time.time()
         for i in range(len(self.vehicle_manager_list)):
             x,y = self.processor.process_single_waypoint_forward(self.vehicle_manager_list[i].vehicle.get_location().x, self.vehicle_manager_list[i].vehicle.get_location().y)
@@ -302,16 +307,17 @@ class EdgeManager(object):
             self.spawn_y.append(y)
             self.spawn_v.append(v_scalar)
         end_time = time.time()
-        logging.debug("Update Info Transform Forward Time: %s" %(end_time - start_time))
+        logger.debug("Update Info Transform Forward Time: %s" %(end_time - start_time))
         #print(self.spawn_x)
         #print(self.spawn_y)
         #print(self.spawn_v)
         
         start_time = time.time()
         #Added in to check if traffic tracker updating would fix waypoint deque issue
-        self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=8,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+        # TODO: data drive num cars
+        self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
         end_time = time.time()
-        logging.debug("Traffic Tracker Time: %s" %(end_time - start_time))        
+        logger.debug("Traffic Tracker Time: %s" %(end_time - start_time))        
 
         for car in self.Traffic_Tracker.cars_on_road:
             car.target_velocity = 15
@@ -473,7 +479,7 @@ class EdgeManager(object):
         pre_algo_time = time.time()
         self.algorithm_step()
         post_algo_time = time.time()
-        logging.debug("Algorithm completion time: %s" %(post_algo_time - pre_algo_time))
+        logger.debug("Algorithm completion time: %s" %(post_algo_time - pre_algo_time))
         all_waypoint_buffers = []
         #print("completed Algorithm Step")
         # output algorithm waypoints to waypoint buffer of each vehicle
@@ -488,8 +494,10 @@ class EdgeManager(object):
             waypoint_buffer_proto.vehicle_index = idx
 
             for k in range(0,1):
-                waypoint_buffer_proto.waypoint_buffer.extend(serialize_waypoint(self.locations[i*1+k]))#, RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
+                waypoint_buffer_proto.waypoint_buffer.extend([serialize_waypoint(self.locations[idx*1+k])])#, RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
           
+            logger.debug(waypoint_buffer_proto.SerializeToString())
+
             all_waypoint_buffers.append(waypoint_buffer_proto)
           # for waypoints in waypoint_buffer:
           #   print("Waypoints transform for Vehicle After Clearing: " + str(i) + " : ", waypoints[0].transform)

@@ -113,7 +113,14 @@ class VehicleManager(object):
 
         # if the spawn position is a single scalar, we need to use map
         # helper to transfer to spawn transform
-        cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index]
+        if 'single_cav_list' in self.scenario_params['scenario']:
+            cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index]
+        elif 'edge_list' in self.scenario_params['scenario']:
+            # TODO: support multiple edges... 
+            cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
+            logger.debug(cav_config)
+        else:
+            assert(False, "no known vehicle indexing format found")
         if 'spawn_special' not in cav_config:
             spawn_transform = carla.Transform(
                 carla.Location(

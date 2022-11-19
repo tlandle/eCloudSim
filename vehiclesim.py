@@ -62,7 +62,7 @@ vid = None
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
@@ -405,6 +405,7 @@ def main():
             # find waypoint buffer for our vehicle
             waypoint_proto = None
             for wpb in sim_state_update.all_waypoint_buffers:
+                logger.debug(wpb.SerializeToString())
                 if wpb.vehicle_index == vehicle_index:
                     waypoint_proto = wpb
                     break
@@ -417,7 +418,8 @@ def main():
                 #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
                 waypoint_buffer.clear() #EDIT MADE
 
-                for swp in waypoint_proto:
+                for swp in waypoint_proto.waypoint_buffer:
+                    logger.debug(swp.SerializeToString())
                     wp = deserialize_waypoint(swp)
                     waypoint_buffer.append((wp, RoadOption.STRAIGHT))
 
