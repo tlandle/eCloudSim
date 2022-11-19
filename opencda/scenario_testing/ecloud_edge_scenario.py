@@ -89,5 +89,5 @@ def run_scenario(opt, config_yaml):
 
         scenario_manager.close()
 
-        for v in bg_veh_list:
-            v.destroy()
+        # for v in bg_veh_list:
+        #     v.destroy()

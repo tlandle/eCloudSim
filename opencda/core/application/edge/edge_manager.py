@@ -61,22 +61,22 @@ class EdgeManager(object):
         self.edgeid = str(uuid.uuid1())
         self.vehicle_manager_list = []
         self.target_speed = config_yaml['target_speed']
+        self.numcars = len(config_yaml['members']) # TODO - set edge_index
         #self.locations = []
         self.destination = None
         # Query the vehicle locations and velocities + target velocities
         self.spawn_x = []
         self.spawn_y = []
         self.spawn_v = [] # probably 0s but can be target vel too
-        self.xcars = np.empty((4, 0)) # TODO: data drive
-        self.ycars = np.empty((4, 0)) # TODO: data drive
+        self.xcars = np.empty((self.numcars, 0))
+        self.ycars = np.empty((self.numcars, 0))
         self.x_states = None
         self.y_states = None
         self.tv = None
         self.v = None
-        self.target_velocities = np.empty((4, 0)) # TODO: datadrive
-        self.velocities = np.empty((4,0)) # TODO: datadrive
+        self.target_velocities = np.empty((self.numcars, 0))
+        self.velocities = np.empty((self.numcars,0))
         self.Traffic_Tracker = None
-        self.numcars = 0
         self.waypoints_dict = {}
         self.cav_world = weakref.ref(cav_world)()
         self.ov, self.oy = generate_limits_grid()
@@ -121,8 +121,7 @@ class EdgeManager(object):
           #vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
       self.dt = .200
       self.numlanes = 4
-      self.numcars = 4 # TODO - data drive
-      self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+      self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
     
     def get_four_lane_waypoints_dict(self):
       world = self.vehicle_manager_list[0].vehicle.get_world()
@@ -315,7 +314,7 @@ class EdgeManager(object):
         start_time = time.time()
         #Added in to check if traffic tracker updating would fix waypoint deque issue
         # TODO: data drive num cars
-        self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+        self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
         end_time = time.time()
         logger.debug("Traffic Tracker Time: %s" %(end_time - start_time))        
 
@@ -496,7 +495,7 @@ class EdgeManager(object):
             for k in range(0,1):
                 waypoint_buffer_proto.waypoint_buffer.extend([serialize_waypoint(self.locations[idx*1+k])])#, RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
           
-            logger.debug(waypoint_buffer_proto.SerializeToString())
+            #logger.debug(waypoint_buffer_proto.SerializeToString())
 
             all_waypoint_buffers.append(waypoint_buffer_proto)
           # for waypoints in waypoint_buffer:

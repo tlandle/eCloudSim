@@ -18,6 +18,8 @@ from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.application.edge.transform_utils import *
 from opencda.core.plan.local_planner_behavior import RoadOption
+from opencda.core.plan.global_route_planner import GlobalRoutePlanner
+from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor
@@ -146,7 +148,7 @@ class Client:
             message = self._queue.get()
             pushed_response.clear()
             logger.info("responding to tick...")
-            logger.debug(message.SerializeToString())    
+            #logger.debug(message.SerializeToString())    
             self._stub.SendUpdate(message) 
             popped_response.set()
 
@@ -405,7 +407,7 @@ def main():
             # find waypoint buffer for our vehicle
             waypoint_proto = None
             for wpb in sim_state_update.all_waypoint_buffers:
-                logger.debug(wpb.SerializeToString())
+                #logger.debug(wpb.SerializeToString())
                 if wpb.vehicle_index == vehicle_index:
                     waypoint_proto = wpb
                     break
@@ -418,9 +420,16 @@ def main():
                 #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
                 waypoint_buffer.clear() #EDIT MADE
 
+                '''
+                world = self.vehicle_manager_list[0].vehicle.get_world()
+                self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+                location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
+                '''
+                world = vehicle_manager.vehicle.get_world()
+                dao = GlobalRoutePlannerDAO(world.get_map(), 2)
                 for swp in waypoint_proto.waypoint_buffer:
-                    logger.debug(swp.SerializeToString())
-                    wp = deserialize_waypoint(swp)
+                    #logger.debug(swp.SerializeToString())
+                    wp = deserialize_waypoint(swp, dao)
                     waypoint_buffer.append((wp, RoadOption.STRAIGHT))
 
             control = vehicle_manager.run_step()

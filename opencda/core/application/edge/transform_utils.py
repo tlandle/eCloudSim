@@ -55,7 +55,7 @@ def get_scaling(waypoints):
 def serialize_waypoint(waypoint):
 
     serialized_waypoint = sim_state.Waypoint()
-    serialized_waypoint.id = waypoint.id
+    serialized_waypoint.id = str(waypoint.id)
     
     transform = sim_state.Transform()
     
@@ -88,9 +88,14 @@ def serialize_waypoint(waypoint):
 
     return serialized_waypoint    
 
-def deserialize_waypoint(serialized_waypoint):
+def deserialize_waypoint(serialized_waypoint, dao):
+    '''
+    world = self.vehicle_manager_list[0].vehicle.get_world()
+    self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+    location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
+    '''
 
-    waypoint = carla.Waypoint
+    '''waypoint = carla.Waypoint
 
     waypoint.id = serialized_waypoint.id
     
@@ -107,7 +112,9 @@ def deserialize_waypoint(serialized_waypoint):
     waypoint.lane_id     = serialized_waypoint.lane_id
     waypoint.s           = serialized_waypoint.s
     waypoint.is_junction = serialized_waypoint.is_junction
-    waypoint.lane_width  = serialized_waypoint.lane_width
+    waypoint.lane_width  = serialized_waypoint.lane_width'''
+
+    waypoint = dao.get_waypoint(carla.Location(x=serialized_waypoint.transform.location.x, y=serialized_waypoint.transform.location.y, z=serialized_waypoint.transform.location.z))
 
     return waypoint
 
