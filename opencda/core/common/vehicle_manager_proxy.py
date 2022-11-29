@@ -98,7 +98,13 @@ class VehicleManagerProxy(object):
             data_dumping=False):
 
         config_yaml = load_yaml(config_file)
-        self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index]
+        if 'single_cav_list' in config_yaml['scenario']:
+            self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index]
+        elif 'edge_list' in config_yaml['scenario']:
+            # TODO: support multiple edges... 
+            self.cav_config = config_yaml['scenario']['edge_list'][0]['members'][vehicle_index]
+        else:
+            assert(False, "no known vehicle indexing format found")
         self.cav_world = cav_world
         self.data_dumping = data_dumping
         self.application = application
@@ -117,7 +123,7 @@ class VehicleManagerProxy(object):
         # Send the START message to the vehicle with simulation parameters       
         self.vid = vid # message["vid"] # Vehicle sends back the uuid id we use as unique identifier
 
-        print("eCloud debug | actor_id: " + str(actor_id))
+        # print("eCloud debug | actor_id: " + str(actor_id))
 
         vehicle = self.world.get_actor(actor_id)
         self.vehicle = vehicle
@@ -203,7 +209,7 @@ class VehicleManagerProxy(object):
         Returns
         -------
         """
-        print("OpenCDA: set_destination")
+        #print("OpenCDA: set_destination")
 
         # message = { "cmd": "set_destination",
         #             "params": {
@@ -221,7 +227,7 @@ class VehicleManagerProxy(object):
         Call perception and localization module to
         retrieve surrounding info an ego position.
         """
-        print("OpenCDA: update_info called")
+        #print("OpenCDA: update_info called")
 
         # localization
         self.localizer.localize()
@@ -248,7 +254,7 @@ class VehicleManagerProxy(object):
         """
         Execute one step of navigation.
         """
-        print("OpenCDA: run_step")
+        #print("OpenCDA: run_step")
 
         target_speed, target_pos = self.agent.run_step(target_speed)
         control = self.controller.run_step(target_speed, target_pos)

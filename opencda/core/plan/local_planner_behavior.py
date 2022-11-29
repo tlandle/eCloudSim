@@ -462,11 +462,16 @@ class LocalPlanner(object):
             # it may remove several elements already
             j = i - (len(tmp) - len(self._waypoint_buffer))
 
+            print("LOCAL_PLANNER - waypoint transform for Vehicle: ", waypoint.transform)
+            print("LOCAL_PLANNER - ego pos for Vehicle: ", self._ego_pos)
+
             # check if the current waypoint is behind the vehicle.
             # if so, remove such waypoint.
             _, angle = cal_distance_angle(
                 waypoint.transform.location,
                 self._ego_pos.location, self._ego_pos.rotation.yaw)
+
+            print(f"angle: {angle}")
 
             if angle > 90:
                 print('delete waypoint!')

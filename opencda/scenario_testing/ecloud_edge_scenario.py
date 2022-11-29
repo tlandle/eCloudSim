@@ -32,7 +32,8 @@ def run_scenario(opt, config_yaml):
                                                    opt.apply_ml,
                                                    opt.version,
                                                    town='Town06',
-                                                   cav_world=cav_world)
+                                                   cav_world=cav_world,
+                                                   config_file=config_yaml)
 
         if opt.record:
             scenario_manager.client. \
@@ -40,7 +41,7 @@ def run_scenario(opt, config_yaml):
 
         # create single cavs
         edge_list = \
-            scenario_manager.create_edge_manager()
+            scenario_manager.create_edge_manager(application=['edge'],)
 
         # create background traffic in carla
         #traffic_manager, bg_veh_list = \
@@ -48,7 +49,7 @@ def run_scenario(opt, config_yaml):
 
         eval_manager = \
             EvaluationManager(scenario_manager.cav_world,
-                              script_name='ecloud_4lane_scenario',
+                              script_name='ecloud_edge_scenario',
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
@@ -57,10 +58,14 @@ def run_scenario(opt, config_yaml):
         # run steps
 
         eval_time = 0
-        while True:
+        flag = True
+        waypoint_buffer = []
+        while flag:
             eval_time += 1
-            print("Stepping, ", eval_time*0.2)
-            scenario_manager.tick()
+            #print("Stepping, ", eval_time*0.2)
+
+            scenario_manager.add_waypoint_buffer_to_tick(waypoint_buffer)
+            flag = scenario_manager.tick()
             transform = spectator_vehicle.get_transform()
             spectator.set_transform(
                 carla.Transform(
@@ -70,10 +75,11 @@ def run_scenario(opt, config_yaml):
                     carla.Rotation(
                         pitch=-
                         90)))
-
+                        
+            waypoint_buffer.clear()
             for edge in edge_list:
               edge.update_information()
-              edge.run_step()
+              waypoint_buffer = edge.run_step()
 
     finally:
         eval_manager.evaluate()
@@ -83,5 +89,5 @@ def run_scenario(opt, config_yaml):
 
         scenario_manager.close()
 
-        for v in bg_veh_list:
-            v.destroy()
+        # for v in bg_veh_list:
+        #     v.destroy()

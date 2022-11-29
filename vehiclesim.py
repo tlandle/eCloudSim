@@ -18,6 +18,8 @@ from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.application.edge.transform_utils import *
 from opencda.core.plan.local_planner_behavior import RoadOption
+from opencda.core.plan.global_route_planner import GlobalRoutePlanner
+from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor
@@ -62,7 +64,7 @@ vid = None
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
@@ -146,7 +148,7 @@ class Client:
             message = self._queue.get()
             pushed_response.clear()
             logger.info("responding to tick...")
-            logger.debug(message.SerializeToString())    
+            #logger.debug(message.SerializeToString())    
             self._stub.SendUpdate(message) 
             popped_response.set()
 
@@ -340,6 +342,12 @@ def main():
 
     vehicle_manager = VehicleManager(vehicle_index, test_scenario, application, cav_world, version)
 
+    scenario_yaml = load_yaml(test_scenario)
+    target_speed = None
+    if 'edge_list' in scenario_yaml['scenario']:
+        # TODO: support multiple edges... 
+        target_speed = scenario_yaml['scenario']['edge_list'][0]['target_speed']
+
     # send gRPC in response to start
     with lock:
         actor_id = vehicle_manager.vehicle.id
@@ -405,6 +413,7 @@ def main():
             # find waypoint buffer for our vehicle
             waypoint_proto = None
             for wpb in sim_state_update.all_waypoint_buffers:
+                #logger.debug(wpb.SerializeToString())
                 if wpb.vehicle_index == vehicle_index:
                     waypoint_proto = wpb
                     break
@@ -417,11 +426,29 @@ def main():
                 #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
                 waypoint_buffer.clear() #EDIT MADE
 
-                for swp in waypoint_proto:
-                    wp = deserialize_waypoint(swp)
+                '''
+                world = self.vehicle_manager_list[0].vehicle.get_world()
+                self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+                location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
+                '''
+                world = vehicle_manager.vehicle.get_world()
+                dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+                for swp in waypoint_proto.waypoint_buffer:
+                    #logger.debug(swp.SerializeToString())
+                    logger.debug(f"Override Waypoint x:{swp.transform.location.x}, y:{swp.transform.location.y}, z:{swp.transform.location.z}, rl:{swp.transform.rotation.roll}, pt:{swp.transform.rotation.pitch}, yw:{swp.transform.rotation.yaw}")
+                    wp = deserialize_waypoint(swp, dao)
+                    logger.debug(f"DAO Waypoint x:{wp.transform.location.x}, y:{wp.transform.location.y}, z:{wp.transform.location.z}, rl:{wp.transform.rotation.roll}, pt:{wp.transform.rotation.pitch}, yw:{wp.transform.rotation.yaw}")
                     waypoint_buffer.append((wp, RoadOption.STRAIGHT))
 
-            control = vehicle_manager.run_step()
+                waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+                for waypoints in waypoints_buffer_printer:
+                    print("Waypoints transform for Vehicle: ", waypoints[0].transform)
+
+            waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+            for waypoints in waypoints_buffer_printer:
+                print("Waypoints transform for Vehicle: ", waypoints[0].transform)
+
+            control = vehicle_manager.run_step(target_speed=target_speed)
             response = sim_state.VehicleUpdate()
             response.tick_id = tick_id
             response.vehicle_index = vehicle_index

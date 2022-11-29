@@ -113,7 +113,14 @@ class VehicleManager(object):
 
         # if the spawn position is a single scalar, we need to use map
         # helper to transfer to spawn transform
-        cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index]
+        if 'single_cav_list' in self.scenario_params['scenario']:
+            cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index]
+        elif 'edge_list' in self.scenario_params['scenario']:
+            # TODO: support multiple edges... 
+            cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
+            logger.debug(cav_config)
+        else:
+            assert(False, "no known vehicle indexing format found")
         if 'spawn_special' not in cav_config:
             spawn_transform = carla.Transform(
                 carla.Location(
@@ -125,7 +132,8 @@ class VehicleManager(object):
                     yaw=cav_config['spawn_position'][4],
                     roll=cav_config['spawn_position'][3]))
 # TODO eCloud Need to put this back in. Is not being used for simple scenario I'm working with currently
-#        else:
+        else:
+            assert( False, "['spawn_special'] not supported in Edge currently")
 #            spawn_transform = map_helper(self.carla_version,
 #                                         *cav_config['spawn_special'])
 

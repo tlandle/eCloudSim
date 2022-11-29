@@ -35,7 +35,8 @@ def run_scenario(opt, config_yaml):
                                                    opt.apply_ml,
                                                    opt.version,
                                                    town='Town06',
-                                                   cav_world=cav_world)
+                                                   cav_world=cav_world,
+                                                   config_file=config_yaml)
 
         if opt.record:
             scenario_manager.client. \
@@ -43,7 +44,7 @@ def run_scenario(opt, config_yaml):
 
         # create single cavs
         edge_list = \
-            scenario_manager.create_edge_manager()
+            scenario_manager.create_edge_manager(application=['edge'],)
 
         # create background traffic in carla
         #traffic_manager, bg_veh_list = \
@@ -60,11 +61,16 @@ def run_scenario(opt, config_yaml):
         # run steps
 
         eval_time = 0
-        while True:
+        flag = True
+        waypoint_buffer = []
+        while flag:
             eval_time += 1
             print("Stepping, ", eval_time*0.2)
             pre_tick  = time.time()
-            scenario_manager.tick()
+
+            scenario_manager.add_waypoint_buffer_to_tick(waypoint_buffer)
+            flag = scenario_manager.tick()
+            
             post_tick = time.time()
             logging.debug("Scenario Manager Tick Time: %s"%(post_tick - pre_tick))
           
@@ -90,7 +96,9 @@ def run_scenario(opt, config_yaml):
               post_tick = time.time()
               logging.debug("Edge update Information Time: %s"%(post_tick - pre_tick))
               pre_tick = time.time()
-              edge.run_step()
+
+              waypoint_buffer = edge.run_step()
+              
               post_tick = time.time()
               logging.debug("Edge Total Step Time: %s"%(post_tick - pre_tick))
 
@@ -101,6 +109,3 @@ def run_scenario(opt, config_yaml):
             scenario_manager.client.stop_recorder()
 
         scenario_manager.close()
-
-        for v in bg_veh_list:
-            v.destroy()

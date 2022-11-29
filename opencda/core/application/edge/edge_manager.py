@@ -14,15 +14,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time 
 import opencda.logging_ecloud
-import logging
+import coloredlogs, logging
+import sys
+
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', logger=logger)
+logger.setLevel(logging.DEBUG)
+
+sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/") 
 
 import opencda.core.plan.drive_profile_plotting as open_plt
 from opencda.core.application.edge.astar_test_groupcaps_transform import *
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.local_planner_behavior import RoadOption
-import sys
-sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/") 
+from opencda.core.application.edge.transform_utils import *
+
+import grpc
+import sim_api_pb2 as sim_state
+import sim_api_pb2_grpc as rpc
 
 class EdgeManager(object):
     """
@@ -51,22 +61,22 @@ class EdgeManager(object):
         self.edgeid = str(uuid.uuid1())
         self.vehicle_manager_list = []
         self.target_speed = config_yaml['target_speed']
+        self.numcars = len(config_yaml['members']) # TODO - set edge_index
         #self.locations = []
         self.destination = None
         # Query the vehicle locations and velocities + target velocities
         self.spawn_x = []
         self.spawn_y = []
         self.spawn_v = [] # probably 0s but can be target vel too
-        self.xcars = np.empty((8, 0))
-        self.ycars = np.empty((8, 0))
+        self.xcars = np.empty((self.numcars, 0))
+        self.ycars = np.empty((self.numcars, 0))
         self.x_states = None
         self.y_states = None
         self.tv = None
         self.v = None
-        self.target_velocities = np.empty((8, 0))
-        self.velocities = np.empty((8,0))
+        self.target_velocities = np.empty((self.numcars, 0))
+        self.velocities = np.empty((self.numcars,0))
         self.Traffic_Tracker = None
-        self.numcars = 0
         self.waypoints_dict = {}
         self.cav_world = weakref.ref(cav_world)()
         self.ov, self.oy = generate_limits_grid()
@@ -80,7 +90,7 @@ class EdgeManager(object):
       self.processor = transform_processor(self.waypoints_dict)
       _, _ = self.processor.process_waypoints_bidirectional(0)
       inverted = self.processor.process_forward(0)
-      print(len(inverted))
+      logger.debug(len(inverted))
       i = 0
 
       # for k in inverted:
@@ -107,11 +117,11 @@ class EdgeManager(object):
           self.spawn_y.append(spawn_coords[1])# inverted[i][1,0])
           i += 1
 
-          vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
+          # TODO: DIST --> do we need to clear at start in containers?  
+          #vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
       self.dt = .200
       self.numlanes = 4
-      self.numcars = 8
-      self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=4,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+      self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
     
     def get_four_lane_waypoints_dict(self):
       world = self.vehicle_manager_list[0].vehicle.get_world()
@@ -126,7 +136,7 @@ class EdgeManager(object):
       indices_source = indices_source.astype(int)
       indices_dest = indices_dest.astype(int)
 
-      print("Source Shape: ", indices_source.shape)
+      #print("Source Shape: ", indices_source.shape)
 
       a = carla.Location(waypoints[indices_source[0,1]].transform.location)
       b = carla.Location(waypoints[indices_dest[0,1]].transform.location)
@@ -142,10 +152,10 @@ class EdgeManager(object):
       w3 = grp.trace_route(e, f) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
       w4 = grp.trace_route(g, j) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
 
-      print(a)
-      print(b)
-      print(c)
-      print(d)
+      logger.debug(a)
+      logger.debug(b)
+      logger.debug(c)
+      logger.debug(d)
 
       i = 0
       for w in w1:
@@ -269,10 +279,10 @@ class EdgeManager(object):
         Set destination of the vehicle managers in the platoon.
         """
         self.destination = destination
-        for i in range(len(self.vehicle_manager_list)):
-            self.vehicle_manager_list[i].set_destination(
-                self.vehicle_manager_list[i].vehicle.get_location(),
-                destination, clean=True)
+        # for i in range(len(self.vehicle_manager_list)):
+        #     self.vehicle_manager_list[i].set_destination(
+        #         self.vehicle_manager_list[i].vehicle.get_location(),
+        #         destination, clean=True)
 
     def update_information(self):
         """
@@ -285,8 +295,9 @@ class EdgeManager(object):
         start_time = time.time()
         for i in range(len(self.vehicle_manager_list)):
             self.vehicle_manager_list[i].update_info()
+            print(f"Updated location for vehicle {i} - x:{self.vehicle_manager_list[i].vehicle.get_location().x}, y:{self.vehicle_manager_list[i].vehicle.get_location().y}")
         end_time = time.time()
-        logging.debug("Vehicle Manager Update Info Time: %s" %(end_time - start_time))
+        logger.debug("Vehicle Manager Update Info Time: %s" %(end_time - start_time))
         start_time = time.time()
         for i in range(len(self.vehicle_manager_list)):
             x,y = self.processor.process_single_waypoint_forward(self.vehicle_manager_list[i].vehicle.get_location().x, self.vehicle_manager_list[i].vehicle.get_location().y)
@@ -295,17 +306,19 @@ class EdgeManager(object):
             self.spawn_x.append(x)
             self.spawn_y.append(y)
             self.spawn_v.append(v_scalar)
+            print(f"update_information for vehicle_{i} - x:{x}, y:{y}")
         end_time = time.time()
-        logging.debug("Update Info Transform Forward Time: %s" %(end_time - start_time))
+        logger.debug("Update Info Transform Forward Time: %s" %(end_time - start_time))
         #print(self.spawn_x)
         #print(self.spawn_y)
         #print(self.spawn_v)
         
         start_time = time.time()
         #Added in to check if traffic tracker updating would fix waypoint deque issue
-        self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=8,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+        # TODO: data drive num cars
+        self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
         end_time = time.time()
-        logging.debug("Traffic Tracker Time: %s" %(end_time - start_time))        
+        logger.debug("Traffic Tracker Time: %s" %(end_time - start_time))        
 
         for car in self.Traffic_Tracker.cars_on_road:
             car.target_velocity = 15
@@ -446,7 +459,7 @@ class EdgeManager(object):
         for car, car_array in waypoints_rev.items():
           for i in range(0,len(car_array[0])):
             location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
-            #print(location)
+            print(f"algorith_step: vehicle_{i} location - {location}")
             self.locations.append(location)
 
         #print("Locations appended: ", self.locations)
@@ -461,47 +474,55 @@ class EdgeManager(object):
             The control command list for all vehicles.
         """
 
+        # TODO: make a dist version...
+
         # run algorithm
         pre_algo_time = time.time()
         self.algorithm_step()
         post_algo_time = time.time()
-        logging.debug("Algorithm completion time: %s" %(post_algo_time - pre_algo_time))
+        logger.debug("Algorithm completion time: %s" %(post_algo_time - pre_algo_time))
+        all_waypoint_buffers = []
         #print("completed Algorithm Step")
         # output algorithm waypoints to waypoint buffer of each vehicle
-        i = 0
-        for vehicle_manager in self.vehicle_manager_list:
-          # print(i)
-          waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-          # print(waypoint_buffer)
-          # for waypoints in waypoint_buffer:
-          #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
-          waypoint_buffer.clear() #EDIT MADE 16/03
+        for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
+        #   # print(i)
+        #   waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+        #   # print(waypoint_buffer)
+        #   # for waypoints in waypoint_buffer:
+        #   #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
+        #   waypoint_buffer.clear() #EDIT MADE 16/03
+            waypoint_buffer_proto = sim_state.WaypointBuffer()
+            waypoint_buffer_proto.vehicle_index = idx
+
+            for k in range(0,1):
+                waypoint_buffer_proto.waypoint_buffer.extend([serialize_waypoint(self.locations[idx*1+k])])#, RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
           
-          for k in range(0,1):
-            waypoint_buffer.append((self.locations[i*1+k], RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
-          
+            #logger.debug(waypoint_buffer_proto.SerializeToString())
+
+            all_waypoint_buffers.append(waypoint_buffer_proto)
           # for waypoints in waypoint_buffer:
           #   print("Waypoints transform for Vehicle After Clearing: " + str(i) + " : ", waypoints[0].transform)
           # sys.exit()
           # # print(waypoint_buffer)
-          i += 1
 
-        #print("\n ########################\n")
-        #print("Length of vehicle manager list: ", len(self.vehicle_manager_list))
+        return all_waypoint_buffers    
 
-        control_list = []
-        for i in range(len(self.vehicle_manager_list)):
-            waypoints_buffer_printer = self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer()
-            #for waypoints in waypoints_buffer_printer:
-                #print("Waypoints transform for Vehicle: " + str(i) + " : ", waypoints[0].transform)
-            # print(self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer().transform())
-            control = self.vehicle_manager_list[i].run_step(self.target_speed)
-            control_list.append(control)
+        # #print("\n ########################\n")
+        # #print("Length of vehicle manager list: ", len(self.vehicle_manager_list))
 
-        for (i, control) in enumerate(control_list):
-            self.vehicle_manager_list[i].vehicle.apply_control(control)
+        # control_list = []
+        # for i in range(len(self.vehicle_manager_list)):
+        #     waypoints_buffer_printer = self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer()
+        #     #for waypoints in waypoints_buffer_printer:
+        #         #print("Waypoints transform for Vehicle: " + str(i) + " : ", waypoints[0].transform)
+        #     # print(self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer().transform())
+        #     control = self.vehicle_manager_list[i].run_step(self.target_speed)
+        #     control_list.append(control)
 
-        return control_list
+        # for (i, control) in enumerate(control_list):
+        #     self.vehicle_manager_list[i].vehicle.apply_control(control)
+
+        # return control_list
 
     def evaluate(self):
         """

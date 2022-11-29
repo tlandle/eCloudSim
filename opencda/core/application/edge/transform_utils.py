@@ -55,19 +55,24 @@ def get_scaling(waypoints):
 def serialize_waypoint(waypoint):
 
     serialized_waypoint = sim_state.Waypoint()
-    serialized_waypoint.id = waypoint.id
+    serialized_waypoint.id = str(waypoint.id)
     
-    serialized_waypoint.transform = sim_state.Transform()
+    transform = sim_state.Transform()
     
-    serialized_waypoint.transform.location   = sim_state.Location()
-    serialized_waypoint.transform.location.x = waypoint.location.x
-    serialized_waypoint.transform.location.y = waypoint.location.y
-    serialized_waypoint.transform.location.z = waypoint.location.z
+    location   = sim_state.Location()
+    location.x = waypoint.transform.location.x
+    location.y = waypoint.transform.location.y
+    location.z = waypoint.transform.location.z
 
-    serialized_waypoint.transform.rotation       = sim_state.Rotation()
-    serialized_waypoint.transform.rotation.yaw   = waypoint.rotation.yaw
-    serialized_waypoint.transform.rotation.pitch = waypoint.rotation.pitch
-    serialized_waypoint.transform.rotation.roll  = waypoint.rotation.roll
+    rotation       = sim_state.Rotation()
+    rotation.yaw   = waypoint.transform.rotation.yaw
+    rotation.pitch = waypoint.transform.rotation.pitch
+    rotation.roll  = waypoint.transform.rotation.roll
+
+    transform.location.CopyFrom(location)
+    transform.rotation.CopyFrom(rotation)
+
+    serialized_waypoint.transform.CopyFrom(transform)
 
     serialized_waypoint.road_id     = waypoint.road_id
     serialized_waypoint.section_id  = waypoint.section_id
@@ -83,26 +88,35 @@ def serialize_waypoint(waypoint):
 
     return serialized_waypoint    
 
-def deserialize_waypoint(serialized_waypoint):
+def deserialize_waypoint(serialized_waypoint, dao):
+    '''
+    world = self.vehicle_manager_list[0].vehicle.get_world()
+    self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+    location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
+    '''
 
-    waypoint = carla.waypoint
+    '''waypoint = carla.Waypoint
 
     waypoint.id = serialized_waypoint.id
     
-    waypoint.location.x = serialized_waypoint.transform.location.x 
-    waypoint.location.y = serialized_waypoint.transform.location.y
-    waypoint.location.z = serialized_waypoint.transform.location.z
+    waypoint.transform.location.x = serialized_waypoint.transform.location.x 
+    waypoint.transform.location.y = serialized_waypoint.transform.location.y
+    waypoint.transform.location.z = serialized_waypoint.transform.location.z
 
-    waypoint.location.yaw   = serialized_waypoint.transform.rotation.yaw
-    waypoint.rotation.pitch = serialized_waypoint.transform.rotation.pitch
-    waypoint.rotation.roll  = serialized_waypoint.transform.rotation.roll
+    waypoint.transform.location.yaw   = serialized_waypoint.transform.rotation.yaw
+    waypoint.transform.rotation.pitch = serialized_waypoint.transform.rotation.pitch
+    waypoint.transform.rotation.roll  = serialized_waypoint.transform.rotation.roll
 
     waypoint.road_id     = serialized_waypoint.road_id
     waypoint.section_id  = serialized_waypoint.section_id
     waypoint.lane_id     = serialized_waypoint.lane_id
     waypoint.s           = serialized_waypoint.s
     waypoint.is_junction = serialized_waypoint.is_junction
-    waypoint.lane_width  = serialized_waypoint.lane_width
+    waypoint.lane_width  = serialized_waypoint.lane_width'''
+
+    #print(f"deserializing waypint - x:{serialized_waypoint.transform.location.x}, y:{serialized_waypoint.transform.location.y}, z:{serialized_waypoint.transform.location.z}, rl:{serialized_waypoint.transform.rotation.roll}, pt:{serialized_waypoint.transform.rotation.pitch}, yw:{serialized_waypoint.transform.rotation.yaw}")
+
+    waypoint = dao.get_waypoint(carla.Location(x=serialized_waypoint.transform.location.x, y=serialized_waypoint.transform.location.y, z=serialized_waypoint.transform.location.z))
 
     return waypoint
 
