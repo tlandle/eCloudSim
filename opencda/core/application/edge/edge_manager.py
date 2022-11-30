@@ -456,11 +456,14 @@ class EdgeManager(object):
         #print(waypoints_rev)
         # car_locations = {1 : [], 2 : [], 3 : [], 4 : [], 5 : [], 6 : [], 7 : [], 8 : []}
 
+        logger.warning(f"CREATING OVERRIDE WAYPOINTS")
         for car, car_array in waypoints_rev.items():
           for i in range(0,len(car_array[0])):
             location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
-            print(f"algorith_step: vehicle_{i} location - {location}")
+            print(f"algorithm_step: car_{car} location - {location}")
             self.locations.append(location)
+
+            logger.warning(f"car_{car} - (x: {location.transform.location.x}, y: {location.transform.location.x})")
 
         #print("Locations appended: ", self.locations)
 

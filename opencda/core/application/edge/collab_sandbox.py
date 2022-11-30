@@ -141,6 +141,7 @@ class Traffic():
 		for i in range(0,self.numlanes):
 			indices_of_interest = np.nonzero(self.lane_vehicles[:,i])
 			indices_of_interest = indices_of_interest[0]
+			print("indices of interest:")
 			print(indices_of_interest)
 			if len(indices_of_interest) <= 1:
 				continue

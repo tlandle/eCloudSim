@@ -748,9 +748,9 @@ class ScenarioManager:
                 vehicle_manager.v2x_manager.set_platoon(None)
                 logger.debug("set platoon on vehicle manager")
 
-                destination = carla.Location(x=cav['destination'][0],
-                                            y=cav['destination'][1],
-                                            z=cav['destination'][2])
+                destination = carla.Location(x=edge['destination'][0],
+                                             y=edge['destination'][1],
+                                             z=edge['destination'][2])
                 logger.debug("get location of destination")
 
                 #vehicle_manager.update_info()
