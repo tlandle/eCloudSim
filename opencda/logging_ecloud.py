@@ -1,6 +1,10 @@
 import logging
 from datetime import datetime
+import os
 
+if not os.path.exists('log'):
+   os.makedirs('log')
+   
 LOG_FILENAME = datetime.now().strftime('log/logfile_%Y_%m_%d_%H_%M_%S.log')
 WAYPOINTS_FILENAME = datetime.now().strftime('log/waypoints_%Y_%m_%d_%H_%M_%S.log')
 

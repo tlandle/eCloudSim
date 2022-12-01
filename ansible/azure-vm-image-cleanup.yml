@@ -1,0 +1,24 @@
+---
+- hosts: vehicles
+  gather_facts: false
+
+  vars_prompt:
+    - name: password
+      prompt: "Enter password for ssh user"
+
+  vars:
+    ansible_user: azureuser
+    ansible_password: "{{ password }}"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+  tasks:
+    - name: Get details of all images
+      docker_host_info:
+        images: yes
+        verbose_output: yes
+      register: image_info
+    - name: Remove all images
+      docker_image:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ image_info.images | map(attribute='Id') | list }}"
