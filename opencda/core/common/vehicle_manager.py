@@ -137,6 +137,10 @@ class VehicleManager(object):
 #            spawn_transform = map_helper(self.carla_version,
 #                                         *cav_config['spawn_special'])
 
+        self.cav_destination = {}
+        self.cav_destination['x'] = cav_config['destination'][0]
+        self.cav_destination['y'] = cav_config['destination'][1]
+
         cav_vehicle_bp.set_attribute('color', '0, 0, 255')
         self.vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
 
@@ -181,6 +185,21 @@ class VehicleManager(object):
             self.data_dumper = None
 
         cav_world.update_vehicle_manager(self)
+
+    def is_close_to_scenario_destination(self):
+        """
+        Check if the current ego vehicle's position is close to destination
+
+        Returns
+        -------
+        flag : boolean
+            It is True if the current ego vehicle's position is close to destination
+
+        """
+        ego_pos = self.vehicle.get_location()
+        flag = abs(ego_pos.x - self.cav_destination['x']) <= 10 and \
+            abs(ego_pos.y - self.cav_destination['y']) <= 10
+        return flag
 
     def initialize_process(self):
         simulation_config = self.scenario_params['world']

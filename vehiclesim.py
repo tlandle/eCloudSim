@@ -456,7 +456,7 @@ def main():
             response = sim_state.VehicleUpdate()
             response.tick_id = tick_id
             response.vehicle_index = vehicle_index
-            if control is None:
+            if control is None or vehicle_manager.is_close_to_scenario_destination():
                 
                 response.vehicle_state = sim_state.VehicleState.TICK_DONE
 
@@ -465,6 +465,9 @@ def main():
                 vehicle_manager.apply_control(control)
                 response.vehicle_state = sim_state.VehicleState.TICK_OK
                 #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
+
+            cur_location = vehicle_manager.vehicle.get_location()
+            logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")
 
             pushed_message.clear()    
             popped_message.set()

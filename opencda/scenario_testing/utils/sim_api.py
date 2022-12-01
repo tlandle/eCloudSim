@@ -1032,6 +1032,14 @@ class ScenarioManager:
         success = self.broadcast_tick()
         return success
 
+    def tick_world(self):
+        """
+        Tick the server; just a pass-through to broadcast_tick to preserve backwards compatibility for now...
+
+        returns bool 
+        """
+        self.world.tick()  
+
     def broadcast_tick(self):
         """
         Tick the server - broadcasts a message to all vehicles

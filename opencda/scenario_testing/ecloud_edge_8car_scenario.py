@@ -68,8 +68,16 @@ def run_scenario(opt, config_yaml):
             print("Stepping, ", eval_time*0.2)
             pre_tick  = time.time()
 
+            scenario_manager.tick_world()
+
+            waypoint_buffer.clear()
+            for edge in edge_list:
+              edge.update_information()
+              waypoint_buffer = edge.run_step()
+
             scenario_manager.add_waypoint_buffer_to_tick(waypoint_buffer)
-            flag = scenario_manager.tick()
+
+            flag = scenario_manager.broadcast_tick()
             
             post_tick = time.time()
             logging.debug("Scenario Manager Tick Time: %s"%(post_tick - pre_tick))
@@ -90,17 +98,17 @@ def run_scenario(opt, config_yaml):
             post_tick = time.time()
             logging.debug("Camera Setting Transform Time: %s"%(post_tick - pre_tick))
 
-            for edge in edge_list:
-              pre_tick = time.time()
-              edge.update_information()
-              post_tick = time.time()
-              logging.debug("Edge update Information Time: %s"%(post_tick - pre_tick))
-              pre_tick = time.time()
+            # for edge in edge_list:
+            #   pre_tick = time.time()
+            #   edge.update_information()
+            #   post_tick = time.time()
+            #   logging.debug("Edge update Information Time: %s"%(post_tick - pre_tick))
+            #   pre_tick = time.time()
 
-              waypoint_buffer = edge.run_step()
+            #   waypoint_buffer = edge.run_step()
               
-              post_tick = time.time()
-              logging.debug("Edge Total Step Time: %s"%(post_tick - pre_tick))
+            #   post_tick = time.time()
+            #   logging.debug("Edge Total Step Time: %s"%(post_tick - pre_tick))
 
     finally:
         eval_manager.evaluate()
