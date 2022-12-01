@@ -45,6 +45,8 @@ class EvaluationManager(object):
         if not os.path.exists(self.eval_save_path):
             os.makedirs(self.eval_save_path)
 
+        #print(f"self.eval_save_path: {self.eval_save_path}") 
+
     def evaluate(self):
         """
         Evaluate performance of all modules by plotting and writing the
@@ -96,10 +98,13 @@ class EvaluationManager(object):
         lprint(log_file, "***********Localization Module***********")
         for vid, vm in self.cav_world.get_vehicle_managers().items():
             actor_id = vm.vehicle.id
+            #print("actor_id = vm.vehicle.id")
             lprint(log_file, 'Actor ID: %d' % actor_id)
 
             loc_debug_helper = vm.localizer.debug_helper
+            #print("loc_debug_helper = vm.localizer.debug_helper")
             figure, perform_txt = loc_debug_helper.evaluate()
+            #print("figure, perform_txt = loc_debug_helper.evaluate()")
 
             # save plotting
             figure_save_path = os.path.join(

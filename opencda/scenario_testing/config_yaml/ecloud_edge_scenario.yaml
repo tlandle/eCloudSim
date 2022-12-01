@@ -135,9 +135,9 @@ scenario:
             perception:
               <<: *base_perception
               activate: false
-              camera_visualize: 1
+              camera_visualize: 0
               camera_num: 3
-              lidar_visualize: true
+              lidar_visualize: false
             localization:
               <<: *base_localize
               debug_helper:
@@ -163,9 +163,9 @@ scenario:
             perception:
               <<: *base_perception
               activate: false
-              camera_visualize: 1
+              camera_visualize: 0
               camera_num: 1
-              lidar_visualize: true
+              lidar_visualize: false
             localization:
               <<: *base_localize
               debug_helper:
@@ -191,9 +191,9 @@ scenario:
             perception:
               <<: *base_perception
               activate: false
-              camera_visualize: 1
+              camera_visualize: 0
               camera_num: 1
-              lidar_visualize: true
+              lidar_visualize: false
             localization:
               <<: *base_localize
               debug_helper:
@@ -219,9 +219,9 @@ scenario:
             perception:
               <<: *base_perception
               activate: false
-              camera_visualize: 1
+              camera_visualize: 0
               camera_num: 1
-              lidar_visualize: true
+              lidar_visualize: false
             localization:
               <<: *base_localize
               debug_helper:

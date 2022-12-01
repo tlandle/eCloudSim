@@ -16,6 +16,10 @@ import carla
 from opencda.version import __version__
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
+from opencda.core.application.edge.transform_utils import *
+from opencda.core.plan.local_planner_behavior import RoadOption
+from opencda.core.plan.global_route_planner import GlobalRoutePlanner
+from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor
@@ -60,7 +64,7 @@ vid = None
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
@@ -127,10 +131,7 @@ class Client:
 
             logger.debug("processed an update_info command")
 
-            return                
-
-
-        # put new messages into the queue and then signal
+            return                      
 
         # did we get a new tick_id?
         if tick_id != sim_state_update.tick_id:
@@ -147,7 +148,7 @@ class Client:
             message = self._queue.get()
             pushed_response.clear()
             logger.info("responding to tick...")
-            logger.debug(message.SerializeToString())    
+            #logger.debug(message.SerializeToString())    
             self._stub.SendUpdate(message) 
             popped_response.set()
 
@@ -341,6 +342,12 @@ def main():
 
     vehicle_manager = VehicleManager(vehicle_index, test_scenario, application, cav_world, version)
 
+    scenario_yaml = load_yaml(test_scenario)
+    target_speed = None
+    if 'edge_list' in scenario_yaml['scenario']:
+        # TODO: support multiple edges... 
+        target_speed = scenario_yaml['scenario']['edge_list'][0]['target_speed']
+
     # send gRPC in response to start
     with lock:
         actor_id = vehicle_manager.vehicle.id
@@ -355,8 +362,14 @@ def main():
 
     #_socket.send(json.dumps(message).encode('utf-8'))
 
-    # run scenario testing --> replace with event-based on streaming connection
-    while True:
+
+    # run scenario testing
+    # TODO
+    # - replace with event-based on streaming connection
+    # - split the if/elif/elif into helper functions
+
+    flag = True
+    while flag:
         pushed_message.wait(timeout=None)    
         sim_state_update = q.get()
         #message = json.loads(_socket.recv(1024).decode('utf-8'))
@@ -369,16 +382,21 @@ def main():
         if sim_state_update.command != sim_state.Command.TICK: # don't print tick message since there are too many
             logger.info(f"Vehicle: received cmd {sim_state_update.command}")
 
+        # HANDLE UPDATE INFO
         if sim_state_update.command == sim_state.Command.UPDATE_INFO:
+
             vehicle_manager.update_info()
             #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
             pushed_message.clear()    
             popped_message.set()
+        
+        # HANDLE SET DESTINATION
         elif sim_state_update.command == sim_state.Command.SET_DESTINATION:
             params_json = json.loads(sim_state_update.params_json)
             destination = params_json['params']
             logger.debug("JSON Params: " + sim_state_update.params_json)
             logger.debug(f"Vehicle: x=%s" % destination["start"]["x"])
+            logger.debug(f"Vehicle: y=%s" % destination["start"]["y"])
             start_location = carla.Location(x=destination["start"]["x"], y=destination["start"]["y"], z=destination["start"]["z"])
             end_location = carla.Location(x=destination["end"]["x"], y=destination["end"]["y"], z=destination["end"]["z"])
             clean = bool(destination["clean"])
@@ -387,13 +405,58 @@ def main():
             #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
             pushed_message.clear()    
             popped_message.set()
+        
+        # HANDLE TICK
         elif sim_state_update.command == sim_state.Command.TICK:
+            # update info runs BEFORE waypoint injection
             vehicle_manager.update_info()
-            control = vehicle_manager.run_step()
+
+            # find waypoint buffer for our vehicle
+            waypoint_proto = None
+            for wpb in sim_state_update.all_waypoint_buffers:
+                #logger.debug(wpb.SerializeToString())
+                if wpb.vehicle_index == vehicle_index:
+                    waypoint_proto = wpb
+                    break
+            
+            if waypoint_proto != None:
+                #override waypoints
+                waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+                # print(waypoint_buffer)
+                # for waypoints in waypoint_buffer:
+                #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
+                waypoint_buffer.clear() #EDIT MADE
+
+                '''
+                world = self.vehicle_manager_list[0].vehicle.get_world()
+                self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+                location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
+                '''
+                world = vehicle_manager.vehicle.get_world()
+                dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+                for swp in waypoint_proto.waypoint_buffer:
+                    #logger.debug(swp.SerializeToString())
+                    logger.debug(f"Override Waypoint x:{swp.transform.location.x}, y:{swp.transform.location.y}, z:{swp.transform.location.z}, rl:{swp.transform.rotation.roll}, pt:{swp.transform.rotation.pitch}, yw:{swp.transform.rotation.yaw}")
+                    wp = deserialize_waypoint(swp, dao)
+                    logger.debug(f"DAO Waypoint x:{wp.transform.location.x}, y:{wp.transform.location.y}, z:{wp.transform.location.z}, rl:{wp.transform.rotation.roll}, pt:{wp.transform.rotation.pitch}, yw:{wp.transform.rotation.yaw}")
+                    waypoint_buffer.append((wp, RoadOption.STRAIGHT))
+
+                cur_location = vehicle_manager.vehicle.get_location()
+                logger.debug(f"location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")
+
+                waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+                for waypoints in waypoints_buffer_printer:
+                    print("Waypoints transform for Vehicle: ", waypoints[0].transform)
+
+            waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+            for waypoints in waypoints_buffer_printer:
+                print("Waypoints transform for Vehicle: ", waypoints[0].transform)
+
+            control = vehicle_manager.run_step(target_speed=target_speed)
             response = sim_state.VehicleUpdate()
             response.tick_id = tick_id
             response.vehicle_index = vehicle_index
-            if control is None:
+            if control is None or vehicle_manager.is_close_to_scenario_destination():
                 
                 response.vehicle_state = sim_state.VehicleState.TICK_DONE
 
@@ -403,20 +466,24 @@ def main():
                 response.vehicle_state = sim_state.VehicleState.TICK_OK
                 #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
 
+            cur_location = vehicle_manager.vehicle.get_location()
+            logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")
+
             pushed_message.clear()    
             popped_message.set()
 
             q.put(response)
             pushed_response.set()
             popped_response.wait()
-            popped_response.clear()    
+            popped_response.clear()       
 
+        # HANDLE END
         elif sim_state_update.command == sim_state.Command.END:
             pushed_message.clear()    
             popped_message.set()
             break
     
-    vehicle_manager.destroy()
+    # vehicle_manager.destroy() # let the scenario manager destroy...
     #_socket.close()
 
 if __name__ == '__main__':

@@ -113,7 +113,14 @@ class VehicleManager(object):
 
         # if the spawn position is a single scalar, we need to use map
         # helper to transfer to spawn transform
-        cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index]
+        if 'single_cav_list' in self.scenario_params['scenario']:
+            cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index]
+        elif 'edge_list' in self.scenario_params['scenario']:
+            # TODO: support multiple edges... 
+            cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
+            logger.debug(cav_config)
+        else:
+            assert(False, "no known vehicle indexing format found")
         if 'spawn_special' not in cav_config:
             spawn_transform = carla.Transform(
                 carla.Location(
@@ -125,9 +132,14 @@ class VehicleManager(object):
                     yaw=cav_config['spawn_position'][4],
                     roll=cav_config['spawn_position'][3]))
 # TODO eCloud Need to put this back in. Is not being used for simple scenario I'm working with currently
-#        else:
+        else:
+            assert( False, "['spawn_special'] not supported in Edge currently")
 #            spawn_transform = map_helper(self.carla_version,
 #                                         *cav_config['spawn_special'])
+
+        self.cav_destination = {}
+        self.cav_destination['x'] = cav_config['destination'][0]
+        self.cav_destination['y'] = cav_config['destination'][1]
 
         cav_vehicle_bp.set_attribute('color', '0, 0, 255')
         self.vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
@@ -173,6 +185,21 @@ class VehicleManager(object):
             self.data_dumper = None
 
         cav_world.update_vehicle_manager(self)
+
+    def is_close_to_scenario_destination(self):
+        """
+        Check if the current ego vehicle's position is close to destination
+
+        Returns
+        -------
+        flag : boolean
+            It is True if the current ego vehicle's position is close to destination
+
+        """
+        ego_pos = self.vehicle.get_location()
+        flag = abs(ego_pos.x - self.cav_destination['x']) <= 10 and \
+            abs(ego_pos.y - self.cav_destination['y']) <= 10
+        return flag
 
     def initialize_process(self):
         simulation_config = self.scenario_params['world']

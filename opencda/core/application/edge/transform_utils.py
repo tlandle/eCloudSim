@@ -2,6 +2,13 @@ import pickle
 import numpy as np
 import sys
 
+from google.protobuf.json_format import MessageToJson
+import grpc
+import sim_api_pb2 as sim_state
+import sim_api_pb2_grpc as rpc
+
+import carla
+
 def save_obj(obj, name ):
     with open('obj/'+ name + '.pkl', 'wb') as f:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
@@ -44,6 +51,74 @@ def get_scaling(waypoints):
         if count > 1:
             scaling.append(count/(rot_1[-1][1,0]-rot_1[0][1,0]))
     return scaling
+
+def serialize_waypoint(waypoint):
+
+    serialized_waypoint = sim_state.Waypoint()
+    serialized_waypoint.id = str(waypoint.id)
+    
+    transform = sim_state.Transform()
+    
+    location   = sim_state.Location()
+    location.x = waypoint.transform.location.x
+    location.y = waypoint.transform.location.y
+    location.z = waypoint.transform.location.z
+
+    rotation       = sim_state.Rotation()
+    rotation.yaw   = waypoint.transform.rotation.yaw
+    rotation.pitch = waypoint.transform.rotation.pitch
+    rotation.roll  = waypoint.transform.rotation.roll
+
+    transform.location.CopyFrom(location)
+    transform.rotation.CopyFrom(rotation)
+
+    serialized_waypoint.transform.CopyFrom(transform)
+
+    serialized_waypoint.road_id     = waypoint.road_id
+    serialized_waypoint.section_id  = waypoint.section_id
+    serialized_waypoint.lane_id     = waypoint.lane_id
+    serialized_waypoint.s           = waypoint.s
+    serialized_waypoint.is_junction = waypoint.is_junction
+    serialized_waypoint.lane_width  = waypoint.lane_width
+
+    # int32 lane_change = 9; // unused - enum if needed
+    # int32 lane_type = 10; // unused - enum if needed
+    # int32 right_lane_marking = 11; // unused - enum if needed
+    # int32 left_lane_marking = 12; // unused - enum if needed
+
+    return serialized_waypoint    
+
+def deserialize_waypoint(serialized_waypoint, dao):
+    '''
+    world = self.vehicle_manager_list[0].vehicle.get_world()
+    self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+    location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
+    '''
+
+    '''waypoint = carla.Waypoint
+
+    waypoint.id = serialized_waypoint.id
+    
+    waypoint.transform.location.x = serialized_waypoint.transform.location.x 
+    waypoint.transform.location.y = serialized_waypoint.transform.location.y
+    waypoint.transform.location.z = serialized_waypoint.transform.location.z
+
+    waypoint.transform.location.yaw   = serialized_waypoint.transform.rotation.yaw
+    waypoint.transform.rotation.pitch = serialized_waypoint.transform.rotation.pitch
+    waypoint.transform.rotation.roll  = serialized_waypoint.transform.rotation.roll
+
+    waypoint.road_id     = serialized_waypoint.road_id
+    waypoint.section_id  = serialized_waypoint.section_id
+    waypoint.lane_id     = serialized_waypoint.lane_id
+    waypoint.s           = serialized_waypoint.s
+    waypoint.is_junction = serialized_waypoint.is_junction
+    waypoint.lane_width  = serialized_waypoint.lane_width'''
+
+    #print(f"deserializing waypint - x:{serialized_waypoint.transform.location.x}, y:{serialized_waypoint.transform.location.y}, z:{serialized_waypoint.transform.location.z}, rl:{serialized_waypoint.transform.rotation.roll}, pt:{serialized_waypoint.transform.rotation.pitch}, yw:{serialized_waypoint.transform.rotation.yaw}")
+
+    waypoint = dao.get_waypoint(carla.Location(x=serialized_waypoint.transform.location.x, y=serialized_waypoint.transform.location.y, z=serialized_waypoint.transform.location.z))
+
+    return waypoint
 
 class transform_processor():
     def __init__(self,waypoints):
