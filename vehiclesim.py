@@ -396,6 +396,7 @@ def main():
             destination = params_json['params']
             logger.debug("JSON Params: " + sim_state_update.params_json)
             logger.debug(f"Vehicle: x=%s" % destination["start"]["x"])
+            logger.debug(f"Vehicle: y=%s" % destination["start"]["y"])
             start_location = carla.Location(x=destination["start"]["x"], y=destination["start"]["y"], z=destination["start"]["z"])
             end_location = carla.Location(x=destination["end"]["x"], y=destination["end"]["y"], z=destination["end"]["z"])
             clean = bool(destination["clean"])
@@ -439,6 +440,9 @@ def main():
                     wp = deserialize_waypoint(swp, dao)
                     logger.debug(f"DAO Waypoint x:{wp.transform.location.x}, y:{wp.transform.location.y}, z:{wp.transform.location.z}, rl:{wp.transform.rotation.roll}, pt:{wp.transform.rotation.pitch}, yw:{wp.transform.rotation.yaw}")
                     waypoint_buffer.append((wp, RoadOption.STRAIGHT))
+
+                cur_location = vehicle_manager.vehicle.get_location()
+                logger.debug(f"location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")
 
                 waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
                 for waypoints in waypoints_buffer_printer:

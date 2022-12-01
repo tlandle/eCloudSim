@@ -184,7 +184,7 @@ class ScenarioManager:
     set_sim_started = threading.Event()
     lock = threading.Lock()
     
-    vehicles = [] # vehicle_index -> tuple (actor_id, vid)
+    vehicles = {} # vehicle_index -> tuple (actor_id, vid)
     vehicle_count = 0
 
     carla_version = None
@@ -320,7 +320,7 @@ class ScenarioManager:
                 response.tick_id = 0
                 response.vehicle_index = request.vehicle_index
                 logger.debug(f"Request vehicle_index: " + str(request.vehicle_index) + " | actor_id: " + str(request.actor_id) + " | vid: " + str(request.vid)) 
-                ScenarioManager.vehicles.insert(request.vehicle_index, ( request.actor_id, request.vid ))
+                ScenarioManager.vehicles[f"vehicle_{request.vehicle_index}"] = ( request.actor_id, request.vid )
                 response.message_id = str(hashlib.sha256(response.SerializeToString()).hexdigest())
                 logger.debug("RegisterVehicle - CARLA_UPDATE - message id: " + str(response.message_id))
                 return response                    
@@ -526,8 +526,8 @@ class ScenarioManager:
                 time.sleep(1)
                 logger.info("waiting for Carla data")
 
-            actor_id = ScenarioManager.vehicles[i][0]
-            vid = ScenarioManager.vehicles[i][1]
+            actor_id = ScenarioManager.vehicles[f"vehicle_{i}"][0]
+            vid = ScenarioManager.vehicles[f"vehicle_{i}"][1]
 
             logger.debug("starting vehicle | actor_id: " + str(actor_id) + " | vid: " + str(vid))
 
@@ -735,10 +735,10 @@ class ScenarioManager:
                     time.sleep(1)
                     logger.info("waiting for Carla data")
 
-                actor_id = ScenarioManager.vehicles[i][0]
-                vid = ScenarioManager.vehicles[i][1]
+                actor_id = ScenarioManager.vehicles[f"vehicle_{i}"][0]
+                vid = ScenarioManager.vehicles[f"vehicle_{i}"][1]
 
-                logger.debug("starting vehicle | actor_id: " + str(actor_id) + " | vid: " + str(vid))
+                logger.debug(f"starting vehicle {i} | actor_id: {actor_id} | vid: {vid}")
 
                 vehicle_manager.start_vehicle(actor_id, vid)
 
@@ -790,6 +790,7 @@ class ScenarioManager:
                         }
                 }
                 sim_state_update.params_json = json.dumps(message).encode('utf-8')
+                logger.debug(f"location for vehicle_{i} - is - x: {start_location.x}, y: {start_location.y}")
 
                 sim_state_update.command = sim_state.Command.SET_DESTINATION
                 sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
