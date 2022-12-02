@@ -60,6 +60,34 @@ Also, under this LICENSE, OpenCDA is for non-commercial research only. Researche
 Note: We continuously improve the performance of OpenCDA. Currently, it is mainly tested in our customized maps and
  Carla town06 map; therefore, we <strong>DO NOT </strong> guarantee the same level of  robustness in other maps.
 
+
+### Prerequisites
+
+Install conda and opencda environment
+
+https://opencda-documentation.readthedocs.io/en/latest/md_files/installation.html
+
+
+Install Ortools
+
+```
+pip install --user ortools==9.3.10497 
+```
+
+Install k-means-constrained
+
+```
+pip install k-means-constrained==0.7.0
+python -c "from k_means_constrained import KMeansConstrained"
+```
+
+Create gRPC stubs
+
+```
+python -m grpc_tools.protoc -I./opencda/protos --python_out=. --grpc_python_out=. ./opencda//protos/sim_api.proto
+```
+
+
 ### Usage
 
 Activate the conda enviroment
@@ -68,11 +96,6 @@ Activate the conda enviroment
 conda activate opencda
 ```
 
-Create gRPC stubs
-
-```
-python -m grpc_tools.protoc -I./opencda/protos --python_out=. --grpc_python_out=. ./opencda//protos/sim_api.proto
-```
 
 Start the Carla server
 
