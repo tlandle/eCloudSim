@@ -4,5 +4,5 @@ include_vm_resource_groups:
 auth_source: auto
 plain_host_names: yes
 conditional_groups:
-  vehicles: "'0001-com-ubuntu-server-focal' in image.offer"
+  vehicles: "'vehicle' in name"
 ansible_python_interpreter: /usr/bin/python3
