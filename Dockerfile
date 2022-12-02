@@ -36,5 +36,5 @@ EXPOSE 50051/tcp
 # Carla
 EXPOSE 2000/tcp
 
-# create gRPC Stubs, generate waypoints, run vehicle sim
+# create gRPC Stubs, run vehicle sim
 CMD bash docker_run_sim.sh
