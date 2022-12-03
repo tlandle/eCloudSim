@@ -190,6 +190,21 @@ class LocalPlanner(object):
         """
         return self._waypoint_buffer
 
+    def is_waypoint_valid(self, waypoint):
+        # check if the current waypoint is behind the vehicle.
+        # if so, remove such waypoint.
+        _, angle = cal_distance_angle(
+            waypoint.transform.location,
+            self._ego_pos.location, self._ego_pos.rotation.yaw)
+
+        print(f"angle: {angle}")
+
+        if angle > 90:
+            print('invalid waypoint!')
+            return False
+
+        return True    
+
     def get_waypoints_queue(self):
         """
         Get the waypoints_queue.

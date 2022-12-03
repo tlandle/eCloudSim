@@ -419,14 +419,8 @@ def main():
                     waypoint_proto = wpb
                     break
             
+            is_wp_valid = False
             if waypoint_proto != None:
-                #override waypoints
-                waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-                # print(waypoint_buffer)
-                # for waypoints in waypoint_buffer:
-                #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
-                waypoint_buffer.clear() #EDIT MADE
-
                 '''
                 world = self.vehicle_manager_list[0].vehicle.get_world()
                 self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
@@ -434,12 +428,23 @@ def main():
                 '''
                 world = vehicle_manager.vehicle.get_world()
                 dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+                has_not_cleared_buffer = True
                 for swp in waypoint_proto.waypoint_buffer:
                     #logger.debug(swp.SerializeToString())
                     logger.debug(f"Override Waypoint x:{swp.transform.location.x}, y:{swp.transform.location.y}, z:{swp.transform.location.z}, rl:{swp.transform.rotation.roll}, pt:{swp.transform.rotation.pitch}, yw:{swp.transform.rotation.yaw}")
                     wp = deserialize_waypoint(swp, dao)
                     logger.debug(f"DAO Waypoint x:{wp.transform.location.x}, y:{wp.transform.location.y}, z:{wp.transform.location.z}, rl:{wp.transform.rotation.roll}, pt:{wp.transform.rotation.pitch}, yw:{wp.transform.rotation.yaw}")
-                    waypoint_buffer.append((wp, RoadOption.STRAIGHT))
+                    is_wp_valid = vehicle_manager.agent.get_local_planner().is_waypoint_valid(waypoint=wp)
+                    if is_wp_valid:
+                        if has_not_cleared_buffer:
+                            #override waypoints
+                            waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+                            # print(waypoint_buffer)
+                            # for waypoints in waypoint_buffer:
+                            #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
+                            waypoint_buffer.clear() #EDIT MADE
+                            has_not_cleared_buffer = False
+                        waypoint_buffer.append((wp, RoadOption.STRAIGHT))
 
                 cur_location = vehicle_manager.vehicle.get_location()
                 logger.debug(f"location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")
@@ -452,19 +457,30 @@ def main():
             for waypoints in waypoints_buffer_printer:
                 print("Waypoints transform for Vehicle: ", waypoints[0].transform)
 
-            control = vehicle_manager.run_step(target_speed=target_speed)
+            should_run_step = False
+            if ( has_not_cleared_buffer and waypoint_proto == None ) or ( ( not has_not_cleared_buffer ) and waypoint_proto != None ):
+                should_run_step = True
+
+            if should_run_step:
+                control = vehicle_manager.run_step(target_speed=target_speed)
+
             response = sim_state.VehicleUpdate()
             response.tick_id = tick_id
             response.vehicle_index = vehicle_index
-            if control is None or vehicle_manager.is_close_to_scenario_destination():
-                
-                response.vehicle_state = sim_state.VehicleState.TICK_DONE
+            
+            if should_run_step:
+                if control is None or vehicle_manager.is_close_to_scenario_destination():
+                    
+                    response.vehicle_state = sim_state.VehicleState.TICK_DONE
 
+                else:
+
+                    vehicle_manager.apply_control(control)
+                    response.vehicle_state = sim_state.VehicleState.TICK_OK
+                    #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
+            
             else:
-
-                vehicle_manager.apply_control(control)
-                response.vehicle_state = sim_state.VehicleState.TICK_OK
-                #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
+                response.vehicle_state = sim_state.VehicleState.TICK_OK # TODO: make a WP error status
 
             cur_location = vehicle_manager.vehicle.get_location()
             logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")
