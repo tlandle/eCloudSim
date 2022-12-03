@@ -1,8 +1,19 @@
 ---
-username: azureuser
-password:
+ansible_user: azureuser
+ansible_password: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      31356534316536383165393432653131373737663466303631336234633034353938366535613232
+      3239383037643838346637356637343037333361316563350a643463643333343761373162646536
+      61393734663638646631656636383433376235646666393334653362303635653662653133313162
+      3161323334383561340a393230646131653536326466303563323037383033316664353737613166
+      3433
+ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 resource_group: carla-server_group_10111734
+default_container_image: vehicle-sim
+default_container_name: vehicle-container
+containers_per_vm: 4
 vehicle_vms:
   - vehicle-client-vm-1
   - vehicle-client-vm-2
+
 

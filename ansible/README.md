@@ -11,7 +11,7 @@ Our inventory file is located in inventory/myazure_rm.yml. This is a dynamic inv
 
 ### Variables
 
-The vars file in vm_management/vars/vars.yml is used by the notebooks in vm_management. We use the vars file to specify vm hosts and the resource group.
+The vars file in vm_management/vars/vars.yml is used by the notebooks in vm_management. We use the vars file to specify vm hosts and the resource group. The vars file also contains a password which has been encrypted using the command `ansible-vault encrypt_string`. With ansible-vault, we no longer have to input the password manually every execution.
 
 ### Usage
 

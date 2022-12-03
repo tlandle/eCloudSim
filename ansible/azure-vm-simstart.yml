@@ -2,17 +2,8 @@
 - hosts: vehicles
   gather_facts: false
 
-  vars_prompt:
-    - name: password
-      prompt: "Enter password for ssh user"
-
-  vars:
-    ansible_user: azureuser
-    ansible_password: "{{ password }}"
-    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
-    default_container_image: vehicle-sim
-    default_container_name: vehicle-container
-    create_containers: 4
+  vars_files:
+    - ./vm_management/vars/vars.yml
 
   tasks:
     - name: Create container
@@ -22,7 +13,7 @@
         state: started
         network_mode: host
         detach: True
-      with_sequence: count={{ create_containers }}
+      with_sequence: count={{ containers_per_vm }}
       become: True
 
 
