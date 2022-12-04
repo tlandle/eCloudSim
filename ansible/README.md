@@ -22,21 +22,21 @@ The vars file in vm_management/vars/vars.yml is used by the notebooks in vm_mana
 
 #### To provision all VMs:
 
-```ansible-playbook -i ./inventory/myazure_rm.yml azure-vm-provision.yml```
+```ansible-playbook ./vm_provision/azure-vm-provision.yml```
 
 
 #### Run Simulation on all VMs:
 
-```ansible-playbook -i ./inventory/myazure_rm.yml azure-vm-simstart.yml```
+```ansible-playbook ./vm_provision/azure-vm-simstart.yml```
 
 
 #### Stop and delete containers on all VMs:
 
-```ansible-playbook -i ./inventory/myazure_rm.yml azure-vm-container-cleanup.yml```
+```ansible-playbook ./vm_provision/azure-vm-container-cleanup.yml```
 
 #### Delete docker images on all VMs:
 
-```ansible-playbook -i ./inventory/myazure_rm.yml azure-vm-image-cleanup.yml```
+```ansible-playbook ./vm_provision/azure-vm-image-cleanup.yml```
 
 #### To stop all VMS:
 

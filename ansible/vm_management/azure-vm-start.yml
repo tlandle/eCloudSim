@@ -3,7 +3,7 @@
   hosts: localhost
   connection: local
   vars_files:
-    - ./vars/vars.yml
+    - ../vars/vars.yml
   tasks:
     - name: Start virtual machines
       azure_rm_virtualmachine:

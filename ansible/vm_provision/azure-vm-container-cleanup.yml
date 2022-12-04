@@ -3,7 +3,7 @@
   gather_facts: false
 
   vars_files:
-    - ./vm_management/vars/vars.yml
+    - ../vars/vars.yml
 
   tasks:
     - name: Get running containers
