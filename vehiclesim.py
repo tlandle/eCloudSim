@@ -420,6 +420,7 @@ def main():
                     break
             
             is_wp_valid = False
+            has_not_cleared_buffer = True
             if waypoint_proto != None:
                 '''
                 world = self.vehicle_manager_list[0].vehicle.get_world()
@@ -428,7 +429,6 @@ def main():
                 '''
                 world = vehicle_manager.vehicle.get_world()
                 dao = GlobalRoutePlannerDAO(world.get_map(), 2)
-                has_not_cleared_buffer = True
                 for swp in waypoint_proto.waypoint_buffer:
                     #logger.debug(swp.SerializeToString())
                     logger.debug(f"Override Waypoint x:{swp.transform.location.x}, y:{swp.transform.location.y}, z:{swp.transform.location.z}, rl:{swp.transform.rotation.roll}, pt:{swp.transform.rotation.pitch}, yw:{swp.transform.rotation.yaw}")
