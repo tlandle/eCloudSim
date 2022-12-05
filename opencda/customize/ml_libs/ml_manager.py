@@ -11,6 +11,7 @@ here we have this class to enable different CAVs share the same model to
 
 import cv2
 import torch
+# torch.cuda.empty_cache()
 import numpy as np
 
 
@@ -26,6 +27,7 @@ class MLManager(object):
 
     def __init__(self):
 
+        #self.object_detector = torch.hub.load('ultralytics/yolov5', 'yolov5m', force_reload=True)
         self.object_detector = torch.hub.load('ultralytics/yolov5', 'yolov5m')
 
     def draw_2d_box(self, result, rgb_image, index):

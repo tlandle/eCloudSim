@@ -138,7 +138,10 @@ class VehicleManagerProxy(object):
         # localization module
         self.localizer = LocalizationManager(
             vehicle, sensing_config['localization'], self.carla_map)
-        # perception module
+        # perception module - proxy should never use perception
+        sensing_config['perception']['activate'] = False
+        sensing_config['perception']['camera_visualize'] = False
+        sensing_config['perception']['lidar_visualize'] = False
         self.perception_manager = PerceptionManager(
             vehicle, sensing_config['perception'], self.cav_world,
             self.data_dumping)

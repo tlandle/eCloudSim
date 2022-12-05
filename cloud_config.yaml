@@ -1,2 +1,2 @@
-carla_server_public_ip: "20.122.64.203"
-# carla_server_public_ip: "localhost"
+# carla_server_public_ip: "20.122.64.203"
+carla_server_public_ip: "localhost"
