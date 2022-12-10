@@ -60,6 +60,13 @@ coloredlogs.install(level='DEBUG', logger=logger)
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
 
+if cloud_config["log_level"] == "error":
+    logger.setLevel(logging.ERROR)
+elif cloud_config["log_level"] == "warning":
+    logger.setLevel(logging.WARNING)
+elif cloud_config["log_level"] == "info":
+    logger.setLevel(logging.INFO)
+
 def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
     """
     Exclude the uncommon vehicles from the default CARLA blueprint library

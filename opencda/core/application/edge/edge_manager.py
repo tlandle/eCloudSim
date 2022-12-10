@@ -17,9 +17,20 @@ import opencda.logging_ecloud
 import coloredlogs, logging
 import sys
 
+from opencda.scenario_testing.utils.yaml_utils import load_yaml
+
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
 logger.setLevel(logging.DEBUG)
+
+cloud_config = load_yaml("cloud_config.yaml")
+
+if cloud_config["log_level"] == "error":
+    logger.setLevel(logging.ERROR)
+elif cloud_config["log_level"] == "warning":
+    logger.setLevel(logging.WARNING)
+elif cloud_config["log_level"] == "info":
+    logger.setLevel(logging.INFO)
 
 sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/") 
 
@@ -295,7 +306,7 @@ class EdgeManager(object):
         start_time = time.time()
         for i in range(len(self.vehicle_manager_list)):
             self.vehicle_manager_list[i].update_info()
-            print(f"Updated location for vehicle {i} - x:{self.vehicle_manager_list[i].vehicle.get_location().x}, y:{self.vehicle_manager_list[i].vehicle.get_location().y}")
+            logger.info(f"Updated location for vehicle {i} - x:{self.vehicle_manager_list[i].vehicle.get_location().x}, y:{self.vehicle_manager_list[i].vehicle.get_location().y}")
         end_time = time.time()
         logger.debug("Vehicle Manager Update Info Time: %s" %(end_time - start_time))
         start_time = time.time()
@@ -306,7 +317,7 @@ class EdgeManager(object):
             self.spawn_x.append(x)
             self.spawn_y.append(y)
             self.spawn_v.append(v_scalar)
-            print(f"update_information for vehicle_{i} - x:{x}, y:{y}")
+            logger.info(f"update_information for vehicle_{i} - x:{x}, y:{y}")
         end_time = time.time()
         logger.debug("Update Info Transform Forward Time: %s" %(end_time - start_time))
         #print(self.spawn_x)
@@ -460,7 +471,7 @@ class EdgeManager(object):
         for car, car_array in waypoints_rev.items():
           for i in range(0,len(car_array[0])):
             location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
-            print(f"algorithm_step: car_{car} location - {location}")
+            logger.info(f"algorithm_step: car_{car} location - {location}")
             self.locations.append(location)
 
             logger.warning(f"car_{car} - (x: {location.transform.location.x}, y: {location.transform.location.x})")

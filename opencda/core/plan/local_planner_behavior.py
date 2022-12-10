@@ -9,6 +9,7 @@ from collections import deque
 from enum import Enum
 import statistics
 import math
+import logging
 
 import carla
 import numpy as np
@@ -17,6 +18,7 @@ from opencda.core.common.misc import distance_vehicle, draw_trajetory_points, \
     cal_distance_angle, compute_distance
 from opencda.core.plan.spline import Spline2D
 
+logger = logging.getLogger(__name__)
 
 class RoadOption(Enum):
     """
@@ -197,10 +199,10 @@ class LocalPlanner(object):
             waypoint.transform.location,
             self._ego_pos.location, self._ego_pos.rotation.yaw)
 
-        print(f"angle: {angle}")
+        logger.debug(f"LOCAL_PLANNER - angle: {angle}")
 
         if angle > 90:
-            print('invalid waypoint!')
+            logger.error('invalid waypoint!')
             return False
 
         return True    
@@ -477,8 +479,8 @@ class LocalPlanner(object):
             # it may remove several elements already
             j = i - (len(tmp) - len(self._waypoint_buffer))
 
-            print("LOCAL_PLANNER - waypoint transform for Vehicle: ", waypoint.transform)
-            print("LOCAL_PLANNER - ego pos for Vehicle: ", self._ego_pos)
+            logger.debug("LOCAL_PLANNER: buffer_filter() waypoint transform for Vehicle: ", waypoint.transform)
+            logger.debug("LOCAL_PLANNER: buffer_filter()ego pos for Vehicle: ", self._ego_pos)
 
             # check if the current waypoint is behind the vehicle.
             # if so, remove such waypoint.
@@ -486,7 +488,7 @@ class LocalPlanner(object):
                 waypoint.transform.location,
                 self._ego_pos.location, self._ego_pos.rotation.yaw)
 
-            print(f"angle: {angle}")
+            logger.debug(f"LOCAL_PLANNER: buffer_filter() angle: {angle}")
 
             if angle > 90:
                 print('delete waypoint!')

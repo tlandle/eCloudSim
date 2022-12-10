@@ -69,6 +69,13 @@ logger.setLevel(logging.DEBUG)
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
 
+if cloud_config["log_level"] == "error":
+    logger.setLevel(logging.ERROR)
+elif cloud_config["log_level"] == "warning":
+    logger.setLevel(logging.WARNING)
+elif cloud_config["log_level"] == "info":
+    logger.setLevel(logging.INFO)
+
 class Client:
 
     def __init__(self, queue, channel: grpc.Channel) -> None:
@@ -451,11 +458,11 @@ def main():
 
                 waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
                 for waypoints in waypoints_buffer_printer:
-                    print("Waypoints transform for Vehicle: ", waypoints[0].transform)
+                    logger.warning("waypoint_proto: waypoints transform for Vehicle: %s", waypoints[0].transform)
 
             waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
             for waypoints in waypoints_buffer_printer:
-                print("Waypoints transform for Vehicle: ", waypoints[0].transform)
+                logger.warning("final: waypoints transform for Vehicle: %s", waypoints[0].transform)
 
             should_run_step = False
             if ( has_not_cleared_buffer and waypoint_proto == None ) or ( ( not has_not_cleared_buffer ) and waypoint_proto != None ):
