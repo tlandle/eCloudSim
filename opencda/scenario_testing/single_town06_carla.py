@@ -44,8 +44,7 @@ def run_scenario(opt, config_yaml):
 
         spectator = scenario_manager.world.get_spectator()
         # run steps
-        flag = True
-        while flag:
+        while True:
             scenario_manager.tick()
             transform = single_cav_list[0].vehicle.get_transform()
             spectator.set_transform(carla.Transform(
@@ -59,11 +58,7 @@ def run_scenario(opt, config_yaml):
             for i, single_cav in enumerate(single_cav_list):
                 single_cav.update_info()
                 control = single_cav.run_step()
-                if control != None:
-                    single_cav.vehicle.apply_control(control)
-                else:
-                    flag = False
-                    break    
+                single_cav.vehicle.apply_control(control)
     
     finally:
         eval_manager.evaluate()

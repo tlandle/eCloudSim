@@ -431,6 +431,8 @@ class ScenarioManager:
             else:
                 assert(False, "no known vehicle indexing format found")
 
+            print("start vehicle containers")
+
             while ScenarioManager.connections_received < ScenarioManager.vehicle_count:
                 time.sleep(1)
                 logger.info(f"received {ScenarioManager.connections_received} registrations. sim_api sleeping...")

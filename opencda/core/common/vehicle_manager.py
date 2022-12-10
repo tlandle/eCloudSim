@@ -105,14 +105,17 @@ class VehicleManager(object):
         # ORIGINAL FLOW
 
         if vehicle != None and config_yaml != None and carla_map != None:
+
             cav_config = config_yaml
             self.vehicle = vehicle
             self.carla_map = carla_map
+            self.run_distributed = False
 
         # eCLOUD BEGIN
 
         elif vehicle_index != None and config_file != None:
 
+            self.run_distributed = True
             self.scenario_params = load_yaml(config_file)
 
             self.initialize_process()
@@ -188,7 +191,7 @@ class VehicleManager(object):
                 platoon_config,
                 self.carla_map)
         else:
-            self.agent = BehaviorAgent(self.vehicle, self.carla_map, behavior_config)
+            self.agent = BehaviorAgent(self.vehicle, self.carla_map, behavior_config, is_dist=self.run_distributed)
 
         # Control module
         self.controller = ControlManager(control_config)
@@ -305,15 +308,16 @@ class VehicleManager(object):
         """
         Execute one step of navigation.
         """
-        
-
         pre_vehicle_step_time = time.time()
         target_speed, target_pos = self.agent.run_step(target_speed)
         end_time = time.time()
         logging.debug("Agent step time: %s" %(end_time - pre_vehicle_step_time))
-        if target_speed == -1:
+
+        # eCLOUD
+        if target_speed == -1 and self.run_distributed:
             logger.info("run_step: simulation is over")
             return None # -1 indicates the simulation is over. TODO Need a const here.
+
         control = self.controller.run_step(target_speed, target_pos)
         post_vehicle_step_time = time.time()
         logging.debug("Controller step time: %s" %(post_vehicle_step_time - end_time))
