@@ -347,7 +347,7 @@ def main():
 
     logger.debug(f"eCloud debug: creating VehicleManager vehicle_index: {vehicle_index}")
 
-    vehicle_manager = VehicleManager(vehicle_index, test_scenario, application, cav_world, version)
+    vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_file=test_scenario, application=application, cav_world=cav_world, carla_version=version)
 
     scenario_yaml = load_yaml(test_scenario)
     target_speed = None

@@ -45,7 +45,7 @@ def run_scenario(opt, config_yaml):
                 start_recorder("multi_2lanefree_carla.log", True)
 
         single_cav_list = \
-            scenario_manager.create_vehicle_manager(application=['single'],
+            scenario_manager.create_distributed_vehicle_manager(application=['single'],
                                                     map_helper=map_api.
                                                     spawn_helper_2lanefree)
 
@@ -64,13 +64,8 @@ def run_scenario(opt, config_yaml):
        
         flag = True
         while flag:
-            flag = scenario_manager.tick()
-
-            # gRPC begin
-            # call sim_api to update tick
-            # loop here --> sim_api should not return True until tick completed
-
-            #gRPC end
+            scenario_manager.tick_world()
+            flag = scenario_manager.broadcast_tick()
 
             # TODO eCloud - figure out another way to have the vehicle follow a CAV. Perhaps still access the bp since it's read only?
             transform = single_cav_list[0].vehicle.get_transform()

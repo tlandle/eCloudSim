@@ -88,61 +88,77 @@ class VehicleManager(object):
 
     def __init__(
             self,
-            vehicle_index,
-            config_file,
-            application,
-            cav_world,
-            carla_version,
+            vehicle=None,
+            config_yaml=None,
+            vehicle_index=None,
+            config_file=None,
+            application=['single'],
+            carla_map=None,
+            cav_world=None,
+            carla_version='0.9.12',
             current_time='',
             data_dumping=False):
 
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
 
-        self.scenario_params = load_yaml(config_file)
+        # ORIGINAL FLOW
 
-        self.initialize_process()
-        self.carla_version = carla_version
+        if vehicle != None and config_yaml != None and carla_map != None:
+            cav_config = config_yaml
+            self.vehicle = vehicle
+            self.carla_map = carla_map
 
-        # By default, we use lincoln as our cav model.
-        default_model = 'vehicle.lincoln.mkz2017' \
-            if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
+        # eCLOUD BEGIN
 
-        cav_vehicle_bp = \
-            self.world.get_blueprint_library().find(default_model)
+        elif vehicle_index != None and config_file != None:
 
-        # if the spawn position is a single scalar, we need to use map
-        # helper to transfer to spawn transform
-        if 'single_cav_list' in self.scenario_params['scenario']:
-            cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index]
-        elif 'edge_list' in self.scenario_params['scenario']:
-            # TODO: support multiple edges... 
-            cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
-            logger.debug(cav_config)
+            self.scenario_params = load_yaml(config_file)
+
+            self.initialize_process()
+            self.carla_version = carla_version
+
+            # By default, we use lincoln as our cav model.
+            default_model = 'vehicle.lincoln.mkz2017' \
+                if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
+
+            cav_vehicle_bp = \
+                self.world.get_blueprint_library().find(default_model)
+
+            # if the spawn position is a single scalar, we need to use map
+            # helper to transfer to spawn transform
+            if 'single_cav_list' in self.scenario_params['scenario']:
+                cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index]
+            elif 'edge_list' in self.scenario_params['scenario']:
+                # TODO: support multiple edges... 
+                cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
+                logger.debug(cav_config)
+            else:
+                assert(False, "no known vehicle indexing format found")
+            if 'spawn_special' not in cav_config:
+                spawn_transform = carla.Transform(
+                    carla.Location(
+                        x=cav_config['spawn_position'][0],
+                        y=cav_config['spawn_position'][1],
+                        z=cav_config['spawn_position'][2]),
+                    carla.Rotation(
+                        pitch=cav_config['spawn_position'][5],
+                        yaw=cav_config['spawn_position'][4],
+                        roll=cav_config['spawn_position'][3]))
+            elif config_file != None:
+                assert( False, "['spawn_special'] not supported in Edge currently")
+
+            self.cav_destination = {}
+            self.cav_destination['x'] = cav_config['destination'][0]
+            self.cav_destination['y'] = cav_config['destination'][1]
+
+            cav_vehicle_bp.set_attribute('color', '0, 0, 255')
+            self.vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
+
         else:
-            assert(False, "no known vehicle indexing format found")
-        if 'spawn_special' not in cav_config:
-            spawn_transform = carla.Transform(
-                carla.Location(
-                    x=cav_config['spawn_position'][0],
-                    y=cav_config['spawn_position'][1],
-                    z=cav_config['spawn_position'][2]),
-                carla.Rotation(
-                    pitch=cav_config['spawn_position'][5],
-                    yaw=cav_config['spawn_position'][4],
-                    roll=cav_config['spawn_position'][3]))
-# TODO eCloud Need to put this back in. Is not being used for simple scenario I'm working with currently
-        else:
-            assert( False, "['spawn_special'] not supported in Edge currently")
-#            spawn_transform = map_helper(self.carla_version,
-#                                         *cav_config['spawn_special'])
+            assert( False, "need to provide some known config" )
 
-        self.cav_destination = {}
-        self.cav_destination['x'] = cav_config['destination'][0]
-        self.cav_destination['y'] = cav_config['destination'][1]
-
-        cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-        self.vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
+        # eCLOUD END    
 
         # retrieve the configure for different modules
         sensing_config = cav_config['sensing']

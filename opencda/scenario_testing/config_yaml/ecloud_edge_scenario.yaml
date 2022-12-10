@@ -4,6 +4,8 @@ description: |-
   Content: This is the scenario testing configuration file for edge scenario
            at Town06 using CARLA
 
+distributed: true
+
 # define carla simulation setting
 world:
   sync_mode: true

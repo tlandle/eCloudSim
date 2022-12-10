@@ -97,8 +97,8 @@ class EdgeManager(object):
         self.processor = None
         self.secondary_offset=0
 
-        self.dt = config_yaml['edge_dt'] if config_yaml['edge_dt'] != None else 0.200
-        self.numlanes = config_yaml['num_lanes'] if config_yaml['num_lanes'] != None else 4
+        self.dt = config_yaml['edge_dt'] if 'edge_dt' in config_yaml else 0.200
+        self.numlanes = config_yaml['num_lanes'] if 'num_lanes' in config_yaml else 4
 
     def start_edge(self):
       self.get_four_lane_waypoints_dict()
