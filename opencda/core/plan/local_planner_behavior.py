@@ -479,8 +479,8 @@ class LocalPlanner(object):
             # it may remove several elements already
             j = i - (len(tmp) - len(self._waypoint_buffer))
 
-            logger.debug("LOCAL_PLANNER: buffer_filter() waypoint transform for Vehicle: ", waypoint.transform)
-            logger.debug("LOCAL_PLANNER: buffer_filter()ego pos for Vehicle: ", self._ego_pos)
+            logger.debug("LOCAL_PLANNER: buffer_filter() waypoint transform for Vehicle: %s", waypoint.transform)
+            logger.debug("LOCAL_PLANNER: buffer_filter() ego pos for Vehicle: %s", self._ego_pos)
 
             # check if the current waypoint is behind the vehicle.
             # if so, remove such waypoint.

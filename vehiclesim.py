@@ -351,9 +351,11 @@ def main():
 
     scenario_yaml = load_yaml(test_scenario)
     target_speed = None
+    edge_sets_destination = False
     if 'edge_list' in scenario_yaml['scenario']:
         # TODO: support multiple edges... 
         target_speed = scenario_yaml['scenario']['edge_list'][0]['target_speed']
+        edge_sets_destination = scenario_yaml['scenario']['edge_list'][0]['edge_sets_destination']
 
     # send gRPC in response to start
     with lock:
@@ -442,16 +444,25 @@ def main():
                     wp = deserialize_waypoint(swp, dao)
                     logger.debug(f"DAO Waypoint x:{wp.transform.location.x}, y:{wp.transform.location.y}, z:{wp.transform.location.z}, rl:{wp.transform.rotation.roll}, pt:{wp.transform.rotation.pitch}, yw:{wp.transform.rotation.yaw}")
                     is_wp_valid = vehicle_manager.agent.get_local_planner().is_waypoint_valid(waypoint=wp)
-                    if is_wp_valid:
-                        if has_not_cleared_buffer:
-                            #override waypoints
-                            waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-                            # print(waypoint_buffer)
-                            # for waypoints in waypoint_buffer:
-                            #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
-                            waypoint_buffer.clear() #EDIT MADE
-                            has_not_cleared_buffer = False
-                        waypoint_buffer.append((wp, RoadOption.STRAIGHT))
+                    
+                    if edge_sets_destination and is_wp_valid:
+                        cur_location = vehicle_manager.vehicle.get_location()
+                        start_location = carla.Location(x=cur_location.x, y=cur_location.y, z=cur_location.z)
+                        end_location = carla.Location(x=wp.transform.location.x, y=wp.transform.location.y, z=wp.transform.location.z)
+                        clean = True # bool(destination["clean"])
+                        end_reset = True # bool(destination["reset"])
+                        vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
+
+                    elif is_wp_valid:
+                            if has_not_cleared_buffer:
+                                #override waypoints
+                                waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+                                # print(waypoint_buffer)
+                                # for waypoints in waypoint_buffer:
+                                #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
+                                waypoint_buffer.clear() #EDIT MADE
+                                has_not_cleared_buffer = False
+                            waypoint_buffer.append((wp, RoadOption.STRAIGHT))
 
                 cur_location = vehicle_manager.vehicle.get_location()
                 logger.debug(f"location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")

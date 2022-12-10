@@ -685,7 +685,9 @@ class ScenarioManager:
 
     def create_edge_manager(self, application,
                             map_helper=None,
-                            data_dump=False):
+                            data_dump=False,
+                            world_dt=0.03,
+                            edge_dt=0.20):
         """
         Create a list of edges.
 
@@ -710,7 +712,7 @@ class ScenarioManager:
         # create edges
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
-            edge_manager = EdgeManager(edge, self.cav_world)
+            edge_manager = EdgeManager(edge, self.cav_world, world_dt=world_dt, edge_dt=edge_dt)
             for i, cav in enumerate(edge['members']):
 
                 logger.debug(f"Creating VehiceManagerProxy for vehicle {i}")

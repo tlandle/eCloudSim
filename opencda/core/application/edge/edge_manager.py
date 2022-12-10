@@ -67,11 +67,12 @@ class EdgeManager(object):
         The destiantion of the current plan.
     """
 
-    def __init__(self, config_yaml, cav_world):
+    def __init__(self, config_yaml, cav_world, world_dt=0.03, edge_dt=0.20):
 
         self.edgeid = str(uuid.uuid1())
         self.vehicle_manager_list = []
         self.target_speed = config_yaml['target_speed']
+        self.traffic_velocity = self.target_speed * 0.277778 * edge_dt / world_dt # m/s! NOT kph
         self.numcars = len(config_yaml['members']) # TODO - set edge_index
         #self.locations = []
         self.destination = None
@@ -95,6 +96,9 @@ class EdgeManager(object):
         self.robot_radius = 1.0
         self.processor = None
         self.secondary_offset=0
+
+        self.dt = config_yaml['edge_dt'] if config_yaml['edge_dt'] != None else 0.200
+        self.numlanes = config_yaml['num_lanes'] if config_yaml['num_lanes'] != None else 4
 
     def start_edge(self):
       self.get_four_lane_waypoints_dict()
@@ -130,8 +134,6 @@ class EdgeManager(object):
 
           # TODO: DIST --> do we need to clear at start in containers?  
           #vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
-      self.dt = .200
-      self.numlanes = 4
       self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
     
     def get_four_lane_waypoints_dict(self):
@@ -332,7 +334,7 @@ class EdgeManager(object):
         logger.debug("Traffic Tracker Time: %s" %(end_time - start_time))        
 
         for car in self.Traffic_Tracker.cars_on_road:
-            car.target_velocity = 15
+            car.target_velocity = self.traffic_velocity
         # sys.exit()
 
         #print("Updated Info")
