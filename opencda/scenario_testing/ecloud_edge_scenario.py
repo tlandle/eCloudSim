@@ -97,20 +97,17 @@ def run_scenario(opt, config_yaml):
                         pitch=-
                         90)))
 
-        scenario_manager.end()
 
     finally:
+
+        scenario_manager.end()
+
         eval_manager.evaluate()
 
         if opt.record:
             scenario_manager.client.stop_recorder()       
 
-        for edge in edge_list:
-            edge.destroy()
-
-        #scenario_manager.destroyActors()
-
         scenario_manager.close()
 
-        # for v in bg_veh_list:
-        #     v.destroy()
+        for edge in edge_list:
+            edge.destroy()

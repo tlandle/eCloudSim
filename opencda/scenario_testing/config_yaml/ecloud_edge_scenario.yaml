@@ -111,6 +111,7 @@ edge_base: &edge_base
   target_speed: 55 # kph
   num_lanes: 4
   edge_dt: 0.200
+  search_dt: 2.00
   edge_sets_destination: true # otherwise, edge sets WP
 # define the background traffic control by carla
 carla_traffic_manager:

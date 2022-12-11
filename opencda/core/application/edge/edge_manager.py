@@ -67,12 +67,12 @@ class EdgeManager(object):
         The destiantion of the current plan.
     """
 
-    def __init__(self, config_yaml, cav_world, world_dt=0.03, edge_dt=0.20):
+    def __init__(self, config_yaml, cav_world, world_dt=0.03, edge_dt=0.20, search_dt=2.00):
 
         self.edgeid = str(uuid.uuid1())
         self.vehicle_manager_list = []
-        self.target_speed = config_yaml['target_speed']
-        self.traffic_velocity = self.target_speed * 0.277778 * edge_dt / world_dt # m/s! NOT kph
+        self.target_speed = config_yaml['target_speed'] # kph
+        self.traffic_velocity = self.target_speed * 0.277778 # convert to m/s! NOT kph
         self.numcars = len(config_yaml['members']) # TODO - set edge_index
         #self.locations = []
         self.destination = None
@@ -97,7 +97,7 @@ class EdgeManager(object):
         self.processor = None
         self.secondary_offset=0
 
-        self.dt = config_yaml['edge_dt'] if 'edge_dt' in config_yaml else 0.200
+        self.search_dt = config_yaml['search_dt'] if 'search_dt' in config_yaml else 2.00
         self.numlanes = config_yaml['num_lanes'] if 'num_lanes' in config_yaml else 4
 
     def start_edge(self):
@@ -134,7 +134,7 @@ class EdgeManager(object):
 
           # TODO: DIST --> do we need to clear at start in containers?  
           #vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
-      self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+      self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
     
     def get_four_lane_waypoints_dict(self):
       world = self.vehicle_manager_list[0].vehicle.get_world()
@@ -329,7 +329,7 @@ class EdgeManager(object):
         start_time = time.time()
         #Added in to check if traffic tracker updating would fix waypoint deque issue
         # TODO: data drive num cars
-        self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+        self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
         end_time = time.time()
         logger.debug("Traffic Tracker Time: %s" %(end_time - start_time))        
 

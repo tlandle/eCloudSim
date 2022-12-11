@@ -79,24 +79,11 @@ def run_scenario(opt, config_yaml):
 
             for _, single_cav in enumerate(single_cav_list):
                 single_cav.update_info()
-            #     result = single_cav.do_tick()
-            #     if result == 1: # Need to figure out how to use a const
-            #         print("Unexpected termination: Sending END to all vehicles and ending.")
-            #         flag = False
-            #         break
-            #     elif result == 2:
-            #         print("Simulation ended: Sending END to all vehicles and ending.")
-            #         flag = False
-            #         break
-
-        # TODO gRPC    
-        #for _, single_cav in enumerate(single_cav_list):
-        #    single_cav.end_step()
-
-        scenario_manager.end()
 
     finally:
-        print("Evaluating simulation results...")
+        
+        scenario_manager.end()
+
         eval_manager.evaluate()
 
         if opt.record:
