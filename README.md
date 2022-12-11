@@ -108,6 +108,7 @@ Run opencda vehicle test
 ```
 python opencda.py -t single_2lanefree_carla -v 0.9.12
 python opencda.py -t multi_2lanefree_carla -v 0.9.12
+python opencda.py -t ecloud_edge_scenario -v 0.9.12
 ```
 
 Build Docker image for vehicle clients
