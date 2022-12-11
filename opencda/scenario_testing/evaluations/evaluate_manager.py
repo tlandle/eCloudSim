@@ -63,6 +63,10 @@ class EvaluationManager(object):
         self.platooning_eval(log_file)
         print('Platooning Evaluation Done.')
 
+        self.edge_eval(log_file)
+        print('Edge Evaluation Done.')
+
+
     def kinematics_eval(self, log_file):
         """
         vehicle kinematics related evaluation.
@@ -134,6 +138,30 @@ class EvaluationManager(object):
             figure_save_path = os.path.join(
                 self.eval_save_path,
                 '%s_platoon_plotting.png' %
+                pmid)
+            figure.savefig(figure_save_path, dpi=100)
+
+            # save log txt
+            lprint(log_file, perform_txt)
+
+    def edge_eval(self, log_file):
+        """
+        Edge evaluation.
+
+        Args:
+            -log_file (File): The log file to write the data.
+
+        """
+        lprint(log_file, "***********Edge Analysis***********")
+
+        for pmid, pm in self.cav_world.get_edge_dict().items():
+            lprint(log_file, 'Edge ID: %s' % pmid)
+            figure, perform_txt = pm.evaluate()
+
+            # save plotting
+            figure_save_path = os.path.join(
+                self.eval_save_path,
+                '%s_edge_plotting.png' %
                 pmid)
             figure.savefig(figure_save_path, dpi=100)
 
