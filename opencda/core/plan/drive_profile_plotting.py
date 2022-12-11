@@ -118,7 +118,7 @@ def draw_dist_gap_profile_singel_plot(gap_list):
     fig = plt.gcf()
     fig.set_size_inches(11, 5)
 
-def draw_algorthm_time_profile_singel_plot(time_list):
+def draw_algorithm_time_profile_single_plot(time_list):
     """
     Draw inter gap profiles in a single plot.
 
@@ -135,7 +135,7 @@ def draw_algorthm_time_profile_singel_plot(time_list):
 
     plt.xlabel("Time (s)")
     plt.ylabel("Algorithm Latency (ms)")
-    plt.ylim([0.0, 2000])
+    #plt.ylim([0.0, 2000])
     fig = plt.gcf()
     fig.set_size_inches(11, 5)
 
