@@ -17,20 +17,9 @@ import opencda.logging_ecloud
 import coloredlogs, logging
 import sys
 
-from opencda.scenario_testing.utils.yaml_utils import load_yaml
-
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
 logger.setLevel(logging.DEBUG)
-
-cloud_config = load_yaml("cloud_config.yaml")
-
-if cloud_config["log_level"] == "error":
-    logger.setLevel(logging.ERROR)
-elif cloud_config["log_level"] == "warning":
-    logger.setLevel(logging.WARNING)
-elif cloud_config["log_level"] == "info":
-    logger.setLevel(logging.INFO)
 
 sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/") 
 
@@ -40,8 +29,6 @@ from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.application.edge.transform_utils import *
-from opencda.core.application.edge.edge_debug_helper import \
-    EdgeDebugHelper
 
 import grpc
 import sim_api_pb2 as sim_state
@@ -69,27 +56,28 @@ class EdgeManager(object):
         The destiantion of the current plan.
     """
 
-    def __init__(self, config_yaml, cav_world, world_dt=0.03, edge_dt=0.20, search_dt=2.00):
+    def __init__(self, config_yaml, cav_world):
 
         self.edgeid = str(uuid.uuid1())
         self.vehicle_manager_list = []
-        self.target_speed = config_yaml['target_speed'] # kph
-        self.traffic_velocity = self.target_speed * 0.277778 # convert to m/s! NOT kph
-        self.numcars = len(config_yaml['members']) # TODO - set edge_index
+        self.target_speed = config_yaml['target_speed']
+        self.numcars = 8
+        # len(config_yaml['members'])
+        logger.error("Num Cars: %d" %(self.numcars))  # TODO - set edge_index
         #self.locations = []
         self.destination = None
         # Query the vehicle locations and velocities + target velocities
         self.spawn_x = []
         self.spawn_y = []
         self.spawn_v = [] # probably 0s but can be target vel too
-        self.xcars = np.empty((self.numcars, 0))
-        self.ycars = np.empty((self.numcars, 0))
+        self.xcars = np.empty((int(self.numcars), 0))
+        self.ycars = np.empty((int(self.numcars), 0))
         self.x_states = None
         self.y_states = None
         self.tv = None
         self.v = None
-        self.target_velocities = np.empty((self.numcars, 0))
-        self.velocities = np.empty((self.numcars,0))
+        self.target_velocities = np.empty((int(self.numcars), 0))
+        self.velocities = np.empty((int(self.numcars),0))
         self.Traffic_Tracker = None
         self.waypoints_dict = {}
         self.cav_world = weakref.ref(cav_world)()
@@ -98,12 +86,6 @@ class EdgeManager(object):
         self.robot_radius = 1.0
         self.processor = None
         self.secondary_offset=0
-        cav_world.update_edge(self)
-
-        self.debug_helper = EdgeDebugHelper(0)
-
-        self.search_dt = config_yaml['search_dt'] if 'search_dt' in config_yaml else 2.00
-        self.numlanes = config_yaml['num_lanes'] if 'num_lanes' in config_yaml else 4
 
     def start_edge(self):
       self.get_four_lane_waypoints_dict()
@@ -139,7 +121,9 @@ class EdgeManager(object):
 
           # TODO: DIST --> do we need to clear at start in containers?  
           #vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
-      self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+      self.dt = .200
+      self.numlanes = 4
+      self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=int(self.numcars),map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
     
     def get_four_lane_waypoints_dict(self):
       world = self.vehicle_manager_list[0].vehicle.get_world()
@@ -313,7 +297,7 @@ class EdgeManager(object):
         start_time = time.time()
         for i in range(len(self.vehicle_manager_list)):
             self.vehicle_manager_list[i].update_info()
-            logger.info(f"Updated location for vehicle {i} - x:{self.vehicle_manager_list[i].vehicle.get_location().x}, y:{self.vehicle_manager_list[i].vehicle.get_location().y}")
+            print(f"Updated location for vehicle {i} - x:{self.vehicle_manager_list[i].vehicle.get_location().x}, y:{self.vehicle_manager_list[i].vehicle.get_location().y}")
         end_time = time.time()
         logger.debug("Vehicle Manager Update Info Time: %s" %(end_time - start_time))
         start_time = time.time()
@@ -324,7 +308,7 @@ class EdgeManager(object):
             self.spawn_x.append(x)
             self.spawn_y.append(y)
             self.spawn_v.append(v_scalar)
-            logger.info(f"update_information for vehicle_{i} - x:{x}, y:{y}")
+            print(f"update_information for vehicle_{i} - x:{x}, y:{y}")
         end_time = time.time()
         logger.debug("Update Info Transform Forward Time: %s" %(end_time - start_time))
         #print(self.spawn_x)
@@ -334,12 +318,12 @@ class EdgeManager(object):
         start_time = time.time()
         #Added in to check if traffic tracker updating would fix waypoint deque issue
         # TODO: data drive num cars
-        self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+        self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=int(self.numcars),map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
         end_time = time.time()
         logger.debug("Traffic Tracker Time: %s" %(end_time - start_time))        
 
         for car in self.Traffic_Tracker.cars_on_road:
-            car.target_velocity = self.traffic_velocity
+            car.target_velocity = 15
         # sys.exit()
 
         #print("Updated Info")
@@ -351,7 +335,7 @@ class EdgeManager(object):
         #DEBUGGING: Bypass algo and simply move cars forward to solve synch and transform issues
         #Bypassed as of 14/3/2022
 
-        slice_list, vel_array, lanechange_command = get_slices_clustered(self.Traffic_Tracker, self.numcars)
+        slice_list, vel_array, lanechange_command = get_slices_clustered(self.Traffic_Tracker, int(self.numcars))
 
         for i in range(len(slice_list)-1,-1,-1): #Iterate through all slices
             if len(slice_list[i]) >= 2: #If the slice has more than one vehicle, run the graph planner. Else it'll move using existing
@@ -387,8 +371,8 @@ class EdgeManager(object):
         #Recording location and state
         x_states, y_states, tv, v = self.Traffic_Tracker.ret_car_locations() # Commented out for bypassing algo
         # x_states, y_states, v = [], [], [] #Algo bypass begins
-        self.xcars = np.empty((self.numcars, 0))
-        self.ycars = np.empty((self.numcars, 0)) 
+        self.xcars = np.empty((int(self.numcars), 0))
+        self.ycars = np.empty((int(self.numcars), 0)) 
 
         # for i in range(0,4):
         #     x_states.append([self.Traffic_Tracker.cars_on_road[i].pos_x+4])
@@ -416,7 +400,7 @@ class EdgeManager(object):
         # waypoints_rev = {1 : np.empty((2,0)), 2 : np.empty((2,0)), 3 : np.empty((2,0)), 4 : np.empty((2,0)), 5 : np.empty((2,0)), 6 : np.empty((2,0)), 7 : np.empty((2,0)), 8 : np.empty((2,0))}
         # for i in range(0,self.xcars.shape[1]):
         #   processed_array = []
-        #   for j in range(0,self.numcars):
+        #   for j in range(0,8):
         #     x_res = self.xcars[j,i]
         #     y_res = self.ycars[j,i]
         #     processed_array.append(np.array([[x_res],[y_res]]))
@@ -459,7 +443,7 @@ class EdgeManager(object):
 
         # processed_array = []
         # for k in range(0,4): #Added 16/03 outer loop to check if waypoint horizon influenced things, it did not seem to.
-        #     for j in range(0,self.numcars):
+        #     for j in range(0,8):
         #         x_res = self.xcars[j,-1]
         #         y_res = self.ycars[j,-1]
         #         processed_array.append(np.array([[x_res],[y_res]]))
@@ -474,14 +458,11 @@ class EdgeManager(object):
         #print(waypoints_rev)
         # car_locations = {1 : [], 2 : [], 3 : [], 4 : [], 5 : [], 6 : [], 7 : [], 8 : []}
 
-        logger.warning(f"CREATING OVERRIDE WAYPOINTS")
         for car, car_array in waypoints_rev.items():
           for i in range(0,len(car_array[0])):
             location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
-            logger.info(f"algorithm_step: car_{car} location - {location}")
+            print(f"algorith_step: vehicle_{i} location - {location}")
             self.locations.append(location)
-
-            logger.warning(f"car_{car} - (x: {location.transform.location.x}, y: {location.transform.location.x})")
 
         #print("Locations appended: ", self.locations)
 
@@ -499,10 +480,11 @@ class EdgeManager(object):
 
         # run algorithm
         pre_algo_time = time.time()
+        logger.error("Num cars: %s" %(self.numcars))
         self.algorithm_step()
+        logger.error("Num cars: %s" %(self.numcars))
         post_algo_time = time.time()
         logger.debug("Algorithm completion time: %s" %(post_algo_time - pre_algo_time))
-        self.debug_helper.update_edge((post_algo_time - pre_algo_time)*1000)
         all_waypoint_buffers = []
         #print("completed Algorithm Step")
         # output algorithm waypoints to waypoint buffer of each vehicle
@@ -561,10 +543,9 @@ class EdgeManager(object):
         """
 
         velocity_list = []
+        acceleration_list = []
         time_gap_list = []
         distance_gap_list = []
-        algorithm_time_list = []
-        
 
         perform_txt = ''
 
@@ -577,9 +558,10 @@ class EdgeManager(object):
             # no velocity and thus make the time gap close to infinite
 
             velocity_list += debug_helper.speed_list
+            acceleration_list += debug_helper.acc_list
             time_gap_list += debug_helper.time_gap_list
             distance_gap_list += debug_helper.dist_gap_list
-            
+
             time_gap_list_tmp = \
                 np.array(debug_helper.time_gap_list)
             time_gap_list_tmp = \
@@ -596,25 +578,13 @@ class EdgeManager(object):
             perform_txt += 'Distance gap mean: %f, std: %f \n' % (
                 np.mean(distance_gap_list_tmp), np.std(distance_gap_list_tmp))
 
-
-        algorithm_time_list += debug_helper.algorithm_time_list
-        algorithm_time_list_tmp = \
-                np.array(debug_helper.dist_gap_list)
-        algorithm_time_list_tmp = \
-                algorithm_time_list_tmp[distance_gap_list_tmp < 100]
-
-
-        perform_txt += 'Algorithm time mean: %f, std: %f \n' % (
-                np.mean(time_gap_list_tmp), np.std(time_gap_list_tmp))
- 
-
         figure = plt.figure()
 
         plt.subplot(411)
         open_plt.draw_velocity_profile_single_plot(velocity_list)
 
         plt.subplot(412)
-        open_plt.draw_algorithm_time_profile_single_plot(algorithm_time_list)
+        open_plt.draw_acceleration_profile_single_plot(acceleration_list)
 
         plt.subplot(413)
         open_plt.draw_time_gap_profile_singel_plot(time_gap_list)
@@ -622,7 +592,13 @@ class EdgeManager(object):
         plt.subplot(414)
         open_plt.draw_dist_gap_profile_singel_plot(distance_gap_list)
 
-        
+        label = []
+        for i in range(1, len(velocity_list) + 1):
+            label.append('Leading Vehicle, id: %d' %
+                         int(i - 1) if i == 1 else 'Platoon member, id: %d' %
+                         int(i - 1))
+
+        figure.legend(label, loc='upper right')
 
         return figure, perform_txt
 
