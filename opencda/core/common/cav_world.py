@@ -38,6 +38,7 @@ class CavWorld(object):
         self.vehicle_id_set = set()
         self._vehicle_manager_dict = {}
         self._platooning_dict = {}
+        self._edge_dict = {}
         self.ml_manager = None
 
         if apply_ml:
@@ -76,6 +77,19 @@ class CavWorld(object):
         self._platooning_dict.update(
             {platooning_manger.pmid: platooning_manger})
 
+    def update_edge(self, edge_manager):
+        """
+        Add created edges.
+
+        Parameters
+        ----------
+        edge_manager : opencda object
+            The edge manager class.
+        """
+        self._edge_dict.update(
+            {edge_manager.edgeid: edge_manager})
+
+
     def update_sumo_vehicles(self, sumo2carla_ids):
         """
         Update the sumo carla mapping dict. This is only called
@@ -99,6 +113,13 @@ class CavWorld(object):
         Return existing platoons.
         """
         return self._platooning_dict
+
+    def get_edge_dict(self):
+        """
+        Return existing edges.
+        """
+        return self._edge_dict
+
 
     def locate_vehicle_manager(self, loc):
         """

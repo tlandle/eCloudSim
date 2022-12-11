@@ -352,7 +352,8 @@ class PerceptionManager:
         # visualization is needed
         if self.activate or self.lidar_visualize:
             self.lidar = LidarSensor(vehicle, config_yaml['lidar'])
-            self.o3d_vis = o3d_visualizer_init(vehicle.id)
+            if self.lidar_visualize:
+                self.o3d_vis = o3d_visualizer_init(vehicle.id)
         else:
             self.lidar = None
             self.o3d_vis = None

@@ -9,7 +9,7 @@ from opencda.core.plan.planer_debug_helper \
     import PlanDebugHelper
 
 
-class PlatoonDebugHelper(PlanDebugHelper):
+class EdgeDebugHelper(PlanDebugHelper):
     """This class aims to save statistics for platoon behaviour
 
     Parameters
@@ -27,12 +27,13 @@ class PlatoonDebugHelper(PlanDebugHelper):
     """
 
     def __init__(self, actor_id):
-        super(PlatoonDebugHelper, self).__init__(actor_id)
+        super(EdgeDebugHelper, self).__init__(actor_id)
 
         self.time_gap_list = [[]]
         self.dist_gap_list = [[]]
+        self.algorithm_time_list = [[]]
 
-    def update(self, ego_speed, ttc, time_gap=None, dist_gap=None):
+    def update(self, ego_speed, ttc, time_gap=None, dist_gap=None, algorithm_time_step=None):
         """
         Update the platoon related vehicle information.
 
@@ -57,3 +58,13 @@ class PlatoonDebugHelper(PlanDebugHelper):
         if self.count > 100:
             self.time_gap_list[0].append(time_gap)
             self.dist_gap_list[0].append(dist_gap)
+
+  
+    def update_edge(self, algorithm_time_step=None):
+        """
+        Update the platoon related vehicle information.
+
+        Parameters
+        ----------
+        """
+        self.algorithm_time_list[0].append(algorithm_time_step)

@@ -8,7 +8,7 @@ description: |-
 world:
   sync_mode: true
   client_port: 2000
-  fixed_delta_seconds: &delta 0.05
+  fixed_delta_seconds: &delta 0.03
   seed: 11
   weather:
     sun_altitude_angle: 15 # 90 is the midday and -90 is the midnight
@@ -26,9 +26,9 @@ world:
 vehicle_base: &vehicle_base
   sensing: &base_sensing
     perception: &base_perception
-      activate: false # when not activated, objects positions will be retrieved from server directly
-      camera_visualize: 1 # how many camera images need to be visualized. 0 means no visualization for camera
-      camera_num: 1 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+      activate: true # when not activated, objects positions will be retrieved from server directly
+      camera_visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
+      camera_num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
       lidar_visualize: false # whether to visualize lidar points using open3d
       lidar: # lidar sensor configuration, check CARLA sensor reference for more details
         channels: 32
@@ -63,7 +63,7 @@ vehicle_base: &vehicle_base
     emergency_param: 0.4 # used to identify whether a emergency stop needed
     ignore_traffic_light: true # whether to ignore traffic light
     overtake_allowed: true # whether overtake allowed, typically false for platoon leader
-    collision_time_ahead: 1.5 # used for collision checking
+    collision_time_ahead: 2.0 # used for collision checking
     overtake_counter_recover: 35 # the vehicle can not do another overtake during next certain steps
     sample_resolution: 4.5 # the unit distance between two adjacent waypoints in meter
     local_planner: &base_local_planner # trajectory planning related
@@ -146,30 +146,32 @@ scenario:
         perception:
           <<: *base_perception
           camera_visualize: 0
+          lidar_visualize: false
         localization:
           <<: *base_localize 
 
-    - <<: *vehicle_base
-      spawn_position: [-400, 8.3, 0.3, 0, 0, 0]
-      # this parameter will overwrite the spawn position, when it is set, the vehicle is spawn
-      # at the merging lane. 0.5 means it is spawn at the middle of the whole merging lange.
-      # spawn_special: [0.34]
-      destination: [680, 8.3, 0.3]
-      v2x:
-        <<: *base_v2x
-        communication_range: 45
+    # - <<: *vehicle_base
+    #   spawn_position: [-400, 8.3, 0.3, 0, 0, 0]
+    #   # this parameter will overwrite the spawn position, when it is set, the vehicle is spawn
+    #   # at the merging lane. 0.5 means it is spawn at the middle of the whole merging lange.
+    #   # spawn_special: [0.34]
+    #   destination: [680, 8.3, 0.3]
+    #   v2x:
+    #     <<: *base_v2x
+    #     communication_range: 45
 
-      behavior:
-        <<: *base_behavior
-        local_planner:
-          <<: *base_local_planner
-          debug_trajectory: true
-          debug: true
+    #   behavior:
+    #     <<: *base_behavior
+    #     local_planner:
+    #       <<: *base_local_planner
+    #       debug_trajectory: true
+    #       debug: true
 
-      sensing:
-        <<: *base_sensing
-        perception:
-          <<: *base_perception
-          camera_visualize: 0  
-        localization:
-          <<: *base_localize     
+    #   sensing:
+    #     <<: *base_sensing
+    #     perception:
+    #       <<: *base_perception
+    #       camera_visualize: 0  
+    #       activate: false
+    #     localization:
+    #       <<: *base_localize     
