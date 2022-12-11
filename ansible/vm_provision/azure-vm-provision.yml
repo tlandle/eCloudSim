@@ -44,6 +44,7 @@
               - docker-ce-cli
               - containerd.io
               - python3-docker
+              - nvidia-docker2
         - name: Ensure docker deamon is running
           service:
             name: docker
