@@ -17,9 +17,20 @@ import opencda.logging_ecloud
 import coloredlogs, logging
 import sys
 
+from opencda.scenario_testing.utils.yaml_utils import load_yaml
+
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
 logger.setLevel(logging.DEBUG)
+
+cloud_config = load_yaml("cloud_config.yaml")
+
+if cloud_config["log_level"] == "error":
+    logger.setLevel(logging.ERROR)
+elif cloud_config["log_level"] == "warning":
+    logger.setLevel(logging.WARNING)
+elif cloud_config["log_level"] == "info":
+    logger.setLevel(logging.INFO)
 
 sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/") 
 
@@ -58,11 +69,12 @@ class EdgeManager(object):
         The destiantion of the current plan.
     """
 
-    def __init__(self, config_yaml, cav_world):
+    def __init__(self, config_yaml, cav_world, world_dt=0.03, edge_dt=0.20, search_dt=2.00):
 
         self.edgeid = str(uuid.uuid1())
         self.vehicle_manager_list = []
-        self.target_speed = config_yaml['target_speed']
+        self.target_speed = config_yaml['target_speed'] # kph
+        self.traffic_velocity = self.target_speed * 0.277778 # convert to m/s! NOT kph
         self.numcars = len(config_yaml['members']) # TODO - set edge_index
         #self.locations = []
         self.destination = None
@@ -89,6 +101,9 @@ class EdgeManager(object):
         cav_world.update_edge(self)
 
         self.debug_helper = EdgeDebugHelper(0)
+
+        self.search_dt = config_yaml['search_dt'] if 'search_dt' in config_yaml else 2.00
+        self.numlanes = config_yaml['num_lanes'] if 'num_lanes' in config_yaml else 4
 
     def start_edge(self):
       self.get_four_lane_waypoints_dict()
@@ -124,9 +139,7 @@ class EdgeManager(object):
 
           # TODO: DIST --> do we need to clear at start in containers?  
           #vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
-      self.dt = .200
-      self.numlanes = 4
-      self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+      self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
     
     def get_four_lane_waypoints_dict(self):
       world = self.vehicle_manager_list[0].vehicle.get_world()
@@ -300,7 +313,7 @@ class EdgeManager(object):
         start_time = time.time()
         for i in range(len(self.vehicle_manager_list)):
             self.vehicle_manager_list[i].update_info()
-            print(f"Updated location for vehicle {i} - x:{self.vehicle_manager_list[i].vehicle.get_location().x}, y:{self.vehicle_manager_list[i].vehicle.get_location().y}")
+            logger.info(f"Updated location for vehicle {i} - x:{self.vehicle_manager_list[i].vehicle.get_location().x}, y:{self.vehicle_manager_list[i].vehicle.get_location().y}")
         end_time = time.time()
         logger.debug("Vehicle Manager Update Info Time: %s" %(end_time - start_time))
         start_time = time.time()
@@ -311,7 +324,7 @@ class EdgeManager(object):
             self.spawn_x.append(x)
             self.spawn_y.append(y)
             self.spawn_v.append(v_scalar)
-            print(f"update_information for vehicle_{i} - x:{x}, y:{y}")
+            logger.info(f"update_information for vehicle_{i} - x:{x}, y:{y}")
         end_time = time.time()
         logger.debug("Update Info Transform Forward Time: %s" %(end_time - start_time))
         #print(self.spawn_x)
@@ -321,12 +334,12 @@ class EdgeManager(object):
         start_time = time.time()
         #Added in to check if traffic tracker updating would fix waypoint deque issue
         # TODO: data drive num cars
-        self.Traffic_Tracker = Traffic(self.dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+        self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
         end_time = time.time()
         logger.debug("Traffic Tracker Time: %s" %(end_time - start_time))        
 
         for car in self.Traffic_Tracker.cars_on_road:
-            car.target_velocity = 15
+            car.target_velocity = self.traffic_velocity
         # sys.exit()
 
         #print("Updated Info")
@@ -465,7 +478,7 @@ class EdgeManager(object):
         for car, car_array in waypoints_rev.items():
           for i in range(0,len(car_array[0])):
             location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
-            print(f"algorithm_step: car_{car} location - {location}")
+            logger.info(f"algorithm_step: car_{car} location - {location}")
             self.locations.append(location)
 
             logger.warning(f"car_{car} - (x: {location.transform.location.x}, y: {location.transform.location.x})")

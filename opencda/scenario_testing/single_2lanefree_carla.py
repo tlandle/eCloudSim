@@ -45,7 +45,6 @@ def run_scenario(opt, config_yaml):
             scenario_manager.create_vehicle_manager(application=['single'],
                                                     map_helper=map_api.
                                                     spawn_helper_2lanefree)
-        print("eCloud debug: completed create_vehicle_manager")
 
         # create background traffic in carla
         traffic_manager, bg_veh_list = \
@@ -62,7 +61,6 @@ def run_scenario(opt, config_yaml):
        
         while True:
             scenario_manager.tick()
-            # TODO eCloud - figure out another way to have the vehicle follow a CAV. Perhaps still access the bp since it's read only?
             transform = single_cav_list[0].vehicle.get_transform()
             spectator.set_transform(carla.Transform(
                 transform.location +
@@ -73,11 +71,11 @@ def run_scenario(opt, config_yaml):
                     90)))
 
             for i, single_cav in enumerate(single_cav_list):
-                single_cav._socket.send(b"TICK")
-                single_cav._socket.recv(1024)
-                #single_cav.update_info()
-                #control = single_cav.run_step()
-                #single_cav.apply_control(control)
+                single_cav.update_info()
+                control = single_cav.run_step()
+                single_cav.update_info()
+                control = single_cav.run_step()
+                single_cav.vehicle.apply_control(control)
 
     finally:
         eval_manager.evaluate()

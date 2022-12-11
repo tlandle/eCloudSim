@@ -45,7 +45,7 @@ def run_scenario(opt, config_yaml):
                 start_recorder("multi_2lanefree_carla.log", True)
 
         single_cav_list = \
-            scenario_manager.create_vehicle_manager(application=['single'],
+            scenario_manager.create_distributed_vehicle_manager(application=['single'],
                                                     map_helper=map_api.
                                                     spawn_helper_2lanefree)
 
@@ -64,13 +64,8 @@ def run_scenario(opt, config_yaml):
        
         flag = True
         while flag:
-            flag = scenario_manager.tick()
-
-            # gRPC begin
-            # call sim_api to update tick
-            # loop here --> sim_api should not return True until tick completed
-
-            #gRPC end
+            scenario_manager.tick_world()
+            flag = scenario_manager.broadcast_tick()
 
             # TODO eCloud - figure out another way to have the vehicle follow a CAV. Perhaps still access the bp since it's read only?
             transform = single_cav_list[0].vehicle.get_transform()
@@ -84,25 +79,11 @@ def run_scenario(opt, config_yaml):
 
             for _, single_cav in enumerate(single_cav_list):
                 single_cav.update_info()
-            #     result = single_cav.do_tick()
-            #     if result == 1: # Need to figure out how to use a const
-            #         print("Unexpected termination: Sending END to all vehicles and ending.")
-            #         flag = False
-            #         break
-            #     elif result == 2:
-            #         print("Simulation ended: Sending END to all vehicles and ending.")
-            #         flag = False
-            #         break
-
-        # TODO gRPC    
-        #for _, single_cav in enumerate(single_cav_list):
-        #    single_cav.end_step()
-
-        scenario_manager.end()
-        #scenario_manager.destroyActors()
 
     finally:
-        print("Evaluating simulation results...")
+        
+        scenario_manager.end()
+
         eval_manager.evaluate()
 
         if opt.record:

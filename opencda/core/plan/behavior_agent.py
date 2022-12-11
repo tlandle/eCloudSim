@@ -85,13 +85,14 @@ class BehaviorAgent(object):
         The helper class that help with the debug functions.
     """
 
-    def __init__(self, vehicle, carla_map, config_yaml):
+    def __init__(self, vehicle, carla_map, config_yaml, is_dist=False):
 
         self.vehicle = vehicle
         # ego pos(transform) and speed(km/h) retrieved from localization module
         self._ego_pos = None
         self._ego_speed = 0.0
         self._map = carla_map
+        self._is_dist = is_dist
 
         # speed related, check yaml file to see the meaning
         self.max_speed = config_yaml['max_speed']
@@ -783,8 +784,12 @@ class BehaviorAgent(object):
 
         # 0. Simulation ends condition
         if self.is_close_to_destination():
-            return -1, None # eCloud: Use -1 to indicate simulation end. Need a better way than this.
-#            sys.exit(0)
+
+            # eCLOUD
+            if self._is_dist:
+                return -1, None # eCloud: Use -1 to indicate simulation end. Need a better way than this.
+            else:    
+                sys.exit(0)
 
         # 1. Traffic light management
         if self.traffic_light_manager(ego_vehicle_wp) != 0:

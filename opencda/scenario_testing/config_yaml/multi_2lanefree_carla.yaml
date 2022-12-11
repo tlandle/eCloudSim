@@ -4,11 +4,13 @@ description: |-
   Content: This is the scenario testing configuration file for single vehicle perception/localization/behavior/control
            testing in high speed in the customized 2lanefree simple version.
 
+distributed: true
+
 # define carla simulation setting
 world:
   sync_mode: true
   client_port: 2000
-  fixed_delta_seconds: &delta 0.03
+  fixed_delta_seconds: &delta 0.05
   seed: 11
   weather:
     sun_altitude_angle: 15 # 90 is the midday and -90 is the midnight
@@ -63,7 +65,7 @@ vehicle_base: &vehicle_base
     emergency_param: 0.4 # used to identify whether a emergency stop needed
     ignore_traffic_light: true # whether to ignore traffic light
     overtake_allowed: true # whether overtake allowed, typically false for platoon leader
-    collision_time_ahead: 2.0 # used for collision checking
+    collision_time_ahead: 3.0 # used for collision checking
     overtake_counter_recover: 35 # the vehicle can not do another overtake during next certain steps
     sample_resolution: 4.5 # the unit distance between two adjacent waypoints in meter
     local_planner: &base_local_planner # trajectory planning related

@@ -12,6 +12,9 @@ from random import randint, random
 import sys
 import copy
 from sklearn.cluster import KMeans
+import logging
+
+logger = logging.getLogger(__name__)
 
 # class Car():
 # 	def __init__(self, dt, numlanes, pos_x, pos_lane, velocity):
@@ -141,8 +144,8 @@ class Traffic():
 		for i in range(0,self.numlanes):
 			indices_of_interest = np.nonzero(self.lane_vehicles[:,i])
 			indices_of_interest = indices_of_interest[0]
-			print("indices of interest:")
-			print(indices_of_interest)
+			logger.info("indices of interest:")
+			logger.info(indices_of_interest)
 			if len(indices_of_interest) <= 1:
 				continue
 			else:

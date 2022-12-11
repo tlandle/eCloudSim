@@ -43,7 +43,7 @@ def arg_parse():
 
 def main():
     opt = arg_parse()
-    logger.info("OpenCDA Version: %s" % __version__)
+    print("OpenCDA Version: %s" % __version__)
 
     try:
         testing_scenario = importlib.import_module("opencda.scenario_testing.%s" % opt.test_scenario)

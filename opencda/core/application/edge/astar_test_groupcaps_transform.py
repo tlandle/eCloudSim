@@ -1,4 +1,5 @@
 import math
+import logging
 
 import matplotlib.pyplot as plt
 
@@ -24,6 +25,8 @@ import pickle
 import carla
 from opencda.core.application.edge.tools.carla_data_provider import *
 show_animation = True
+
+logger = logging.getLogger(__name__)
 
 #class AStarPlannerClient:
 #
@@ -212,7 +215,7 @@ class AStarPlanner:
 
         while 1:
             if len(open_set) == 0:
-                print("Open set is empty..")
+                logger.warning("Open set is empty..")
                 empty_flag = 1
                 goal_node.parent_index = current.parent_index
                 goal_node.cost = current.cost
@@ -239,7 +242,7 @@ class AStarPlanner:
             #         plt.pause(0.001)
 
             if (current.length_of_path(node_set=closed_set) >= 4): #Was 4 #current.x == goal_node.x and current.y == goal_node.y:
-                print("Find goal")
+                logger.warning("Find goal")
                 goal_node.parent_index = current.parent_index
                 goal_node.cost = current.cost
                 goal_node.v = current.v
@@ -269,7 +272,7 @@ class AStarPlanner:
                     # If the node is not safe, do nothing
                     if not self.verify_node(node,current):
                         if node.y.any() > 1:
-                            print("Node Not Viable: ", node.__str__())
+                            logger.warning("Node Not Viable: ", node.__str__())
                         continue
 
                     if n_id in closed_set:
@@ -438,9 +441,9 @@ class AStarPlanner:
 def get_states_carlist(car_list):
     carnum = 0
     for i in car_list:
-        print("X Coordinate of ", carnum, " Is: ", i.pos_x)
-        print("Y Coordinate of ", carnum, " Is: ", i.lane)
-        print("Velocity of ", carnum, " Is: ", i.v)
+        logger.info("X Coordinate of ", carnum, " Is: ", i.pos_x)
+        logger.info("Y Coordinate of ", carnum, " Is: ", i.lane)
+        logger.info("Velocity of ", carnum, " Is: ", i.v)
         carnum += 1
 
 def get_slice_plans(Traffic_Tracker, ov, oy, slice_length=15, map_length=1000):
