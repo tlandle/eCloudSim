@@ -513,12 +513,16 @@ def main():
 
         # HANDLE END
         elif sim_state_update.command == sim_state.Command.END:
+            logger.info("END received")
             pushed_message.clear()    
             popped_message.set()
             break
     
     # vehicle_manager.destroy() # let the scenario manager destroy...
     #_socket.close()
+    logger.info("scenario complete. exiting.")
+    sys.exit(0)
+    logger.info("this should not print...")
 
 if __name__ == '__main__':
     try:

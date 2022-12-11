@@ -94,7 +94,6 @@ def run_scenario(opt, config_yaml):
         #    single_cav.end_step()
 
         scenario_manager.end()
-        #scenario_manager.destroyActors()
 
     finally:
         print("Evaluating simulation results...")

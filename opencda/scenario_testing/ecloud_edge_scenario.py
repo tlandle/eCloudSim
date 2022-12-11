@@ -97,11 +97,18 @@ def run_scenario(opt, config_yaml):
                         pitch=-
                         90)))
 
+        scenario_manager.end()
+
     finally:
         eval_manager.evaluate()
 
         if opt.record:
-            scenario_manager.client.stop_recorder()
+            scenario_manager.client.stop_recorder()       
+
+        for edge in edge_list:
+            edge.destroy()
+
+        #scenario_manager.destroyActors()
 
         scenario_manager.close()
 

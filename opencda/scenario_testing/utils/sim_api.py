@@ -1205,6 +1205,17 @@ class ScenarioManager:
         ScenarioManager.popped_message.clear()
 
         logger.debug(f"pushed END")
+
+        print("scenario ending in 5...")
+        time.sleep(1)
+        print("scenario ending in 4...")
+        time.sleep(1)
+        print("scenario ending in 3...")
+        time.sleep(1)
+        print("scenario ending in 2...")
+        time.sleep(1)
+        print("scenario ending in 1...")
+        time.sleep(1)
     
     # eCLOUD END    
 
@@ -1212,15 +1223,22 @@ class ScenarioManager:
         """
         Destroy all actors in the world.
         """
+        if self.run_distributed:
+            logger.info("waiting for container shutdown...")
+            for i in range(0, 5):
+                time.sleep(1)
+                logger.debug("destroying actors in %d", 5 - i) 
 
         actor_list = self.world.get_actors()
         for actor in actor_list:
+            logger.debug(f"destroying actor %s", actor)
             actor.destroy()
 
     def close(self):
         """
         Simulation close.
         """
+
         if self.run_distributed:
             ScenarioManager.server_run = False
             ScenarioManager.server.stop(grace=5)
