@@ -1,0 +1,19 @@
+---
+- hosts: vehicles
+  gather_facts: false
+
+  vars_files:
+    - ../vars/vars.yml
+
+  tasks:
+    - name: Create container
+      docker_container:
+        name: "{{ default_container_name }}{{ item }}"
+        image: "{{ default_container_image }}"
+        state: started
+        network_mode: host
+        detach: True
+      with_sequence: count={{ containers_per_vm }}
+      become: True
+
+

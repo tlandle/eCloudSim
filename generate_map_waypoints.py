@@ -2,6 +2,7 @@ import carla
 import numpy as np
 
 from agents.navigation.global_route_planner import GlobalRoutePlanner
+from opencda.scenario_testing.utils.yaml_utils import load_yaml
 # from agents.navigation.global_route_planner_dao import GlobalRoutePlannerDAO
 
 def check_if_within_dist(waypoint, x, y, ncars=4):
@@ -11,7 +12,10 @@ def check_if_within_dist(waypoint, x, y, ncars=4):
             return i
     return 1000
 
-client = carla.Client("localhost", 2000)
+cloud_config = load_yaml("cloud_config.yaml")
+CARLA_IP = cloud_config["carla_server_public_ip"]    
+
+client = carla.Client(CARLA_IP, 2000)
 client.set_timeout(10)
 world = client.load_world('Town06')
 amap = world.get_map()
