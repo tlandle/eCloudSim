@@ -4,6 +4,13 @@ read -p "How many vehicle client containers do you want to start? " count
 
 read -p "Use ML (Y/n)?" use_ml
 
+read -p "Rebuild containers (Y/n)?" rebuild
+
+if [[ "$rebuild" = "Y" || "$rebuild" = "y" ]]; then
+    echo "Rebuilding container image"
+    sudo docker build -f Dockerfile -t vehicle-sim:latest .
+fi
+
 echo "Starting $count Vehicle Client Containers..."
 
 for ((i=0; i<$count; i++))
