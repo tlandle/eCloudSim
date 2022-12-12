@@ -154,8 +154,8 @@ def draw_world_tick_time_profile_single_plot(time_list):
     x_s = np.arange(len(time_list[0]))
     plt.plot(x_s, time_list[0])
 
-    plt.xlabel("World Tick #")
-    plt.ylabel("World Tick Latency (ms)")
+    plt.xlabel("Simulation Step #")
+    plt.ylabel("Sim Step Latency (ms)")
 
     fig = plt.gcf()
     fig.set_size_inches(11, 5)
