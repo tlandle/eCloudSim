@@ -87,6 +87,7 @@ Create gRPC stubs
 python -m grpc_tools.protoc -I./opencda/protos --python_out=. --grpc_python_out=. ./opencda//protos/sim_api.proto
 ```
 
+For perception, [nVidia Docker 2](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#docker)
 
 ### Usage
 
