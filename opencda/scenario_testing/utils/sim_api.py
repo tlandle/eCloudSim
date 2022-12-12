@@ -41,6 +41,7 @@ import sim_api_pb2_grpc as rpc
 import carla
 import numpy as np
 
+import matplotlib.pyplot as plt
 #import k_means_constrained
 
 from opencda.core.common.vehicle_manager_proxy import VehicleManagerProxy
@@ -53,7 +54,9 @@ from opencda.scenario_testing.utils.customized_map_api import \
 from opencda.core.application.edge.edge_manager import \
      EdgeManager
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
-
+from opencda.core.application.edge.edge_debug_helper import \
+    EdgeDebugHelper
+import opencda.core.plan.drive_profile_plotting as open_plt
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
 
@@ -362,6 +365,9 @@ class ScenarioManager:
         self.run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else False
 
         simulation_config = scenario_params['world']
+
+        self.debug_helper = EdgeDebugHelper(0)
+        cav_world.update_scenario_manager(self)
 
         random.seed(time.time())
 
@@ -1130,7 +1136,12 @@ class ScenarioManager:
 
         returns bool 
         """
+        pre_world_tick_time = time.time()
         self.world.tick()  
+        post_world_tick_time = time.time()
+        logger.debug("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
+        self.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
+            
 
     def broadcast_tick(self):
         """
@@ -1243,3 +1254,38 @@ class ScenarioManager:
         # restore to origin setting
         self.world.apply_settings(self.origin_settings)
         logger.debug(f"world state restored...")
+
+    def evaluate(self):
+            """
+            Used to save all members' statistics.
+
+            Returns
+            -------
+            figure : matplotlib.figure
+                The figure drawing performance curve passed back to save to
+                the disk.
+
+            perform_txt : str
+                The string that contains all evaluation results to print out.
+            """
+
+            perform_txt = ''
+            
+            world_tick_time_list = self.debug_helper.world_tick_time_list
+            world_tick_time_list_tmp = \
+                    np.array(self.debug_helper.algorithm_time_list)
+            world_tick_time_list_tmp = \
+                    world_tick_time_list_tmp[world_tick_time_list_tmp < 100]
+
+
+            perform_txt += 'World tick time mean: %f, std: %f \n' % (
+                    np.mean(world_tick_time_list_tmp), np.std(world_tick_time_list_tmp))
+    
+
+            figure = plt.figure()
+
+            plt.subplot(412)
+            open_plt.draw_world_tick_time_profile_single_plot(world_tick_time_list)
+
+
+            return figure, perform_txt

@@ -32,6 +32,8 @@ class EdgeDebugHelper(PlanDebugHelper):
         self.time_gap_list = [[]]
         self.dist_gap_list = [[]]
         self.algorithm_time_list = [[]]
+        self.world_tick_time_list = [[]]
+        
 
     def update(self, ego_speed, ttc, time_gap=None, dist_gap=None, algorithm_time_step=None):
         """
@@ -68,3 +70,13 @@ class EdgeDebugHelper(PlanDebugHelper):
         ----------
         """
         self.algorithm_time_list[0].append(algorithm_time_step)
+
+
+    def update_world_tick(self, tick_time_step=None):
+        """
+        Update the platoon related vehicle information.
+
+        Parameters
+        ----------
+        """
+        self.world_tick_time_list[0].append(tick_time_step)
