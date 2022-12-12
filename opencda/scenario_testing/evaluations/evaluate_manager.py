@@ -66,8 +66,8 @@ class EvaluationManager(object):
         self.edge_eval(log_file)
         print('Edge Evaluation Done.')
 
-        self.world_tick_eval(log_file)
-        print('World Tick Evaluation Done.')
+        self.simulation_eval(log_file)
+        print('Simulation Evaluation Done.')
 
 
     def kinematics_eval(self, log_file):
@@ -172,15 +172,15 @@ class EvaluationManager(object):
             lprint(log_file, perform_txt)
 
 
-    def world_tick_eval(self, log_file):
+    def simulation_eval(self, log_file):
         """
-        world tick evaluation.
+        Simulation evaluation.
 
         Args:
             -log_file (File): The log file to write the data.
 
         """
-        lprint(log_file, "***********World Tick Analysis***********")
+        lprint(log_file, "***********Simulation Analysis***********")
 
         scenario_manager =self.cav_world.get_scenario_manager()
         figure, perform_txt = scenario_manager.evaluate()
@@ -188,7 +188,7 @@ class EvaluationManager(object):
         # save plotting
         figure_save_path = os.path.join(
             self.eval_save_path,
-            'world_tick_plotting.png')
+            'simulation_plotting.png')
         figure.savefig(figure_save_path, dpi=100)
 
         # save log txt
