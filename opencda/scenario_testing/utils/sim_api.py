@@ -40,6 +40,8 @@ import sim_api_pb2_grpc as rpc
 
 import carla
 import numpy as np
+import pandas as pd
+import pickle
 
 import matplotlib.pyplot as plt
 #import k_means_constrained
@@ -368,6 +370,7 @@ class ScenarioManager:
 
         self.debug_helper = EdgeDebugHelper(0)
         cav_world.update_scenario_manager(self)
+        self.debug_helper.update_sim_start_timestamp(time.time())
 
         random.seed(time.time())
 
@@ -1271,21 +1274,46 @@ class ScenarioManager:
 
             perform_txt = ''
             
+            # Simulation Step time
             world_tick_time_list = self.debug_helper.world_tick_time_list
             world_tick_time_list_tmp = \
                     np.array(self.debug_helper.algorithm_time_list)
             world_tick_time_list_tmp = \
                     world_tick_time_list_tmp[world_tick_time_list_tmp < 100]
-
-
             perform_txt += 'World tick time mean: %f, std: %f \n' % (
                     np.mean(world_tick_time_list_tmp), np.std(world_tick_time_list_tmp))
     
 
+            # Total simulation time
+            sim_start_time = self.debug_helper.sim_start_timestamp
+            sim_end_time = time.time()
+            total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
+            perform_txt += f"Total Simulation Time: {total_sim_time}"
+
+            try:
+                picklefile = open('df_total_sim_time', 'rb+')
+                sim_time_df = pickle.load(picklefile)  #unpickle the dataframe
+            except:
+                picklefile = open('df_total_sim_time', 'wb+')
+                sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s'])
+
+            picklefile = open('df_total_sim_time', 'wb+')
+            sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records([{"num_cars": ScenarioManager.vehicle_count, "time_s": total_sim_time}])], ignore_index=True)
+            # pickle the dataFrame
+            pickle.dump(sim_time_df, picklefile)
+
+            print(sim_time_df)
+
+            #close file
+            picklefile.close()
+        
+            # plotting
             figure = plt.figure()
 
-            plt.subplot(412)
+            plt.subplot(411)
             open_plt.draw_world_tick_time_profile_single_plot(world_tick_time_list)
 
+            # plt.subplot(412)
+            # open_plt.draw_algorithm_time_profile_single_plot(algorithm_time_list)
 
             return figure, perform_txt
