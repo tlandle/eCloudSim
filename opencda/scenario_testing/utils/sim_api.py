@@ -1276,9 +1276,14 @@ class ScenarioManager:
             """
 
             perform_txt = ''
+
+            cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats'
+            if not os.path.exists(cumulative_stats_folder_path):
+                os.makedirs(cumulative_stats_folder_path)
             
-            # Simulation Step time
+            # ___________________________________Simulation Step time________________________________________________
             world_tick_time_list = self.debug_helper.world_tick_time_list
+            world_tick_time_list_flat = np.concatenate(world_tick_time_list).ravel()
             world_tick_time_list_tmp = \
                     np.array(self.debug_helper.algorithm_time_list)
             world_tick_time_list_tmp = \
@@ -1287,30 +1292,59 @@ class ScenarioManager:
                     np.mean(world_tick_time_list_tmp), np.std(world_tick_time_list_tmp))
     
 
-            # Total simulation time
+            step_time_df = pd.DataFrame(world_tick_time_list_flat, columns = ['step_time_ms'])
+            step_time_df['num_cars'] = ScenarioManager.vehicle_count
+            step_time_df['run_timestamp'] =  pd.Timestamp.today().strftime('%Y-%m-%d %X')
+            step_time_df = step_time_df[['num_cars','step_time_ms', 'run_timestamp']]
+
+            step_time_df_path = f'./{cumulative_stats_folder_path}/df_step_time'
+            step_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_step_time_cumstats'
+            try:
+                picklefile = open(step_time_df_path, 'rb+')
+                current_step_time_df = pickle.load(picklefile)  #unpickle the dataframe
+            except:
+                picklefile = open(step_time_df_path, 'wb+')
+                current_step_time_df = pd.DataFrame(columns=['num_cars', 'step_time_ms', 'run_timestamp'])
+
+            picklefile = open(step_time_df_path, 'wb+')
+            step_time_df = pd.concat([current_step_time_df, step_time_df], axis=0, ignore_index=True)
+
+            # pickle the dataFrame
+            pickle.dump(step_time_df, picklefile)
+            print(step_time_df)
+            #close file
+            picklefile.close()
+
+            # create new df with cumultaive stats (e.g. mean, std, median, min, max)
+            step_time_cumstats_df = pd.DataFrame()
+            step_time_cumstats_df = step_time_df.groupby('num_cars')['step_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            picklefile = open(step_time_df_cumstats_path, 'wb+')
+            pickle.dump(step_time_cumstats_df, picklefile)
+            picklefile.close()
+            print(step_time_cumstats_df)
+
+
+            # ________________________________________Total simulation time __________________________________________________
             sim_start_time = self.debug_helper.sim_start_timestamp
             sim_end_time = time.time()
             total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
             perform_txt += f"Total Simulation Time: {total_sim_time}"
 
-            cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats'
             sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
             sim_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_total_sim_time_cumstats'
-            if not os.path.exists(cumulative_stats_folder_path):
-                os.makedirs(cumulative_stats_folder_path)
 
             try:
                 picklefile = open(sim_time_df_path, 'rb+')
                 sim_time_df = pickle.load(picklefile)  #unpickle the dataframe
             except:
                 picklefile = open(sim_time_df_path, 'wb+')
-                sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'run_date'])
+                sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'run_timestamp'])
 
             picklefile = open(sim_time_df_path, 'wb+')
             sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records \
                 ([{"num_cars": ScenarioManager.vehicle_count, \
                     "time_s": total_sim_time, \
-                    "run_date": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
+                    "run_timestamp": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
                     ignore_index=True)
             
             # pickle the dataFrame
@@ -1325,6 +1359,7 @@ class ScenarioManager:
             picklefile = open(sim_time_df_cumstats_path, 'wb+')
             pickle.dump(sim_time_cumstats_df, picklefile)
             picklefile.close()
+            print(sim_time_cumstats_df)
         
             # plotting
             figure = plt.figure()

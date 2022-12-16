@@ -55,3 +55,16 @@ if __name__ == "__main__":
     create_box_plot(data=sim_stats_df, x = 'num_cars', y = 'time_s',labels=labels, file_path=save_file_path)
     save_file_path = f'./{cumulative_stats_folder_path}/total_sim_time_scatterplot.png'
     create_scatter_plot(data=sim_stats_df, x = 'num_cars', y = 'time_s',labels=labels, file_path=save_file_path)
+
+    # Plotting simulation step time stats
+    step_time_df_path = f'./{cumulative_stats_folder_path}/df_step_time'
+    step_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_step_time_cumstats'
+    sim_stats_df = get_stats_df(step_time_df_path)
+    sim_cumstats_df = get_stats_df(step_time_df_cumstats_path)
+    print(sim_stats_df, '\n')
+    print(sim_cumstats_df, '\n')
+    save_file_path = f'./{cumulative_stats_folder_path}/step_time_boxplot.png'
+    create_box_plot(data=sim_stats_df, x = 'num_cars', y = 'step_time_ms',labels=labels, file_path=save_file_path)
+    save_file_path = f'./{cumulative_stats_folder_path}/step_time_scatterplot.png'
+    create_scatter_plot(data=sim_stats_df, x = 'num_cars', y = 'step_time_ms',labels=labels, file_path=save_file_path)
+
