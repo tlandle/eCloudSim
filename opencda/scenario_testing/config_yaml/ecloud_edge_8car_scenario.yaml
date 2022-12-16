@@ -4,6 +4,8 @@ description: |-
   Content: This is the scenario testing configuration file for edge scenario
            at Town06 using CARLA
 
+distributed: true
+
 # define carla simulation setting
 world:
   sync_mode: true
@@ -107,6 +109,7 @@ edge_base: &edge_base
   leader_speeds_profile: [ 85, 95 ] # different speed for leader to follow
   stage_duration: 10 # how long should the leader keeps in the current velocity stag
   target_speed: 55
+  edge_sets_destination: False
 # define the background traffic control by carla
 carla_traffic_manager:
   sync_mode: true # has to be same as the world setting

@@ -65,7 +65,7 @@ def run_scenario(opt, config_yaml):
         waypoint_buffer = []
         while flag:
             eval_time += 1
-            print("Stepping, ", eval_time*0.2)
+            # print("Stepping, ", eval_time*0.2)
             pre_tick  = time.time()
 
             scenario_manager.tick_world()
