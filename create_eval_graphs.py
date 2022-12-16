@@ -63,6 +63,10 @@ if __name__ == "__main__":
     sim_cumstats_df = get_stats_df(step_time_df_cumstats_path)
     print(sim_stats_df, '\n')
     print(sim_cumstats_df, '\n')
+
+    labels = {"xlabel": 'Number of Cars', 
+    'ylabel':'Simulation Step Time (ms)',
+    'title': 'Simulation Step Time per Number of Cars (4lane_edge sim)'}
     save_file_path = f'./{cumulative_stats_folder_path}/step_time_boxplot.png'
     create_box_plot(data=sim_stats_df, x = 'num_cars', y = 'step_time_ms',labels=labels, file_path=save_file_path)
     save_file_path = f'./{cumulative_stats_folder_path}/step_time_scatterplot.png'
