@@ -101,6 +101,7 @@ Start the Carla server
 
 ```
 ./CarlaUE4.sh
+./CarlaUE4.sh -RenderOffScreen # to run headless
 ```
 
 Run opencda vehicle test
