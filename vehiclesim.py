@@ -355,7 +355,8 @@ def main():
     if 'edge_list' in scenario_yaml['scenario']:
         # TODO: support multiple edges... 
         target_speed = scenario_yaml['scenario']['edge_list'][0]['target_speed']
-        edge_sets_destination = scenario_yaml['scenario']['edge_list'][0]['edge_sets_destination']
+        edge_sets_destination = scenario_yaml['scenario']['edge_list'][0]['edge_sets_destination'] \
+            if 'edge_sets_destination' in scenario_yaml['scenario']['edge_list'][0] else False
 
     # send gRPC in response to start
     with lock:
