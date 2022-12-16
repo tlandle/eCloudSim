@@ -19,6 +19,7 @@ import json
 import random
 import copy
 import hashlib
+import os
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor, thread
@@ -446,6 +447,8 @@ class ScenarioManager:
                 time.sleep(1)
                 logger.info(f"received {ScenarioManager.connections_received} registrations. sim_api sleeping...")
                 #should we wait for a threading event instead?
+
+            print("vehicles registered, running simulation...")
 
             ScenarioManager.scenario = self.config_file
             ScenarioManager.carla_version = self.carla_version
@@ -1290,21 +1293,37 @@ class ScenarioManager:
             total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
             perform_txt += f"Total Simulation Time: {total_sim_time}"
 
+            cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats'
+            sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
+            sim_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_total_sim_time_cumstats'
+            if not os.path.exists(cumulative_stats_folder_path):
+                os.makedirs(cumulative_stats_folder_path)
+
             try:
-                picklefile = open('df_total_sim_time', 'rb+')
+                picklefile = open(sim_time_df_path, 'rb+')
                 sim_time_df = pickle.load(picklefile)  #unpickle the dataframe
             except:
-                picklefile = open('df_total_sim_time', 'wb+')
-                sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s'])
+                picklefile = open(sim_time_df_path, 'wb+')
+                sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'run_date'])
 
-            picklefile = open('df_total_sim_time', 'wb+')
-            sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records([{"num_cars": ScenarioManager.vehicle_count, "time_s": total_sim_time}])], ignore_index=True)
+            picklefile = open(sim_time_df_path, 'wb+')
+            sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records \
+                ([{"num_cars": ScenarioManager.vehicle_count, \
+                    "time_s": total_sim_time, \
+                    "run_date": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
+                    ignore_index=True)
+            
             # pickle the dataFrame
             pickle.dump(sim_time_df, picklefile)
-
             print(sim_time_df)
-
             #close file
+            picklefile.close()
+
+            # create new df with cumultaive stats (e.g. mean, std, median, min, max)
+            sim_time_cumstats_df = pd.DataFrame()
+            sim_time_cumstats_df = sim_time_df.groupby('num_cars')['time_s'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            picklefile = open(sim_time_df_cumstats_path, 'wb+')
+            pickle.dump(sim_time_cumstats_df, picklefile)
             picklefile.close()
         
             # plotting
