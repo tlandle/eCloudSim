@@ -24,6 +24,7 @@ def create_box_plot(data, x, y, labels, file_path):
     title=labels['title'])
     ax.figure.savefig(file_path)
     plt.clf()
+    print(f"Saved file: {file_path}")
 
 def create_scatter_plot(data, x, y, labels, file_path):
     ax = sns.scatterplot(data=data, x = x, y = y)
@@ -32,10 +33,11 @@ def create_scatter_plot(data, x, y, labels, file_path):
     title=labels['title'])
     ax.figure.savefig(file_path)
     plt.clf()
+    print(f"Saved file: {file_path}")
 
 if __name__ == "__main__":
 
-    # DF Paths
+    # DataFrame Paths
     sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
     sim_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_total_sim_time_cumstats'
 
@@ -43,8 +45,8 @@ if __name__ == "__main__":
     sim_stats_df = get_stats_df(sim_time_df_path)
     sim_cumstats_df = get_stats_df(sim_time_df_cumstats_path)
 
-    print(sim_stats_df)
-    print(sim_cumstats_df)
+    print(sim_stats_df, '\n')
+    print(sim_cumstats_df, '\n')
 
     labels = {"xlabel": 'Number of Cars', 
     'ylabel':'Total Runtime (s)',
