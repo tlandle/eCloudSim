@@ -10,12 +10,12 @@
       block:
       - name: Create Container with Perception
         shell: | 
-          sudo nvidia-docker run --gpus all -d --network=host -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim --apply_ml
+          nvidia-docker run --gpus all -d --network=host -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim --apply_ml
         with_sequence: count={{ containers_per_vm }}
         when: perception_active
       - name: Create Container without Perception
         shell: | 
-          sudo nvidia-docker run --rm --gpus all -d --network=host -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim
+          nvidia-docker run --rm --gpus all -d --network=host -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim
         with_sequence: count={{ containers_per_vm }}
         when: not perception_active
       become: True
