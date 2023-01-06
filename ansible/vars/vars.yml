@@ -12,6 +12,7 @@ resource_group: carla-server_group_10111734
 default_container_image: vehicle-sim
 default_container_name: vehicle-container
 containers_per_vm: 4
+perception_active: true
 vehicle_vms:
   - vehicle-client-vm-1
   - vehicle-client-vm-2

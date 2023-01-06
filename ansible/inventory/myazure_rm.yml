@@ -4,5 +4,5 @@ include_vm_resource_groups:
 auth_source: auto
 plain_host_names: yes
 conditional_groups:
-  vehicles: "'vehicle' in name"
+  vehicles: "'vehicle-clients' in name"
 ansible_python_interpreter: /usr/bin/python3
