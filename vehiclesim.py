@@ -169,7 +169,7 @@ class Client:
             global version
 
             test_scenario = sim_state_update.test_scenario
-            test_scenario = test_scenario[ test_scenario.find("opencda/"): ] # strip off any pathing from host
+            #test_scenario = test_scenario[ test_scenario.find("opencda/"): ] # strip off any pathing from host
             application = sim_state_update.application
             version = sim_state_update.version
 
@@ -335,8 +335,8 @@ def main():
     #     application = message["params"]["application"]
     #     version = message["params"]["version"]
 
-    if not os.path.isfile(test_scenario):
-        sys.exit("%s not found!" % test_scenario)
+    #if not os.path.isfile(test_scenario):
+    #    sys.exit("%s not found!" % test_scenario)
 
     logger.debug(f"main - test_scenario: {test_scenario}")
     logger.debug(f"main - application: {application[0]}")
@@ -347,15 +347,17 @@ def main():
 
     logger.debug(f"eCloud debug: creating VehicleManager vehicle_index: {vehicle_index}")
 
-    vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_file=test_scenario, application=application, cav_world=cav_world, carla_version=version)
+    #print(test_scenario)
+    scenario_yaml = json.loads(test_scenario) #load_yaml(test_scenario)
+    vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, carla_version=version)
 
-    scenario_yaml = load_yaml(test_scenario)
     target_speed = None
     edge_sets_destination = False
     if 'edge_list' in scenario_yaml['scenario']:
         # TODO: support multiple edges... 
         target_speed = scenario_yaml['scenario']['edge_list'][0]['target_speed']
-        edge_sets_destination = scenario_yaml['scenario']['edge_list'][0]['edge_sets_destination']
+        edge_sets_destination = scenario_yaml['scenario']['edge_list'][0]['edge_sets_destination'] \
+            if 'edge_sets_destination' in scenario_yaml['scenario']['edge_list'][0] else False
 
     # send gRPC in response to start
     with lock:

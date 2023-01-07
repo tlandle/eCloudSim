@@ -450,7 +450,7 @@ class ScenarioManager:
 
             print("vehicles registered, running simulation...")
 
-            ScenarioManager.scenario = self.config_file
+            ScenarioManager.scenario = json.dumps(scenario_params) #self.config_file
             ScenarioManager.carla_version = self.carla_version
         
             # signal server to put ACTIVE on the wire
