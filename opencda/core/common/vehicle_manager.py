@@ -113,10 +113,15 @@ class VehicleManager(object):
 
         # eCLOUD BEGIN
 
-        elif vehicle_index != None and config_file != None:
+        elif vehicle_index != None:
 
             self.run_distributed = True
-            self.scenario_params = load_yaml(config_file)
+            if config_file != None:
+                self.scenario_params = load_yaml(config_file)
+            elif config_yaml != None:
+                self.scenario_params = config_yaml
+            else:
+                assert(False, "need to pass a YAML file or dict")
 
             self.initialize_process()
             self.carla_version = carla_version

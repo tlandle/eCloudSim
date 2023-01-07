@@ -438,7 +438,7 @@ class ScenarioManager:
                 logger.info(f"received {ScenarioManager.connections_received} registrations. sim_api sleeping...")
                 #should we wait for a threading event instead?
 
-            ScenarioManager.scenario = self.config_file
+            ScenarioManager.scenario = json.dumps(scenario_params) #self.config_file
             ScenarioManager.carla_version = self.carla_version
         
             # signal server to put ACTIVE on the wire
