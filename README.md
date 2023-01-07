@@ -12,7 +12,7 @@ This software is an extension of the [OpenCDA simulation tool](https://github.co
 
 ## Installation
 
-Install conda and opencda environment
+Install Carla and OpenCDA:
 
 https://opencda-documentation.readthedocs.io/en/latest/md_files/installation.html
 
