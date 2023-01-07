@@ -2,15 +2,15 @@
 
 This software is an extension of the [OpenCDA simulation tool](https://github.com/ucla-mobility/OpenCDA). The following features are added as an extension of OpenCDA:
 
-- Distrbuted/Asynchronous communication between OpenCDA(Edge)/Carla and Vehicle clients
+- Distrbuted/Asynchronous communication between OpenCDA(Edge)/Carla and Vehicle clients using gRPC
 - Containerization of vehicle clients using Nvidia Docker 2 (supports local vehicle planning/perception)
-- Plugable Algorithm for vehicle control
+- Plugable Algorithm for vehicle autonomous driving
 - Support for Propagation Models
 - Automation scripts for Cloud deployment of simulation using Ansible
 - Metric/Evaluation gathering for simulation performance
 
 
-### Prerequisites
+## Installation
 
 Install conda and opencda environment
 
@@ -38,7 +38,7 @@ python -m grpc_tools.protoc -I./opencda/protos --python_out=. --grpc_python_out=
 
 For perception, install [Nvidia Docker 2](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#docker)
 
-### Usage
+## Usage
 
 Activate the conda enviroment
 
