@@ -118,7 +118,7 @@ def draw_dist_gap_profile_singel_plot(gap_list):
     fig = plt.gcf()
     fig.set_size_inches(11, 5)
 
-def draw_algorthm_time_profile_singel_plot(time_list):
+def draw_algorithm_time_profile_single_plot(time_list):
     """
     Draw inter gap profiles in a single plot.
 
@@ -135,11 +135,30 @@ def draw_algorthm_time_profile_singel_plot(time_list):
 
     plt.xlabel("Time (s)")
     plt.ylabel("Algorithm Latency (ms)")
-    plt.ylim([0.0, 2000])
+    #plt.ylim([0.0, 2000])
     fig = plt.gcf()
     fig.set_size_inches(11, 5)
 
 
+def draw_world_tick_time_profile_single_plot(time_list):
+    """
+    Draw world tick profiles in a single plot.
+
+    Parameters
+    __________
+    gap_list : list
+        The vehicle front time gap profile saved in a list.
+
+    """
+
+    x_s = np.arange(len(time_list[0]))
+    plt.plot(x_s, time_list[0])
+
+    plt.xlabel("Simulation Step #")
+    plt.ylabel("Sim Step Latency (ms)")
+
+    fig = plt.gcf()
+    fig.set_size_inches(11, 5)
 
 def draw_sub_plot(
         velocity_list,

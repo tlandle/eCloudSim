@@ -19,6 +19,7 @@ import json
 import random
 import copy
 import hashlib
+import os
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor, thread
@@ -40,7 +41,10 @@ import sim_api_pb2_grpc as rpc
 
 import carla
 import numpy as np
+import pandas as pd
+import pickle
 
+import matplotlib.pyplot as plt
 #import k_means_constrained
 
 from opencda.core.common.vehicle_manager_proxy import VehicleManagerProxy
@@ -53,7 +57,9 @@ from opencda.scenario_testing.utils.customized_map_api import \
 from opencda.core.application.edge.edge_manager import \
      EdgeManager
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
-
+from opencda.core.application.edge.edge_debug_helper import \
+    EdgeDebugHelper
+import opencda.core.plan.drive_profile_plotting as open_plt
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
 
@@ -363,6 +369,10 @@ class ScenarioManager:
 
         simulation_config = scenario_params['world']
 
+        self.debug_helper = EdgeDebugHelper(0)
+        cav_world.update_scenario_manager(self)
+        self.debug_helper.update_sim_start_timestamp(time.time())
+
         random.seed(time.time())
 
         # set random seed if stated
@@ -437,6 +447,8 @@ class ScenarioManager:
                 time.sleep(1)
                 logger.info(f"received {ScenarioManager.connections_received} registrations. sim_api sleeping...")
                 #should we wait for a threading event instead?
+
+            print("vehicles registered, running simulation...")
 
             ScenarioManager.scenario = json.dumps(scenario_params) #self.config_file
             ScenarioManager.carla_version = self.carla_version
@@ -1130,7 +1142,12 @@ class ScenarioManager:
 
         returns bool 
         """
+        pre_world_tick_time = time.time()
         self.world.tick()  
+        post_world_tick_time = time.time()
+        logger.debug("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
+        self.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
+            
 
     def broadcast_tick(self):
         """
@@ -1243,3 +1260,114 @@ class ScenarioManager:
         # restore to origin setting
         self.world.apply_settings(self.origin_settings)
         logger.debug(f"world state restored...")
+
+    def evaluate(self):
+            """
+            Used to save all members' statistics.
+
+            Returns
+            -------
+            figure : matplotlib.figure
+                The figure drawing performance curve passed back to save to
+                the disk.
+
+            perform_txt : str
+                The string that contains all evaluation results to print out.
+            """
+
+            perform_txt = ''
+
+            cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats'
+            if not os.path.exists(cumulative_stats_folder_path):
+                os.makedirs(cumulative_stats_folder_path)
+            
+            # ___________________________________Simulation Step time________________________________________________
+            world_tick_time_list = self.debug_helper.world_tick_time_list
+            world_tick_time_list_flat = np.concatenate(world_tick_time_list).ravel()
+            world_tick_time_list_tmp = \
+                    np.array(self.debug_helper.algorithm_time_list)
+            world_tick_time_list_tmp = \
+                    world_tick_time_list_tmp[world_tick_time_list_tmp < 100]
+            perform_txt += 'World tick time mean: %f, std: %f \n' % (
+                    np.mean(world_tick_time_list_tmp), np.std(world_tick_time_list_tmp))
+    
+
+            step_time_df = pd.DataFrame(world_tick_time_list_flat, columns = ['step_time_ms'])
+            step_time_df['num_cars'] = ScenarioManager.vehicle_count
+            step_time_df['run_timestamp'] =  pd.Timestamp.today().strftime('%Y-%m-%d %X')
+            step_time_df = step_time_df[['num_cars','step_time_ms', 'run_timestamp']]
+
+            step_time_df_path = f'./{cumulative_stats_folder_path}/df_step_time'
+            step_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_step_time_cumstats'
+            try:
+                picklefile = open(step_time_df_path, 'rb+')
+                current_step_time_df = pickle.load(picklefile)  #unpickle the dataframe
+            except:
+                picklefile = open(step_time_df_path, 'wb+')
+                current_step_time_df = pd.DataFrame(columns=['num_cars', 'step_time_ms', 'run_timestamp'])
+
+            picklefile = open(step_time_df_path, 'wb+')
+            step_time_df = pd.concat([current_step_time_df, step_time_df], axis=0, ignore_index=True)
+
+            # pickle the dataFrame
+            pickle.dump(step_time_df, picklefile)
+            print(step_time_df)
+            #close file
+            picklefile.close()
+
+            # create new df with cumultaive stats (e.g. mean, std, median, min, max)
+            step_time_cumstats_df = pd.DataFrame()
+            step_time_cumstats_df = step_time_df.groupby('num_cars')['step_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            picklefile = open(step_time_df_cumstats_path, 'wb+')
+            pickle.dump(step_time_cumstats_df, picklefile)
+            picklefile.close()
+            print(step_time_cumstats_df)
+
+
+            # ________________________________________Total simulation time __________________________________________________
+            sim_start_time = self.debug_helper.sim_start_timestamp
+            sim_end_time = time.time()
+            total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
+            perform_txt += f"Total Simulation Time: {total_sim_time}"
+
+            sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
+            sim_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_total_sim_time_cumstats'
+
+            try:
+                picklefile = open(sim_time_df_path, 'rb+')
+                sim_time_df = pickle.load(picklefile)  #unpickle the dataframe
+            except:
+                picklefile = open(sim_time_df_path, 'wb+')
+                sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'run_timestamp'])
+
+            picklefile = open(sim_time_df_path, 'wb+')
+            sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records \
+                ([{"num_cars": ScenarioManager.vehicle_count, \
+                    "time_s": total_sim_time, \
+                    "run_timestamp": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
+                    ignore_index=True)
+            
+            # pickle the dataFrame
+            pickle.dump(sim_time_df, picklefile)
+            print(sim_time_df)
+            #close file
+            picklefile.close()
+
+            # create new df with cumultaive stats (e.g. mean, std, median, min, max)
+            sim_time_cumstats_df = pd.DataFrame()
+            sim_time_cumstats_df = sim_time_df.groupby('num_cars')['time_s'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            picklefile = open(sim_time_df_cumstats_path, 'wb+')
+            pickle.dump(sim_time_cumstats_df, picklefile)
+            picklefile.close()
+            print(sim_time_cumstats_df)
+        
+            # plotting
+            figure = plt.figure()
+
+            plt.subplot(411)
+            open_plt.draw_world_tick_time_profile_single_plot(world_tick_time_list)
+
+            # plt.subplot(412)
+            # open_plt.draw_algorithm_time_profile_single_plot(algorithm_time_list)
+
+            return figure, perform_txt

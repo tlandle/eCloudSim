@@ -39,6 +39,7 @@ class CavWorld(object):
         self._vehicle_manager_dict = {}
         self._platooning_dict = {}
         self._edge_dict = {}
+        self._scenario_manager = None
         self.ml_manager = None
 
         if apply_ml:
@@ -89,6 +90,16 @@ class CavWorld(object):
         self._edge_dict.update(
             {edge_manager.edgeid: edge_manager})
 
+    def update_scenario_manager(self, scenario_manager):
+        """
+        Add created scenario manager.
+
+        Parameters
+        ----------
+        scenario_manager : opencda object
+            The Scenario manager class (sim_api.py).
+        """
+        self._scenario_manager = scenario_manager
 
     def update_sumo_vehicles(self, sumo2carla_ids):
         """
@@ -120,6 +131,11 @@ class CavWorld(object):
         """
         return self._edge_dict
 
+    def get_scenario_manager(self):
+        """
+        Return existing edges.
+        """
+        return self._scenario_manager
 
     def locate_vehicle_manager(self, loc):
         """

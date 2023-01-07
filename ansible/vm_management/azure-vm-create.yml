@@ -6,7 +6,7 @@
   hosts: localhost
   connection: local
   vars_files:
-    - ./vars/vars.yml
+    - ../vars/vars.yml
   tasks:
     - name: Create VM
       azure_rm_virtualmachine:

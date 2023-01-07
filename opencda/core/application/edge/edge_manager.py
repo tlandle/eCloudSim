@@ -256,15 +256,12 @@ class EdgeManager(object):
 
 
 
-    def add_member(self, vehicle_manager, leader=False):
+    def add_member(self, vehicle_manager):
         """
-        Add memeber to the current platooning
+        Add memeber to the current edge
 
         Parameters
         __________
-        leader : boolean
-            Indicator of whether this cav is a leader.
-
         vehicle_manager : opencda object
             The vehicle manager class.
         """
@@ -301,6 +298,26 @@ class EdgeManager(object):
         #     self.vehicle_manager_list[i].set_destination(
         #         self.vehicle_manager_list[i].vehicle.get_location(),
         #         destination, clean=True)
+
+    def calculate_gap(self, distance):
+        """
+        Calculate the current vehicle and frontal vehicle's time/distance gap.
+        Note: please use groundtruth position of the frontal vehicle to
+        calculate the correct distance.
+
+        Parameters
+        ----------
+        distance : float
+            Distance between the ego vehicle and frontal vehicle.
+        """
+        # we need to count the vehicle length in to calculate the gap
+        boundingbox = self.vehicle.bounding_box
+        veh_length = 2 * abs(boundingbox.location.y - boundingbox.extent.y)
+
+        delta_v = self._ego_speed / 3.6
+        time_gap = distance / delta_v
+        self.time_gap = time_gap
+        self.dist_gap = distance - veh_length
 
     def update_information(self):
         """
@@ -560,11 +577,11 @@ class EdgeManager(object):
             The string that contains all evaluation results to print out.
         """
 
-        velocity_list = []
-        time_gap_list = []
-        distance_gap_list = []
+        #velocity_list = []
+        #time_gap_list = []
+        #distance_gap_list = []
         algorithm_time_list = []
-        
+        debug_helper = self.debug_helper 
 
         perform_txt = ''
 
@@ -576,51 +593,51 @@ class EdgeManager(object):
             # since the vehicles spawn at the beginning have
             # no velocity and thus make the time gap close to infinite
 
-            velocity_list += debug_helper.speed_list
-            time_gap_list += debug_helper.time_gap_list
-            distance_gap_list += debug_helper.dist_gap_list
+            #velocity_list += debug_helper.speed_list
+            #time_gap_list += debug_helper.time_gap_list
+            #distance_gap_list += debug_helper.dist_gap_list
             
-            time_gap_list_tmp = \
-                np.array(debug_helper.time_gap_list)
-            time_gap_list_tmp = \
-                time_gap_list_tmp[time_gap_list_tmp < 100]
-            distance_gap_list_tmp = \
-                np.array(debug_helper.dist_gap_list)
-            distance_gap_list_tmp = \
-                distance_gap_list_tmp[distance_gap_list_tmp < 100]
+            #time_gap_list_tmp = \
+            #    np.array(debug_helper.time_gap_list)
+            #time_gap_list_tmp = \
+            #    time_gap_list_tmp[time_gap_list_tmp < 100]
+            #distance_gap_list_tmp = \
+            #    np.array(debug_helper.dist_gap_list)
+            #distance_gap_list_tmp = \
+            #    distance_gap_list_tmp[distance_gap_list_tmp < 100]
 
-            perform_txt += '\n Platoon member ID:%d, Actor ID:%d : \n' % (
-                i, vm.vehicle.id)
-            perform_txt += 'Time gap mean: %f, std: %f \n' % (
-                np.mean(time_gap_list_tmp), np.std(time_gap_list_tmp))
-            perform_txt += 'Distance gap mean: %f, std: %f \n' % (
-                np.mean(distance_gap_list_tmp), np.std(distance_gap_list_tmp))
+            #perform_txt += '\n Platoon member ID:%d, Actor ID:%d : \n' % (
+            #    i, vm.vehicle.id)
+            #perform_txt += 'Time gap mean: %f, std: %f \n' % (
+            #    np.mean(time_gap_list_tmp), np.std(time_gap_list_tmp))
+            #perform_txt += 'Distance gap mean: %f, std: %f \n' % (
+            #    np.mean(distance_gap_list_tmp), np.std(distance_gap_list_tmp))
 
 
-        algorithm_time_list += debug_helper.algorithm_time_list
+        algorithm_time_list += self.debug_helper.algorithm_time_list
         algorithm_time_list_tmp = \
-                np.array(debug_helper.dist_gap_list)
+                np.array(self.debug_helper.algorithm_time_list)
         algorithm_time_list_tmp = \
-                algorithm_time_list_tmp[distance_gap_list_tmp < 100]
+                algorithm_time_list_tmp[algorithm_time_list_tmp < 100]
 
 
         perform_txt += 'Algorithm time mean: %f, std: %f \n' % (
-                np.mean(time_gap_list_tmp), np.std(time_gap_list_tmp))
+                np.mean(algorithm_time_list_tmp), np.std(algorithm_time_list_tmp))
  
 
         figure = plt.figure()
 
-        plt.subplot(411)
-        open_plt.draw_velocity_profile_single_plot(velocity_list)
+        #plt.subplot(411)
+        #open_plt.draw_velocity_profile_single_plot(velocity_list)
 
         plt.subplot(412)
         open_plt.draw_algorithm_time_profile_single_plot(algorithm_time_list)
 
-        plt.subplot(413)
-        open_plt.draw_time_gap_profile_singel_plot(time_gap_list)
+        #plt.subplot(413)
+        #open_plt.draw_time_gap_profile_singel_plot(time_gap_list)
 
-        plt.subplot(414)
-        open_plt.draw_dist_gap_profile_singel_plot(distance_gap_list)
+        #plt.subplot(414)
+        #open_plt.draw_dist_gap_profile_singel_plot(distance_gap_list)
 
         
 

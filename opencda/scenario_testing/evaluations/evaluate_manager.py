@@ -66,6 +66,9 @@ class EvaluationManager(object):
         self.edge_eval(log_file)
         print('Edge Evaluation Done.')
 
+        self.simulation_eval(log_file)
+        print('Simulation Evaluation Done.')
+
 
     def kinematics_eval(self, log_file):
         """
@@ -167,3 +170,26 @@ class EvaluationManager(object):
 
             # save log txt
             lprint(log_file, perform_txt)
+
+
+    def simulation_eval(self, log_file):
+        """
+        Simulation evaluation.
+
+        Args:
+            -log_file (File): The log file to write the data.
+
+        """
+        lprint(log_file, "***********Simulation Analysis***********")
+
+        scenario_manager =self.cav_world.get_scenario_manager()
+        figure, perform_txt = scenario_manager.evaluate()
+
+        # save plotting
+        figure_save_path = os.path.join(
+            self.eval_save_path,
+            'simulation_plotting.png')
+        figure.savefig(figure_save_path, dpi=100)
+
+        # save log txt
+        lprint(log_file, perform_txt)
