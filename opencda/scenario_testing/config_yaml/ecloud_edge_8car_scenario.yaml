@@ -27,9 +27,9 @@ world:
 vehicle_base: &vehicle_base
   sensing: &base_sensing
     perception: &base_perception
-      activate: false # when not activated, objects positions will be retrieved from server directly
+      activate: true # when not activated, objects positions will be retrieved from server directly
       camera_visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
-      camera_num: 0 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+      camera_num: 3 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
       lidar_visualize: false # whether to visualize lidar points using open3d
       lidar: # lidar sensor configuration, check CARLA sensor reference for more details
         channels: 32
@@ -137,10 +137,6 @@ scenario:
             <<: *base_sensing
             perception:
               <<: *base_perception
-              activate: false
-              camera_visualize: 0
-              camera_num: 3
-              lidar_visualize: false
             localization:
               <<: *base_localize
               debug_helper:
@@ -165,10 +161,6 @@ scenario:
             <<: *base_sensing
             perception:
               <<: *base_perception
-              activate: false
-              camera_visualize: 0
-              camera_num: 1
-              lidar_visualize: false
             localization:
               <<: *base_localize
               debug_helper:
@@ -193,10 +185,6 @@ scenario:
             <<: *base_sensing
             perception:
               <<: *base_perception
-              activate: false
-              camera_visualize: 0
-              camera_num: 1
-              lidar_visualize: false
             localization:
               <<: *base_localize
               debug_helper:
@@ -221,10 +209,6 @@ scenario:
             <<: *base_sensing
             perception:
               <<: *base_perception
-              activate: false
-              camera_visualize: 0
-              camera_num: 1
-              lidar_visualize: false
             localization:
               <<: *base_localize
               debug_helper:
@@ -249,10 +233,6 @@ scenario:
             <<: *base_sensing
             perception:
               <<: *base_perception
-              activate: false
-              camera_visualize: 0
-              camera_num: 3
-              lidar_visualize: false
             localization:
               <<: *base_localize
               debug_helper:
@@ -277,10 +257,6 @@ scenario:
             <<: *base_sensing
             perception:
               <<: *base_perception
-              activate: false
-              camera_visualize: 0
-              camera_num: 1
-              lidar_visualize: false
             localization:
               <<: *base_localize
               debug_helper:
@@ -305,10 +281,6 @@ scenario:
             <<: *base_sensing
             perception:
               <<: *base_perception
-              activate: false
-              camera_visualize: 0
-              camera_num: 1
-              lidar_visualize: false
             localization:
               <<: *base_localize
               debug_helper:
@@ -333,10 +305,6 @@ scenario:
             <<: *base_sensing
             perception:
               <<: *base_perception
-              activate: false
-              camera_visualize: 0
-              camera_num: 1
-              lidar_visualize: false
             localization:
               <<: *base_localize
               debug_helper:
