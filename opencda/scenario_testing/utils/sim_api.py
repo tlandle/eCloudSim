@@ -364,7 +364,7 @@ class ScenarioManager:
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.config_file = config_file
-        
+        self.perception = scenario_params['perception_active']
         self.run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else False
 
         simulation_config = scenario_params['world']
@@ -1277,7 +1277,10 @@ class ScenarioManager:
 
             perform_txt = ''
 
-            cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats'
+            cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_no_perception'
+            if self.perception:
+                cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_with_perception'
+
             if not os.path.exists(cumulative_stats_folder_path):
                 os.makedirs(cumulative_stats_folder_path)
             

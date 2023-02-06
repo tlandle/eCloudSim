@@ -5,6 +5,7 @@ description: |-
            at Town06 using CARLA
 
 distributed: true
+perception_active: false
 
 # define carla simulation setting
 world:
@@ -27,7 +28,7 @@ world:
 vehicle_base: &vehicle_base
   sensing: &base_sensing
     perception: &base_perception
-      activate: true # when not activated, objects positions will be retrieved from server directly
+      activate: perception_active # when not activated, objects positions will be retrieved from server directly
       camera_visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
       camera_num: 3 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
       lidar_visualize: false # whether to visualize lidar points using open3d
@@ -69,8 +70,8 @@ vehicle_base: &vehicle_base
     sample_resolution: 4.5 # the unit distance between two adjacent waypoints in meter
     local_planner: &base_local_planner # trajectory planning related
       buffer_size: 12 # waypoint buffer size
-      trajectory_update_freq: 15 # used to control trajectory points updating frequency
-      waypoint_update_freq: 9 # used to control waypoint updating frequency
+      try_update_freq: 15 # used to control trajectory points updating frequency
+      waypoajectorint_update_freq: 9 # used to control waypoint updating frequency
       min_dist: 3 # used to pop out the waypoints too close to current location
       trajectory_dt: 0.20 # for every dt seconds, we sample a trajectory point from the trajectory path as next goal state
       debug: false # whether to draw future/history waypoints

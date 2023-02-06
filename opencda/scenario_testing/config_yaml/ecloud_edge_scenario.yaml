@@ -5,6 +5,7 @@ description: |-
            at Town06 using CARLA
 
 distributed: true
+perception_active: true
 
 # define carla simulation setting
 world:
@@ -27,7 +28,7 @@ world:
 vehicle_base: &vehicle_base
   sensing: &base_sensing
     perception: &base_perception
-      activate: True # when not activated, objects positions will be retrieved from server directly
+      activate: perception_active # when not activated, objects positions will be retrieved from server directly
       camera_visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
       camera_num: 3 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
       lidar_visualize: false # whether to visualize lidar points using open3d
