@@ -53,7 +53,7 @@ def main():
     config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                'opencda/scenario_testing/config_yaml/%s.yaml' % opt.test_scenario)
     if not os.path.isfile(config_yaml):
-        sys.exit("opencda/scenario_testing/config_yaml/%s.yaml not found!" % opt.test_cenario)
+        sys.exit("opencda/scenario_testing/config_yaml/%s.yaml not found!" % opt.test_scenario)
 
     scenario_runner = getattr(testing_scenario, 'run_scenario')
     # run scenario testing
