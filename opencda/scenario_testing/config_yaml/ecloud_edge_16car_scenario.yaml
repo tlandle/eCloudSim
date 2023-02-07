@@ -133,8 +133,8 @@ scenario:
       destination: [630, 131.39, 0.3]
       members:
         - <<: *vehicle_base
-          spawn_position: [47.7194, 139.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-39.52, -22.79, 0.3, 0, 180, 0]
+          destination: [-147.759079, -22.39, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -157,8 +157,8 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [57.7194, 143.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-39.52, -19.292, 0.3, 0, 180, 0]
+          destination: [-147.74, -18.89, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -181,8 +181,8 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [67.7194, 147.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-39.52, -15.79, 0.3, 0, 180, 0]
+          destination: [-147.73, -15.79, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -205,8 +205,8 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [77.7194, 151.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-69.60, -12.29, 0.3, 0, 180, 0]
+          destination: [-147.72, -12.29, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -229,8 +229,8 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [77.7194, 139.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-59.52, -22.79, 0.3, 0, 180, 0]
+          destination: [-147.759079, -22.39, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -253,8 +253,8 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [87.7194, 143.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-49.52, -19.292, 0.3, 0, 180, 0]
+          destination: [-147.74, -18.89, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -277,8 +277,8 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [97.7194, 147.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-19.52, -15.79, 0.3, 0, 180, 0]
+          destination: [-147.73, -15.79, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -301,8 +301,8 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [107.7194, 151.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-29.60, -12.29, 0.3, 0, 180, 0]
+          destination: [-147.72, -12.29, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -324,9 +324,10 @@ scenario:
               <<: *base_local_planner
               debug_trajectory: true
               debug: false
+
         - <<: *vehicle_base
-          spawn_position: [107.7194, 139.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-14.60, -13.29, 0.3, 0, 180, 0]
+          destination: [-147.72, -13.29, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -348,9 +349,10 @@ scenario:
               <<: *base_local_planner
               debug_trajectory: true
               debug: false
+
         - <<: *vehicle_base
-          spawn_position: [117.7194, 143.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-49.52, -12.292, 0.3, 0, 180, 0]
+          destination: [-147.74, -12.89, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -372,129 +374,10 @@ scenario:
               <<: *base_local_planner
               debug_trajectory: true
               debug: false
+
         - <<: *vehicle_base
-          spawn_position: [127.7194, 147.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
-          sensing:
-            <<: *base_sensing
-            perception:
-              <<: *base_perception
-            localization:
-              <<: *base_localize
-              debug_helper:
-                <<: *loc_debug_helper
-                show_animation: false
-          v2x:
-            <<: *base_v2x
-            communication_range: 35
-          behavior:
-            <<: *base_behavior
-            max_speed: 100 # maximum speed, km/h
-            tailgate_speed: 111
-            overtake_allowed: true
-            local_planner:
-              <<: *base_local_planner
-              debug_trajectory: true
-              debug: false
-        - <<: *vehicle_base
-          spawn_position: [137.7194, 151.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
-          sensing:
-            <<: *base_sensing
-            perception:
-              <<: *base_perception
-            localization:
-              <<: *base_localize
-              debug_helper:
-                <<: *loc_debug_helper
-                show_animation: false
-          v2x:
-            <<: *base_v2x
-            communication_range: 35
-          behavior:
-            <<: *base_behavior
-            max_speed: 100 # maximum speed, km/h
-            tailgate_speed: 111
-            overtake_allowed: true
-            local_planner:
-              <<: *base_local_planner
-              debug_trajectory: true
-              debug: false
-        - <<: *vehicle_base
-          spawn_position: [137.7194, 139.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
-          sensing:
-            <<: *base_sensing
-            perception:
-              <<: *base_perception
-            localization:
-              <<: *base_localize
-              debug_helper:
-                <<: *loc_debug_helper
-                show_animation: false
-          v2x:
-            <<: *base_v2x
-            communication_range: 35
-          behavior:
-            <<: *base_behavior
-            max_speed: 100 # maximum speed, km/h
-            tailgate_speed: 111
-            overtake_allowed: true
-            local_planner:
-              <<: *base_local_planner
-              debug_trajectory: true
-              debug: false
-        - <<: *vehicle_base
-          spawn_position: [147.7194, 143.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
-          sensing:
-            <<: *base_sensing
-            perception:
-              <<: *base_perception
-            localization:
-              <<: *base_localize
-              debug_helper:
-                <<: *loc_debug_helper
-                show_animation: false
-          v2x:
-            <<: *base_v2x
-            communication_range: 35
-          behavior:
-            <<: *base_behavior
-            max_speed: 100 # maximum speed, km/h
-            tailgate_speed: 111
-            overtake_allowed: true
-            local_planner:
-              <<: *base_local_planner
-              debug_trajectory: true
-              debug: false
-        - <<: *vehicle_base
-          spawn_position: [157.7194, 147.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
-          sensing:
-            <<: *base_sensing
-            perception:
-              <<: *base_perception
-            localization:
-              <<: *base_localize
-              debug_helper:
-                <<: *loc_debug_helper
-                show_animation: false
-          v2x:
-            <<: *base_v2x
-            communication_range: 35
-          behavior:
-            <<: *base_behavior
-            max_speed: 100 # maximum speed, km/h
-            tailgate_speed: 111
-            overtake_allowed: true
-            local_planner:
-              <<: *base_local_planner
-              debug_trajectory: true
-              debug: false
-        - <<: *vehicle_base
-          spawn_position: [167.7194, 151.51, 0.3, 0, 0, 0]
-          destination: [606.87, 145.39, 0]
+          spawn_position: [-49.52, -22.292, 0.3, 0, 180, 0]
+          destination: [-147.74, -22.89, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -518,12 +401,27 @@ scenario:
               debug: false
 
 
-
-
-
-        
-    
-
-
-
-
+        - <<: *vehicle_base
+          spawn_position: [-49.52, -15.292, 0.3, 0, 180, 0]
+          destination: [-147.74, -15.89, 0]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+            localization:
+              <<: *base_localize
+              debug_helper:
+                <<: *loc_debug_helper
+                show_animation: false
+          v2x:
+            <<: *base_v2x
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            max_speed: 100 # maximum speed, km/h
+            tailgate_speed: 111
+            overtake_allowed: true
+            local_planner:
+              <<: *base_local_planner
+              debug_trajectory: true
+              debug: false
