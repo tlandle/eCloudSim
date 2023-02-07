@@ -40,11 +40,15 @@ def run_scenario(opt, config_yaml):
 
         if opt.record:
             scenario_manager.client. \
-                start_recorder("ecloud_4lane_8car.log", True)
+                start_recorder("ecloud_edge_16car_scenario.log", True)
+
+
+        world_dt = scenario_params['world']['fixed_delta_seconds']
+        edge_dt = scenario_params['edge_base']['edge_dt']
 
         # create single cavs
         edge_list = \
-            scenario_manager.create_edge_manager(application=['edge'],)
+            scenario_manager.create_edge_manager(application=['edge'], edge_dt=edge_dt, world_dt=world_dt)
 
         # create background traffic in carla
         #traffic_manager, bg_veh_list = \
@@ -52,7 +56,7 @@ def run_scenario(opt, config_yaml):
 
         eval_manager = \
             EvaluationManager(scenario_manager.cav_world,
-                              script_name='ecloud_4lane_scenario',
+                              script_name='ecloud_edge_scenario',
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
@@ -63,30 +67,30 @@ def run_scenario(opt, config_yaml):
         eval_time = 0
         flag = True
         waypoint_buffer = []
+
+        world_time = 0
+
         while flag:
             eval_time += 1
-            # print("Stepping, ", eval_time*0.2)
-            pre_tick  = time.time()
+            #print("Stepping, ", eval_time*0.2)
 
             scenario_manager.tick_world()
 
-            waypoint_buffer.clear()
-            for edge in edge_list:
-              edge.update_information()
-              waypoint_buffer = edge.run_step()
+            world_time += world_dt
 
-            scenario_manager.add_waypoint_buffer_to_tick(waypoint_buffer)
+            if world_time > edge_dt:
+                world_time = 0
+
+                waypoint_buffer.clear()
+                for edge in edge_list:
+                    edge.update_information()
+                    waypoint_buffer = edge.run_step()
+
+                scenario_manager.add_waypoint_buffer_to_tick(waypoint_buffer)
 
             flag = scenario_manager.broadcast_tick()
             
-            post_tick = time.time()
-            logging.debug("Scenario Manager Tick Time: %s"%(post_tick - pre_tick))
-          
-            pre_tick  = time.time()
             transform = spectator_vehicle.get_transform()
-            post_tick  = time.time()
-            logging.debug("Camera Getting Transform Time: %s"%(post_tick - pre_tick))   
-            pre_tick = time.time()
             spectator.set_transform(
                 carla.Transform(
                     transform.location +
@@ -95,25 +99,18 @@ def run_scenario(opt, config_yaml):
                     carla.Rotation(
                         pitch=-
                         90)))
-            post_tick = time.time()
-            logging.debug("Camera Setting Transform Time: %s"%(post_tick - pre_tick))
 
-            # for edge in edge_list:
-            #   pre_tick = time.time()
-            #   edge.update_information()
-            #   post_tick = time.time()
-            #   logging.debug("Edge update Information Time: %s"%(post_tick - pre_tick))
-            #   pre_tick = time.time()
-
-            #   waypoint_buffer = edge.run_step()
-              
-            #   post_tick = time.time()
-            #   logging.debug("Edge Total Step Time: %s"%(post_tick - pre_tick))
 
     finally:
+
+        scenario_manager.end()
+
         eval_manager.evaluate()
 
         if opt.record:
-            scenario_manager.client.stop_recorder()
+            scenario_manager.client.stop_recorder()       
 
         scenario_manager.close()
+
+        for edge in edge_list:
+            edge.destroy()
