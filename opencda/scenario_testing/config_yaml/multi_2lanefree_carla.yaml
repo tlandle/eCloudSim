@@ -5,6 +5,8 @@ description: |-
            testing in high speed in the customized 2lanefree simple version.
 
 distributed: true
+define: &perception_is_active true
+perception_active: *perception_is_active
 
 # define carla simulation setting
 world:
@@ -28,7 +30,7 @@ world:
 vehicle_base: &vehicle_base
   sensing: &base_sensing
     perception: &base_perception
-      activate: true # when not activated, objects positions will be retrieved from server directly
+      activate: *perception_is_active # when not activated, objects positions will be retrieved from server directly
       camera_visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
       camera_num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
       lidar_visualize: false # whether to visualize lidar points using open3d
@@ -147,8 +149,8 @@ scenario:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          camera_visualize: 0
-          lidar_visualize: false
+          camera_visualize: 1
+          lidar_visualize: true
         localization:
           <<: *base_localize 
 
