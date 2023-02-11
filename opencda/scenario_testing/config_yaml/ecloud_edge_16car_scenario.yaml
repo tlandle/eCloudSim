@@ -209,7 +209,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           spawn_position: [-69.60, -12.29, 0.3, 0, 180, 0]
-          destination: [-147.72, -12.29, 0]
+          destination: [-147.72, -19.29, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -233,7 +233,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           spawn_position: [-59.52, -22.79, 0.3, 0, 180, 0]
-          destination: [-147.759079, -22.39, 0]
+          destination: [-147.759079, -15.39, 0]
           sensing:
             <<: *base_sensing
             perception:
@@ -281,7 +281,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           spawn_position: [-19.52, -15.79, 0.3, 0, 180, 0]
-          destination: [-147.73, -15.79, 0]
+          destination: [-147.73, -22.79, 0]
           sensing:
             <<: *base_sensing
             perception:
