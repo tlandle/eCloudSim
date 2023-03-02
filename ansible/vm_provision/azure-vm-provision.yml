@@ -49,19 +49,24 @@
             name: docker
             state: started
             enabled: yes
+
         - name: Install nvidia-docker2
           shell: |
-            distribution=$(. /etc/os-release;echo $ID$VERSION_ID) \
-            && curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
-            && curl -s -L https://nvidia.github.io/libnvidia-container/experimental/$distribution/libnvidia-container.list | \
-            sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-            sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
+            # TODO need to figure out how to get this command to prompt with "-y" because vm is getting stuck
+            # distribution=$(. /etc/os-release;echo $ID$VERSION_ID) \
+            # && curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+            # && curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+            # sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+            # sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+      
             sudo apt-get update
-
             sudo apt-get install -y nvidia-docker2
 
-            sudo systemctl restart docker
+        - name: Restart Docker
+          service:
+            name: docker
+            state: restarted
+          tags: nvidia-docker
 
         - name: Ensure group "docker" exists
           ansible.builtin.group:
@@ -73,12 +78,11 @@
             group: docker
       become: True
 
-
     - name: Clone OpenCDA (8_cars branch)
       ansible.builtin.git:
         repo: https://github.com/tlandle/OpenCDA.git
         dest: /home/azureuser/OpenCDA
-        version: 8_cars
+        version: ecloud
         force: True
       become: True
 
@@ -89,6 +93,26 @@
           path: /home/azureuser/OpenCDA
         source: build
       become: True
+
+    # sudo nvidia-persistenced --user azureuser
+    # nvidia-smi
+    # apt search nvidia-driver
+    # export CUDA_VISIBLE_DEVICES=0,1
+
+    - name: Nvidia Driver Setup
+      block:
+        - name: Install Nvidia Driver
+          apt:
+            name:
+              - nvidia-cuda-toolkit
+              - nvidia-driver-515
+              - nvidia-dkms-515
+            state: present
+
+        - name: Reboot the VM
+          reboot:
+      become: True
+
 
 
 
