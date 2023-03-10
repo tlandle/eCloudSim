@@ -4,7 +4,14 @@ import pickle
 import pandas as pd
 import numpy as np
 
-cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats'
+graph_perception = False
+
+if graph_perception:
+    cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats'
+    chart_title = "with Perception"
+else:
+    cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_no_perception'
+    chart_title = "without Perception"
 
 def get_stats_df(file_path=""):
     # Read simulation stats file
@@ -50,7 +57,7 @@ if __name__ == "__main__":
 
     labels = {"xlabel": 'Number of Cars', 
     'ylabel':'Total Runtime (s)',
-    'title': 'Total Runtime per Number of Cars (4lane_edge sim)'}
+    'title': f'Total Runtime per Number of Cars ({chart_title})'}
     save_file_path = f'./{cumulative_stats_folder_path}/total_sim_time_boxplot.png'
     create_box_plot(data=sim_stats_df, x = 'num_cars', y = 'time_s',labels=labels, file_path=save_file_path)
     save_file_path = f'./{cumulative_stats_folder_path}/total_sim_time_scatterplot.png'
@@ -66,7 +73,7 @@ if __name__ == "__main__":
 
     labels = {"xlabel": 'Number of Cars', 
     'ylabel':'Simulation Step Time (ms)',
-    'title': 'Simulation Step Time per Number of Cars (4lane_edge sim)'}
+    'title': f'Simulation Step Time per Number of Cars ({chart_title})'}
     save_file_path = f'./{cumulative_stats_folder_path}/step_time_boxplot.png'
     create_box_plot(data=sim_stats_df, x = 'num_cars', y = 'step_time_ms',labels=labels, file_path=save_file_path)
     save_file_path = f'./{cumulative_stats_folder_path}/step_time_scatterplot.png'
