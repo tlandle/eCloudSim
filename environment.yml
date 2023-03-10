@@ -20,3 +20,4 @@ dependencies:
     - seaborn
     - lxml
     - coloredlogs
+    - grpc_tools
