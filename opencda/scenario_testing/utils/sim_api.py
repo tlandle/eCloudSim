@@ -371,7 +371,6 @@ class ScenarioManager:
 
         self.debug_helper = EdgeDebugHelper(0)
         cav_world.update_scenario_manager(self)
-        self.debug_helper.update_sim_start_timestamp(time.time())
 
         random.seed(time.time())
 
@@ -449,6 +448,7 @@ class ScenarioManager:
                 #should we wait for a threading event instead?
 
             print("vehicles registered, running simulation...")
+            self.debug_helper.update_sim_start_timestamp(time.time())
 
             ScenarioManager.scenario = json.dumps(scenario_params) #self.config_file
             ScenarioManager.carla_version = self.carla_version
