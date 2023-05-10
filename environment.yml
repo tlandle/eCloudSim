@@ -21,3 +21,5 @@ dependencies:
     - lxml
     - coloredlogs
     - grpc_tools
+    - jinja2
+    
