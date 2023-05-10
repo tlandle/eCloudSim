@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Scenario testing: two vehicle driving in the customized 4 lane highway map.
+Scenario testing: two vehicle driving in the customized 2 lane highway map.
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
@@ -47,23 +47,18 @@ def run_scenario(opt, config_yaml):
         # create evaluation manager
         eval_manager = \
             EvaluationManager(scenario_manager.cav_world,
-                              script_name='ecloud_4lane_scenario',
+                              script_name='ecloud_4lane_dist_2_car',
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
+        
         # run steps
-       
         flag = True
         while flag:
-            scenario_manager.tick()
+            scenario_manager.tick_world()
 
-            # gRPC begin
-            # call sim_api to update tick
-            # loop here --> sim_api should not return True until tick completed
-
-            #gRPC end
-
-            # TODO eCloud - figure out another way to have the vehicle follow a CAV. Perhaps still access the bp since it's read only?
+            flag = scenario_manager.broadcast_tick()
+            
             transform = single_cav_list[0].vehicle.get_transform()
             spectator.set_transform(carla.Transform(
                 transform.location +
@@ -71,29 +66,17 @@ def run_scenario(opt, config_yaml):
                     z=80),
                 carla.Rotation(
                     pitch=-
-                    90)))
-
-            # for _, single_cav in enumerate(single_cav_list):
-            #     result = single_cav.do_tick()
-            #     if result == 1: # Need to figure out how to use a const
-            #         print("Unexpected termination: Sending END to all vehicles and ending.")
-            #         flag = False
-            #         break
-            #     elif result == 2:
-            #         print("Simulation ended: Sending END to all vehicles and ending.")
-            #         flag = False
-            #         break
-
-        # TODO gRPC    
-        #for _, single_cav in enumerate(single_cav_list):
-        #    single_cav.end_step()
-
+                    90))) 
+        
+        
     finally:
-        print("Evaluating simulation results...")
+
+        scenario_manager.end()
+
         eval_manager.evaluate()
 
         if opt.record:
-            scenario_manager.client.stop_recorder()
+            scenario_manager.client.stop_recorder()       
 
         scenario_manager.close()
 
