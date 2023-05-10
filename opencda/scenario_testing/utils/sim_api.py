@@ -364,7 +364,7 @@ class ScenarioManager:
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.config_file = config_file
-        self.perception = scenario_params['perception_active']
+        self.perception = scenario_params['perception_active'] if 'perception_active' in scenario_params else False
         self.run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else False
 
         simulation_config = scenario_params['world']
