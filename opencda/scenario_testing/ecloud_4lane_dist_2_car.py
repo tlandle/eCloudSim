@@ -32,13 +32,16 @@ def run_scenario(opt, config_yaml):
                                                    cav_world=cav_world,
                                                    config_file=config_yaml)
 
+        print("scenario manager created...", flush=True)                                           
+
         if opt.record:
             scenario_manager.client. \
                 start_recorder("ecloud_4lane.log", True)
 
-        # create single cavs
         single_cav_list = \
-            scenario_manager.create_vehicle_manager(application=['single'])
+            scenario_manager.create_distributed_vehicle_manager(application=['single'],
+                                                    map_helper=map_api.
+                                                    spawn_helper_2lanefree)
 
         # create background traffic in carla
         traffic_manager, bg_veh_list = \
@@ -51,36 +54,45 @@ def run_scenario(opt, config_yaml):
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
-        
         # run steps
         flag = True
         while flag:
             scenario_manager.tick_world()
 
             flag = scenario_manager.broadcast_tick()
-            
+
             transform = single_cav_list[0].vehicle.get_transform()
             spectator.set_transform(carla.Transform(
                 transform.location +
                 carla.Location(
-                    z=80),
+                    z=120),
                 carla.Rotation(
                     pitch=-
-                    90))) 
-        
-        
-    finally:
+                    90)))
 
+            for _, single_cav in enumerate(single_cav_list):
+                single_cav.update_info()
+
+    finally:
+        
         scenario_manager.end()
 
         eval_manager.evaluate()
 
         if opt.record:
-            scenario_manager.client.stop_recorder()       
+            scenario_manager.client.stop_recorder()
 
         scenario_manager.close()
 
         for v in single_cav_list:
-            v.destroy()
+            print("destroying single CAV")
+            try:
+                v.destroy()
+            except:
+                print("failed to destroy single CAV")    
         for v in bg_veh_list:
-            v.destroy()
+            print("destroying background vehicle")
+            try:
+                v.destroy()
+            except:
+                print("failed to destroy background vehicle")  
