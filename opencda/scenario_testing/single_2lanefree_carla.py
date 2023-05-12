@@ -73,8 +73,6 @@ def run_scenario(opt, config_yaml):
             for i, single_cav in enumerate(single_cav_list):
                 single_cav.update_info()
                 control = single_cav.run_step()
-                single_cav.update_info()
-                control = single_cav.run_step()
                 single_cav.vehicle.apply_control(control)
 
     finally:
