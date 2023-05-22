@@ -1,35 +1,66 @@
+import carla
 import random
 import os
+from agents.navigation.global_route_planner import GlobalRoutePlanner
 from jinja2 import FileSystemLoader, Environment
+from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
 # Add a seed value for random number generation
 random.seed(42)
 
-def generate_spawn_positions(num_cars, road_left, road_right, spawn=True, x_range=(-20, -200), destination_x_range=(120, 200)):
+def filter_spawn_points(spawn_points, x_range=(40, 200), y_range=(130, 160)):
+    valid_points = []
+    for point in spawn_points:
+        if x_range[0] <= point.location.x <= x_range[1] and y_range[0] <= point.location.y <= y_range[1]:
+            valid_points.append(point)
+    return valid_points
+
+
+def filter_spawn_points_for_destinations(spawn_points, start_x, y_range=(137, 154)):
+    valid_points = []
+    for point in spawn_points:
+        if point.location.x > start_x and y_range[0] <= point.location.y <= y_range[1]:
+            valid_points.append(point)
+    return valid_points
+
+
+def generate_spawn_positions(num_cars, valid_spawn_points, spawn=True, dest_proximity=10):
+    if len(valid_spawn_points) < num_cars:
+        raise ValueError("Not enough unique locations for all vehicles.")
+    
     positions = []
+    chosen_points = random.sample(valid_spawn_points, num_cars)  # choose unique random spawn points
 
-    for _ in range(num_cars):
-        x = random.uniform(*x_range)
-        y = random.uniform(road_left, road_right)
+    first_dest = None
 
-        while any(is_too_close(x, y, pos[0], pos[1], min_distance=5) for pos in positions) or not is_within_road(x, y, road_left, road_right):
-            x = random.uniform(*x_range)
-            y = random.uniform(road_left, road_right)
-
+    for point in chosen_points:
+        x, y = point.location.x, point.location.y
         if spawn:
             positions.append([x, y, 0.3, 0, 0, 0])
         else:
-            # Change the x coordinate for the destination position
-            x += random.uniform(*destination_x_range)
+            # Generate valid destinations
+            valid_destinations = filter_spawn_points_for_destinations(spawn_points, x, y_range=(137, 154))
+
+            if not valid_destinations:
+                raise ValueError(f"No valid destinations ahead of spawn point {x}, {y}")
+
+            # if it's the first destination, choose any
+            if first_dest is None:
+                first_dest = random.choice(valid_destinations)
+                x, y = first_dest.location.x, first_dest.location.y
+            else:
+                # for subsequent vehicles, their destination is chosen to be within `dest_proximity` of the first destination
+                valid_destinations = [point for point in valid_destinations if ((point.location.x - first_dest.location.x) ** 2 + (point.location.y - first_dest.location.y) ** 2) ** 0.5 < dest_proximity]
+                if not valid_destinations:
+                    raise ValueError(f"No valid destinations close to the first destination {first_dest.location.x}, {first_dest.location.y}")
+
+                destination_point = random.choice(valid_destinations)
+                x, y = destination_point.location.x, destination_point.location.y
+
             positions.append([x, y, 0.3, 0, 0, 0])
 
     return positions
 
-def is_too_close(x1, y1, x2, y2, min_distance=1):
-    return ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5 < min_distance
-
-def is_within_road(x, y, road_left, road_right):
-    return road_left <= y <= road_right
 
 def choose_template():
     template_dir = os.path.abspath('./templates')
@@ -39,11 +70,24 @@ def choose_template():
     choice = int(input("Choose a template by number: "))
     return templates[choice - 1]
 
+cloud_config = load_yaml("cloud_config.yaml")
+CARLA_IP = cloud_config["carla_server_public_ip"]    
+
+client = carla.Client(CARLA_IP, 2000)
+client.set_timeout(10)
+world = client.load_world('Town06')
+amap = world.get_map()
+sampling_resolution = 2
+dao = GlobalRoutePlanner(amap, sampling_resolution)
+
+spawn_points = world.get_map().get_spawn_points()
+filtered_spawn_points = filter_spawn_points(spawn_points, x_range=(40, 200), y_range=(137, 154))
+for point in filtered_spawn_points:
+    print(point)
+
 num_cars = int(input("Enter the number of vehicles to generate: "))
-road_left = 139
-road_right = 152
-spawn_positions = generate_spawn_positions(num_cars, road_left, road_right, x_range=(30, 200))
-destinations = generate_spawn_positions(num_cars, road_left, road_right, spawn=False, x_range=(30, 200), destination_x_range=(200, 300))
+spawn_positions = generate_spawn_positions(num_cars, filtered_spawn_points, spawn=True)
+destinations = generate_spawn_positions(num_cars, spawn_points, spawn=False)  # Note that we're passing all spawn_points here
 
 # Generate the vehicles as a list of dictionaries
 vehicles = []
