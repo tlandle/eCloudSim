@@ -8,59 +8,64 @@ from opencda.scenario_testing.utils.yaml_utils import load_yaml
 # Add a seed value for random number generation
 random.seed(42)
 
-def filter_spawn_points(spawn_points, x_range=(40, 200), y_range=(130, 160)):
-    valid_points = []
-    for point in spawn_points:
-        if x_range[0] <= point.location.x <= x_range[1] and y_range[0] <= point.location.y <= y_range[1]:
-            valid_points.append(point)
-    return valid_points
-
-
-def filter_spawn_points_for_destinations(spawn_points, start_x, y_range=(137, 154)):
-    valid_points = []
-    for point in spawn_points:
-        if point.location.x > start_x and y_range[0] <= point.location.y <= y_range[1]:
-            valid_points.append(point)
-    return valid_points
-
-
-def generate_spawn_positions(num_cars, valid_spawn_points, spawn=True, dest_proximity=10):
-    if len(valid_spawn_points) < num_cars:
-        raise ValueError("Not enough unique locations for all vehicles.")
-    
+def generate_spawn_positions(num_cars, x_range=(100, 600), y_range=(234, 255), z_offset=0.3, spawn=True, dest_proximity=10):
+    # Generate random points within the range provided
     positions = []
-    chosen_points = random.sample(valid_spawn_points, num_cars)  # choose unique random spawn points
+    for _ in range(num_cars):
+        while True:
+            x = random.uniform(x_range[0], x_range[1])
+            y = random.uniform(y_range[0], y_range[1])
+            location = carla.Location(x=x, y=y)
 
-    first_dest = None
+            # Get the nearest waypoint to the location
+            waypoint = current_map.get_waypoint(location)
+            waypoint_loc = waypoint.transform.location
+            new_position = [waypoint_loc.x, waypoint_loc.y, waypoint_loc.z + z_offset, 0, 0, 0]
 
-    for point in chosen_points:
-        x, y = point.location.x, point.location.y
+            # Check if this position is already in use
+            if new_position not in positions:
+                break  # This position is not in use, so we can break the loop and use it
+
         if spawn:
-            positions.append([x, y, 0.3, 0, 0, 0])
+            print("Waypoint_loc: ", waypoint_loc.x, waypoint_loc.y)
+            positions.append(new_position)
         else:
             # Generate valid destinations
-            valid_destinations = filter_spawn_points_for_destinations(spawn_points, x, y_range=(137, 154))
+            valid_destinations = filter_spawn_points_for_destinations(num_cars, x, y_range=(137, 154))
 
             if not valid_destinations:
                 raise ValueError(f"No valid destinations ahead of spawn point {x}, {y}")
 
-            # if it's the first destination, choose any
-            if first_dest is None:
+            # If it's the first destination, choose any
+            if not positions:
                 first_dest = random.choice(valid_destinations)
-                x, y = first_dest.location.x, first_dest.location.y
+                x, y = first_dest[0], first_dest[1]
             else:
-                # for subsequent vehicles, their destination is chosen to be within `dest_proximity` of the first destination
-                valid_destinations = [point for point in valid_destinations if ((point.location.x - first_dest.location.x) ** 2 + (point.location.y - first_dest.location.y) ** 2) ** 0.5 < dest_proximity]
+                # For subsequent vehicles, their destination is chosen to be within `dest_proximity` of the first destination
+                valid_destinations = [point for point in valid_destinations if ((point[0] - positions[0][0]) ** 2 + (point[1] - positions[0][1]) ** 2) ** 0.5 < dest_proximity]
                 if not valid_destinations:
-                    raise ValueError(f"No valid destinations close to the first destination {first_dest.location.x}, {first_dest.location.y}")
+                    raise ValueError(f"No valid destinations close to the first destination {positions[0][0]}, {positions[0][1]}")
 
                 destination_point = random.choice(valid_destinations)
-                x, y = destination_point.location.x, destination_point.location.y
+                x, y = destination_point[0], destination_point[1]
 
-            positions.append([x, y, 0.3, 0, 0, 0])
+            positions.append([x, y, waypoint.transform.location.z + z_offset, 0, 0, 0])
 
     return positions
 
+
+def filter_spawn_points_for_destinations(num_cars, start_x, y_range=(137, 154)):
+    valid_points = []
+    for _ in range(num_cars):
+        y = random.uniform(y_range[0], y_range[1])
+        location = carla.Location(x=start_x, y=y)
+
+        # Get the nearest waypoint to the location
+        waypoint = current_map.get_waypoint(location)
+
+        waypoint_loc = waypoint.transform.location
+        valid_points.append([waypoint_loc.x, waypoint_loc.y, waypoint_loc.z, 0, 0, 0])
+    return valid_points
 
 def choose_template():
     template_dir = os.path.abspath('./templates')
@@ -76,27 +81,20 @@ CARLA_IP = cloud_config["carla_server_public_ip"]
 client = carla.Client(CARLA_IP, 2000)
 client.set_timeout(10)
 world = client.load_world('Town06')
-amap = world.get_map()
-sampling_resolution = 2
-dao = GlobalRoutePlanner(amap, sampling_resolution)
-
-spawn_points = world.get_map().get_spawn_points()
-filtered_spawn_points = filter_spawn_points(spawn_points, x_range=(40, 200), y_range=(137, 154))
-for point in filtered_spawn_points:
-    print(point)
+current_map = world.get_map()
 
 num_cars = int(input("Enter the number of vehicles to generate: "))
-spawn_positions = generate_spawn_positions(num_cars, filtered_spawn_points, spawn=True)
-destinations = generate_spawn_positions(num_cars, spawn_points, spawn=False)  # Note that we're passing all spawn_points here
+spawn_positions = generate_spawn_positions(num_cars, x_range=(40, 300), y_range=(130, 155), spawn=True)
+# destinations = generate_spawn_positions(num_cars, x_range=(450, 800), y_range=(-255, -234), spawn=False)
 
 # Generate the vehicles as a list of dictionaries
 vehicles = []
 for i in range(num_cars):
     vehicles.append({
         "spawn_position": spawn_positions[i],
-        "destination": destinations[i]
+        "destination": [606.87, 145.39, 0],
+        # "destination": destinations[i]
     })
-    
 # Get the absolute path to the templates directory
 template_dir = os.path.abspath('./templates')
 
