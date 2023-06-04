@@ -144,6 +144,16 @@ class VehicleManager(object):
             else:
                 assert(False, "no known vehicle indexing format found")
             if 'spawn_special' not in cav_config:
+                init_transform = carla.Transform(
+                    carla.Location(
+                        x=267.7194,
+                        y=151.51,
+                        z=0.3),
+                    carla.Rotation(
+                        pitch=0,
+                        yaw=0,
+                        roll=0))
+
                 spawn_transform = carla.Transform(
                     carla.Location(
                         x=cav_config['spawn_position'][0],
@@ -161,7 +171,9 @@ class VehicleManager(object):
             self.cav_destination['y'] = cav_config['destination'][1]
 
             cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-            self.vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
+            self.vehicle = self.world.spawn_actor(cav_vehicle_bp, init_transform)
+            # teleport vehicle to desired spawn point
+            self.vehicle.set_transform(spawn_transform)
 
         else:
             assert( False, "need to provide some known config" )

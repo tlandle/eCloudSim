@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Scenario testing: Single vehicle dring in the customized 2 lane highway map.
+Scenario testing: two vehicle driving in the customized 2 lane highway map.
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
@@ -8,6 +8,7 @@ Scenario testing: Single vehicle dring in the customized 2 lane highway map.
 import os
 
 import carla
+from opencda.core.common.vehicle_manager_proxy import VehicleManagerProxy
 
 import opencda.scenario_testing.utils.sim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
@@ -22,27 +23,23 @@ def run_scenario(opt, config_yaml):
     try:
         scenario_params = load_yaml(config_yaml)
 
-        current_path = os.path.dirname(os.path.realpath(__file__))
-        xodr_path = os.path.join(
-            current_path,
-            '../assets/2lane_freeway_simplified/2lane_freeway_simplified.xodr')
-
-        # create CAV world
         cav_world = CavWorld(opt.apply_ml)
         # create scenario manager
         scenario_manager = sim_api.ScenarioManager(scenario_params,
                                                    opt.apply_ml,
                                                    opt.version,
-                                                   xodr_path=xodr_path,
+                                                   town='Town06',
                                                    cav_world=cav_world,
                                                    config_file=config_yaml)
 
+        print("scenario manager created...", flush=True)                                           
+
         if opt.record:
             scenario_manager.client. \
-                start_recorder("single_2lanefree_carla.log", True)
+                start_recorder("ecloud_4lane.log", True)
 
         single_cav_list = \
-            scenario_manager.create_vehicle_manager(application=['single'],
+            scenario_manager.create_distributed_vehicle_manager(application=['single'],
                                                     map_helper=map_api.
                                                     spawn_helper_2lanefree)
 
@@ -53,29 +50,33 @@ def run_scenario(opt, config_yaml):
         # create evaluation manager
         eval_manager = \
             EvaluationManager(scenario_manager.cav_world,
-                              script_name='single_2lanefree_carla',
+                              script_name='ecloud_4lane_dist_2_car',
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
         # run steps
-       
-        while True:
-            scenario_manager.tick()
+        flag = True
+        while flag:
+            scenario_manager.tick_world()
+
+            flag = scenario_manager.broadcast_tick()
+
             transform = single_cav_list[0].vehicle.get_transform()
             spectator.set_transform(carla.Transform(
                 transform.location +
                 carla.Location(
-                    z=70),
+                    z=120),
                 carla.Rotation(
                     pitch=-
                     90)))
 
-            for i, single_cav in enumerate(single_cav_list):
+            for _, single_cav in enumerate(single_cav_list):
                 single_cav.update_info()
-                control = single_cav.run_step()
-                single_cav.vehicle.apply_control(control)
 
     finally:
+        
+        scenario_manager.end()
+
         eval_manager.evaluate()
 
         if opt.record:
@@ -84,6 +85,14 @@ def run_scenario(opt, config_yaml):
         scenario_manager.close()
 
         for v in single_cav_list:
-            v.destroy()
+            print("destroying single CAV")
+            try:
+                v.destroy()
+            except:
+                print("failed to destroy single CAV")    
         for v in bg_veh_list:
-            v.destroy()
+            print("destroying background vehicle")
+            try:
+                v.destroy()
+            except:
+                print("failed to destroy background vehicle")  

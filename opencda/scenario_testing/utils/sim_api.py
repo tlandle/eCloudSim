@@ -364,14 +364,13 @@ class ScenarioManager:
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.config_file = config_file
-        self.perception = scenario_params['perception_active']
+        self.perception = scenario_params['perception_active'] if 'perception_active' in scenario_params else False
         self.run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else False
 
         simulation_config = scenario_params['world']
 
         self.debug_helper = EdgeDebugHelper(0)
         cav_world.update_scenario_manager(self)
-        self.debug_helper.update_sim_start_timestamp(time.time())
 
         random.seed(time.time())
 
@@ -449,6 +448,7 @@ class ScenarioManager:
                 #should we wait for a threading event instead?
 
             print("vehicles registered, running simulation...")
+            self.debug_helper.update_sim_start_timestamp(time.time())
 
             ScenarioManager.scenario = json.dumps(scenario_params) #self.config_file
             ScenarioManager.carla_version = self.carla_version
