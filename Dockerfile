@@ -28,25 +28,7 @@ RUN python3.7 -m pip install grpcio-tools
 
 RUN python3.7 -m pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116
 
-# RUN python3.7 -m pip install -qr https://raw.githubusercontent.com/ultralytics/yolov5/master/requirements.txt
-
-# replaces requirements.txt download
-RUN python3.7 -m pip install gitpython>=3.1.30 \
-                matplotlib>=3.3 \
-                numpy>=1.18.5 \
-                opencv-python>=4.1.1 \
-                Pillow>=7.1.2 \
-                psutil \
-                PyYAML>=5.3.1 \
-                requests>=2.23.0 \
-                scipy>=1.4.1 \
-                thop>=0.1.1 \
-                torch>=1.7.0 \
-                torchvision>=0.8.1 \
-                tqdm>=4.64.0 \
-                pandas>=1.1.4 \
-                seaborn>=0.11.0 \
-                setuptools>=65.5.1
+RUN python3.7 -m pip install -qr https://raw.githubusercontent.com/ultralytics/yolov5/master/requirements.txt
 
 RUN apt-get install -y libglfw3-dev
 
