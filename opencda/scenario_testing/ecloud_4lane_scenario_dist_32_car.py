@@ -1,44 +1,69 @@
 # -*- coding: utf-8 -*-
 """
-Scenario testing: two vehicle driving in the customized 2 lane highway map.
+eCloudSim
+---------
+Scenario testing: *TEMPLATE* 
+Use for OpenCDA vs eCloudSim DIST-ONLY comparisons
+
+*NOT for Edge*
+
+Town 06 Scenarios *ONLY*
+
+DO NOT USE for 2-Lane Free
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
+# Author: Jordan Rapp, Dean Blank, Tyler Landle <Georgia Tech>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+# Core
 import os
 
+# 3rd Party
 import carla
-from opencda.core.common.vehicle_manager_proxy import VehicleManagerProxy
 
+# OpenCDA Utils
 import opencda.scenario_testing.utils.sim_api as sim_api
-import opencda.scenario_testing.utils.customized_map_api as map_api
-
+from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.evaluations.evaluate_manager import \
     EvaluationManager
-from opencda.scenario_testing.utils.yaml_utils import load_yaml
+# ONLY *required* for 2 Lane highway scenarios
+# import opencda.scenario_testing.utils.customized_map_api as map_api
 
+# Consts
+LOG_NAME = "ecloud_4lane.log" # data drive from file name?
+SCENARIO_NAME = "ecloud_4lane_scenario" # data drive from file name?
+TOWN = 'Town06'
 
 def run_scenario(opt, config_yaml):
     try:
         scenario_params = load_yaml(config_yaml)
 
+        # sanity checks...
+        assert('edge_list' not in scenario_params['scenario']) # do NOT use this template for edge scenarios
+        assert('sync_mode' in scenario_params['world'] and scenario_params['world']['sync_mode'] == True)
+        assert(scenario_params['world']['fixed_delta_seconds'] == 0.03 or scenario_params['world']['fixed_delta_seconds'] == 0.05)
+        
         cav_world = CavWorld(opt.apply_ml)
         # create scenario manager
         scenario_manager = sim_api.ScenarioManager(scenario_params,
                                                    opt.apply_ml,
                                                    opt.version,
-                                                   town='Town06',
+                                                   town=TOWN,
                                                    cav_world=cav_world,
                                                    config_file=config_yaml)
 
         if opt.record:
             scenario_manager.client. \
-                start_recorder("ecloud_4lane.log", True)
+                start_recorder(LOG_NAME, True)
 
         # create single cavs
-        single_cav_list = \
-            scenario_manager.create_vehicle_manager(application=['single'])
+        run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else False
+        if run_distributed:
+            single_cav_list = \
+                scenario_manager.create_distributed_vehicle_manager(application=['single']) 
+        else:    
+            single_cav_list = \
+                scenario_manager.create_vehicle_manager(application=['single'])
 
         # create background traffic in carla
         traffic_manager, bg_veh_list = \
@@ -47,7 +72,7 @@ def run_scenario(opt, config_yaml):
         # create evaluation manager
         eval_manager = \
             EvaluationManager(scenario_manager.cav_world,
-                              script_name='ecloud_4lane_scenario',
+                              script_name=SCENARIO_NAME,
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
@@ -55,15 +80,20 @@ def run_scenario(opt, config_yaml):
        
         flag = True
         while flag:
-            scenario_manager.tick()
+            if run_distributed:
+                scenario_manager.tick_world()
+                flag = scenario_manager.broadcast_tick()
 
-            # gRPC begin
-            # call sim_api to update tick
-            # loop here --> sim_api should not return True until tick completed
+                # update the Carla data on VehicleManagerProxies
+                # REQUIRED for Evaluation which runs on Proxies' local data
+                for _, single_cav in enumerate(single_cav_list):
+                    single_cav.update_info()
+                    
+            else:    
+                # non-dist will break automatically; don't need to set flag
+                scenario_manager.tick()
 
-            #gRPC end
-
-            # TODO eCloud - figure out another way to have the vehicle follow a CAV. Perhaps still access the bp since it's read only?
+            # same for dist / non-dist - only required for specate
             transform = single_cav_list[0].vehicle.get_transform()
             spectator.set_transform(carla.Transform(
                 transform.location +
@@ -71,25 +101,12 @@ def run_scenario(opt, config_yaml):
                     z=80),
                 carla.Rotation(
                     pitch=-
-                    90)))
-
-            # for _, single_cav in enumerate(single_cav_list):
-            #     result = single_cav.do_tick()
-            #     if result == 1: # Need to figure out how to use a const
-            #         print("Unexpected termination: Sending END to all vehicles and ending.")
-            #         flag = False
-            #         break
-            #     elif result == 2:
-            #         print("Simulation ended: Sending END to all vehicles and ending.")
-            #         flag = False
-            #         break
-
-        # TODO gRPC    
-        #for _, single_cav in enumerate(single_cav_list):
-        #    single_cav.end_step()
+                    90)))                
 
     finally:
-        print("Evaluating simulation results...")
+        if run_distributed:
+            scenario_manager.end() # only dist requires explicit scenario end call
+
         eval_manager.evaluate()
 
         if opt.record:
@@ -98,6 +115,14 @@ def run_scenario(opt, config_yaml):
         scenario_manager.close()
 
         for v in single_cav_list:
-            v.destroy()
+            print("destroying single CAV")
+            try:
+                v.destroy()
+            except:
+                print("failed to destroy single CAV")    
         for v in bg_veh_list:
-            v.destroy()
+            print("destroying background vehicle")
+            try:
+                v.destroy()
+            except:
+                print("failed to destroy background vehicle")  
