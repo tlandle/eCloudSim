@@ -1,5 +1,7 @@
 ---
-- hosts: vehicles
+- hosts:
+    - vehicles
+    - ndm
   gather_facts: false
 
   vars_files:
@@ -78,7 +80,7 @@
             group: docker
       become: True
 
-    - name: Clone OpenCDA (8_cars branch)
+    - name: Clone OpenCDA repo
       ansible.builtin.git:
         repo: https://github.com/tlandle/OpenCDA.git
         dest: /home/azureuser/OpenCDA
@@ -105,8 +107,10 @@
           apt:
             name:
               - nvidia-cuda-toolkit
-              - nvidia-driver-515
-              - nvidia-dkms-515
+              # - nvidia-driver-515
+              # - nvidia-dkms-515
+              - nvidia-driver-460
+              - nvidia-dkms-460
             state: present
 
         - name: Reboot the VM

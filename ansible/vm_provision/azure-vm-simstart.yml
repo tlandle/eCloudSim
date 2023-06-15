@@ -15,19 +15,28 @@
         when: perception_active
       - name: Create Container without Perception
         shell: | 
-          nvidia-docker run --rm --gpus all -d --network=host -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim
+          nvidia-docker run --gpus all -d --network=host -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim
         with_sequence: count={{ containers_per_vm }}
         when: not perception_active
       become: True
 
-    # - name: Create container
-    #   docker_container:
-    #     name: "{{ default_container_name }}{{ item }}"
-    #     image: "{{ default_container_image }}"
-    #     state: started
-    #     network_mode: host
-    #     detach: True
-    #   with_sequence: count={{ containers_per_vm }}
-    #   become: True
+- hosts: ndm
+  gather_facts: false
 
+  vars_files:
+    - ../vars/vars.yml
 
+  tasks:
+    - name: Create nvidia-docker Container
+      block:
+      - name: Create Container with Perception
+        shell: | 
+          nvidia-docker run --gpus all -d --network=host -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim --apply_ml
+        with_sequence: count={{ containers_per_ndm_vm }}
+        when: perception_active
+      - name: Create Container without Perception
+        shell: | 
+          nvidia-docker run --gpus all -d --network=host -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim
+        with_sequence: count={{ containers_per_ndm_vm }}
+        when: not perception_active
+      become: True

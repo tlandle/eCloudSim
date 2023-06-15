@@ -5,4 +5,5 @@ auth_source: auto
 plain_host_names: yes
 conditional_groups:
   vehicles: "'vehicle-clients' in name"
+  ndm: "'carla-ndm' in name"
 ansible_python_interpreter: /usr/bin/python3

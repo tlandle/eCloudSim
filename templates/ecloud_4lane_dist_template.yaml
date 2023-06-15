@@ -1,15 +1,16 @@
 description: |-
-  Copyright 2021 <UCLA Mobility Lab>
-  Author: Runsheng Xu <rxx3386@ucla.edu>
-  Content: This is the scenario testing configuration file for platooning joining and cooperative merge
-           at the Town06 using  CARLA only.
-           
-           
-distributed: true
+  Copyright 2023 <Georgia Tech>
+  Author: Jordan Rapp <jrapp7@gatech.edu>
+  Content: Template file - includes 16 known-good spawn points
+           for Town 06 NON-Edge Scenarios ONLY.
+
+           Use for eCloudSim distributed vs OpenCDA sequential comparisons 
+
+# eCloudSim
+distributed: true # set to false or comment out to run "standard" OpenCDA sequential sims
 define: &perception_is_active false
 perception_active: *perception_is_active
 
-           
 # define carla simulation setting
 world:
   sync_mode: true
@@ -118,7 +119,6 @@ carla_traffic_manager:
   ignore_lights_percentage: 0 # whether set the traffic ignore traffic lights
   vehicle_list:
   range: []
-
 
 # define scenario. In this scenario, a 4-vehicle platoon already exists.
 scenario:
