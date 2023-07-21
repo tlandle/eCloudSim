@@ -3,6 +3,15 @@ description: |-
   Author: Runsheng Xu <rxx3386@ucla.edu>
   Content: This is the scenario testing configuration file for platooning joining and cooperative merge
            at the Town06 using  CARLA only.
+
+
+
+# eCloudSim
+distributed: true # set to false or comment out to run "standard" OpenCDA sequential sims
+define: &perception_is_active false
+perception_active: *perception_is_active
+
+
 # define carla simulation setting
 world:
   sync_mode: true

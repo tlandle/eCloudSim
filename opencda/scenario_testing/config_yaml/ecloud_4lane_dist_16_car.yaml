@@ -1,15 +1,15 @@
 description: |-
-  Copyright 2021 <UCLA Mobility Lab>
-  Author: Runsheng Xu <rxx3386@ucla.edu>
-  Content: This is the scenario testing configuration file for platooning joining and cooperative merge
-           at the Town06 using  CARLA only.
+  Copyright 2023 <Georgia Tech>
+  Author: Jordan Rapp <jrapp7@gatech.edu>
+  Content: Template file - includes 16 known-good spawn points
+           for Town 06 NON-Edge Scenarios ONLY.
 
+           Use for eCloudSim distributed vs OpenCDA sequential comparisons 
 
 # eCloudSim
 distributed: true # set to false or comment out to run "standard" OpenCDA sequential sims
 define: &perception_is_active false
 perception_active: *perception_is_active
-
 
 # define carla simulation setting
 world:
@@ -32,7 +32,7 @@ world:
 vehicle_base: &vehicle_base
   sensing: &base_sensing
     perception: &base_perception
-      activate: false # when not activated, objects positions will be retrieved from server directly
+      activate: *perception_is_active # when not activated, objects positions will be retrieved from server directly
       camera_visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
       camera_num: 1 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
       lidar_visualize: false # whether to visualize lidar points using open3d
@@ -122,46 +122,15 @@ carla_traffic_manager:
 
 # define scenario. In this scenario, a 4-vehicle platoon already exists.
 scenario:
-  single_cav_list: # this is for merging vehicle or single cav without v2x
-    - <<: *vehicle_base # Veh 1 - 4
-      spawn_position: [47.7194, 139.51, 0.3, 0, 0, 0]
-      destination: [606.87, 145.39, 0]
-      sensing:
-        <<: *base_sensing
-        perception:
-          <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
-        localization:
-          <<: *base_localize
-          debug_helper:
-            <<: *loc_debug_helper
-            show_animation: false
-      v2x:
-        <<: *base_v2x
-        communication_range: 35
-      behavior:
-        <<: *base_behavior
-        max_speed: 100 # maximum speed, km/h
-        tailgate_speed: 111
-        overtake_allowed: true
-        local_planner:
-          <<: *base_local_planner
-          debug_trajectory: true
-          debug: true
+  single_cav_list: 
+
     - <<: *vehicle_base
-      spawn_position: [57.7194, 143.51, 0.3, 0, 0, 0]
+      spawn_position: [206.22576904296875, 136.77439880371094, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
         localization:
           <<: *base_localize
           debug_helper:
@@ -178,18 +147,15 @@ scenario:
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
-          debug: true
+          debug: false
+
     - <<: *vehicle_base
-      spawn_position: [67.7194, 147.51, 0.3, 0, 0, 0]
+      spawn_position: [111.50432586669922, 136.38629150390625, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
         localization:
           <<: *base_localize
           debug_helper:
@@ -206,18 +172,15 @@ scenario:
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
-          debug: true  
+          debug: false
+
     - <<: *vehicle_base
-      spawn_position: [77.7194, 151.51, 0.3, 0, 0, 0]
+      spawn_position: [231.4806365966797, 147.37796020507812, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
         localization:
           <<: *base_localize
           debug_helper:
@@ -234,46 +197,15 @@ scenario:
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
-          debug: true    
-    - <<: *vehicle_base # Veh 5 - 8  
-      spawn_position: [77.7194, 139.51, 0.3, 0, 0, 0]
-      destination: [606.87, 145.39, 0]
-      sensing:
-        <<: *base_sensing
-        perception:
-          <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
-        localization:
-          <<: *base_localize
-          debug_helper:
-            <<: *loc_debug_helper
-            show_animation: false
-      v2x:
-        <<: *base_v2x
-        communication_range: 35
-      behavior:
-        <<: *base_behavior
-        max_speed: 100 # maximum speed, km/h
-        tailgate_speed: 111
-        overtake_allowed: true
-        local_planner:
-          <<: *base_local_planner
-          debug_trajectory: true
-          debug: true
+          debug: false
+
     - <<: *vehicle_base
-      spawn_position: [87.7194, 143.51, 0.3, 0, 0, 0]
+      spawn_position: [271.94671630859375, 137.04367065429688, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
         localization:
           <<: *base_localize
           debug_helper:
@@ -290,18 +222,15 @@ scenario:
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
-          debug: true
+          debug: false
+
     - <<: *vehicle_base
-      spawn_position: [97.7194, 147.51, 0.3, 0, 0, 0]
+      spawn_position: [149.67593383789062, 136.54269409179688, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
         localization:
           <<: *base_localize
           debug_helper:
@@ -318,18 +247,15 @@ scenario:
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
-          debug: true  
+          debug: false
+
     - <<: *vehicle_base
-      spawn_position: [107.7194, 151.51, 0.3, 0, 0, 0]
+      spawn_position: [96.84303283691406, 143.32627868652344, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
         localization:
           <<: *base_localize
           debug_helper:
@@ -346,46 +272,15 @@ scenario:
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
-          debug: true    
-    - <<: *vehicle_base # Veh 9 - 12  
-      spawn_position: [107.7194, 139.51, 0.3, 0, 0, 0]
-      destination: [606.87, 145.39, 0]
-      sensing:
-        <<: *base_sensing
-        perception:
-          <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
-        localization:
-          <<: *base_localize
-          debug_helper:
-            <<: *loc_debug_helper
-            show_animation: false
-      v2x:
-        <<: *base_v2x
-        communication_range: 35
-      behavior:
-        <<: *base_behavior
-        max_speed: 100 # maximum speed, km/h
-        tailgate_speed: 111
-        overtake_allowed: true
-        local_planner:
-          <<: *base_local_planner
-          debug_trajectory: true
-          debug: true
+          debug: false
+
     - <<: *vehicle_base
-      spawn_position: [117.7194, 143.51, 0.3, 0, 0, 0]
+      spawn_position: [46.89463424682617, 136.12156677246094, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
         localization:
           <<: *base_localize
           debug_helper:
@@ -402,18 +297,15 @@ scenario:
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
-          debug: true
+          debug: false
+
     - <<: *vehicle_base
-      spawn_position: [127.7194, 147.51, 0.3, 0, 0, 0]
+      spawn_position: [208.9692840576172, 143.7856903076172, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
         localization:
           <<: *base_localize
           debug_helper:
@@ -430,18 +322,15 @@ scenario:
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
-          debug: true  
+          debug: false
+
     - <<: *vehicle_base
-      spawn_position: [137.7194, 151.51, 0.3, 0, 0, 0]
+      spawn_position: [97.32030487060547, 143.32823181152344, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
         localization:
           <<: *base_localize
           debug_helper:
@@ -458,46 +347,15 @@ scenario:
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
-          debug: true      
-    - <<: *vehicle_base # Veh 13 - 16
-      spawn_position: [137.7194, 139.51, 0.3, 0, 0, 0]
-      destination: [606.87, 145.39, 0]
-      sensing:
-        <<: *base_sensing
-        perception:
-          <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
-        localization:
-          <<: *base_localize
-          debug_helper:
-            <<: *loc_debug_helper
-            show_animation: false
-      v2x:
-        <<: *base_v2x
-        communication_range: 35
-      behavior:
-        <<: *base_behavior
-        max_speed: 100 # maximum speed, km/h
-        tailgate_speed: 111
-        overtake_allowed: true
-        local_planner:
-          <<: *base_local_planner
-          debug_trajectory: true
-          debug: true
+          debug: false
+
     - <<: *vehicle_base
-      spawn_position: [147.7194, 143.51, 0.3, 0, 0, 0]
+      spawn_position: [250.42408752441406, 136.9554901123047, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
         localization:
           <<: *base_localize
           debug_helper:
@@ -514,18 +372,15 @@ scenario:
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
-          debug: true
+          debug: false
+
     - <<: *vehicle_base
-      spawn_position: [157.7194, 147.51, 0.3, 0, 0, 0]
+      spawn_position: [249.5130157470703, 147.45184326171875, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
         localization:
           <<: *base_localize
           debug_helper:
@@ -542,18 +397,15 @@ scenario:
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
-          debug: true  
+          debug: false
+
     - <<: *vehicle_base
-      spawn_position: [167.7194, 151.51, 0.3, 0, 0, 0]
+      spawn_position: [128.45462036132812, 136.4557342529297, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         <<: *base_sensing
         perception:
           <<: *base_perception
-          activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
         localization:
           <<: *base_localize
           debug_helper:
@@ -570,4 +422,104 @@ scenario:
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
-          debug: true
+          debug: false
+
+    - <<: *vehicle_base
+      spawn_position: [288.8807373046875, 137.11305236816406, 0.3, 0, 0, 0]
+      destination: [606.87, 145.39, 0]
+      sensing:
+        <<: *base_sensing
+        perception:
+          <<: *base_perception
+        localization:
+          <<: *base_localize
+          debug_helper:
+            <<: *loc_debug_helper
+            show_animation: false
+      v2x:
+        <<: *base_v2x
+        communication_range: 35
+      behavior:
+        <<: *base_behavior
+        max_speed: 100 # maximum speed, km/h
+        tailgate_speed: 111
+        overtake_allowed: true
+        local_planner:
+          <<: *base_local_planner
+          debug_trajectory: true
+          debug: false
+
+    - <<: *vehicle_base
+      spawn_position: [64.12822723388672, 136.19216918945312, 0.3, 0, 0, 0]
+      destination: [606.87, 145.39, 0]
+      sensing:
+        <<: *base_sensing
+        perception:
+          <<: *base_perception
+        localization:
+          <<: *base_localize
+          debug_helper:
+            <<: *loc_debug_helper
+            show_animation: false
+      v2x:
+        <<: *base_v2x
+        communication_range: 35
+      behavior:
+        <<: *base_behavior
+        max_speed: 100 # maximum speed, km/h
+        tailgate_speed: 111
+        overtake_allowed: true
+        local_planner:
+          <<: *base_local_planner
+          debug_trajectory: true
+          debug: false
+
+    - <<: *vehicle_base
+      spawn_position: [260.35302734375, 143.9962158203125, 0.3, 0, 0, 0]
+      destination: [606.87, 145.39, 0]
+      sensing:
+        <<: *base_sensing
+        perception:
+          <<: *base_perception
+        localization:
+          <<: *base_localize
+          debug_helper:
+            <<: *loc_debug_helper
+            show_animation: false
+      v2x:
+        <<: *base_v2x
+        communication_range: 35
+      behavior:
+        <<: *base_behavior
+        max_speed: 100 # maximum speed, km/h
+        tailgate_speed: 111
+        overtake_allowed: true
+        local_planner:
+          <<: *base_local_planner
+          debug_trajectory: true
+          debug: false
+
+    - <<: *vehicle_base
+      spawn_position: [249.85658264160156, 147.4532470703125, 0.3, 0, 0, 0]
+      destination: [606.87, 145.39, 0]
+      sensing:
+        <<: *base_sensing
+        perception:
+          <<: *base_perception
+        localization:
+          <<: *base_localize
+          debug_helper:
+            <<: *loc_debug_helper
+            show_animation: false
+      v2x:
+        <<: *base_v2x
+        communication_range: 35
+      behavior:
+        <<: *base_behavior
+        max_speed: 100 # maximum speed, km/h
+        tailgate_speed: 111
+        overtake_allowed: true
+        local_planner:
+          <<: *base_local_planner
+          debug_trajectory: true
+          debug: false

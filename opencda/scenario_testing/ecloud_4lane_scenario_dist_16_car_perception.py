@@ -77,10 +77,11 @@ def run_scenario(opt, config_yaml):
 
         spectator = scenario_manager.world.get_spectator()
         # run steps
-       
+        step = 0 
         flag = True
         while flag:
             if run_distributed:
+                print("Step: %d" %step)
                 scenario_manager.tick_world()
                 flag = scenario_manager.broadcast_tick()
 
@@ -88,6 +89,9 @@ def run_scenario(opt, config_yaml):
                 # REQUIRED for Evaluation which runs on Proxies' local data
                 for _, single_cav in enumerate(single_cav_list):
                     single_cav.update_info()
+                step = step + 1
+                if(step > 550):
+                    break
                     
             else:    
                 # non-dist will break automatically; don't need to set flag

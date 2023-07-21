@@ -171,9 +171,10 @@ class VehicleManager(object):
             self.cav_destination['y'] = cav_config['destination'][1]
 
             cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-            self.vehicle = self.world.spawn_actor(cav_vehicle_bp, init_transform)
+            self.vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
             # teleport vehicle to desired spawn point
-            self.vehicle.set_transform(spawn_transform)
+            # self.vehicle.set_transform(spawn_transform)
+            # self.world.tick()
 
         else:
             assert( False, "need to provide some known config" )
