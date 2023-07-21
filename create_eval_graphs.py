@@ -15,7 +15,7 @@ import pandas as pd
 
 
 # Constants
-GRAPH_PERCEPTION = True
+GRAPH_PERCEPTION = False
 GRAPH_SINGLE_NODE = False
 PERCEPTION_TITLE = "with Perception" if GRAPH_PERCEPTION else "without Perception"
 NODE_TITLE = "single node" if GRAPH_SINGLE_NODE else "multi node"

@@ -345,7 +345,7 @@ class ScenarioManager:
                 return response                    
 
     def serve(self, q: Queue(), message_stack, address: str) -> None:
-        ScenarioManager.server = grpc.server(ThreadPoolExecutor())
+        ScenarioManager.server = grpc.server(ThreadPoolExecutor(max_workers=200))
         rpc.add_OpenCDAServicer_to_server(self.OpenCDA(q, message_stack), ScenarioManager.server)
         ScenarioManager.server.add_insecure_port(address)
         ScenarioManager.server.start()
@@ -627,7 +627,7 @@ class ScenarioManager:
 
             while len(ScenarioManager.vehicles) < ScenarioManager.vehicle_count:
                 time.sleep(1)
-                logger.info("waiting for Carla data")
+                logger.info("waiting for Carla data: number of vehicles: %d" %(len(ScenarioManager.vehicles)))
 
             actor_id = ScenarioManager.vehicles[f"vehicle_{i}"][0]
             vid = ScenarioManager.vehicles[f"vehicle_{i}"][1]
