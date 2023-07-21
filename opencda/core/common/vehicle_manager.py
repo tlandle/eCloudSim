@@ -326,15 +326,16 @@ class VehicleManager(object):
         """
         Execute one step of navigation.
         """
+
+        # eCLOUD - must check FIRST to ensure sim doesn't try to progress a DONE vehicle
+        if target_speed == -1 and self.run_distributed:
+            logger.info("run_step: simulation is over")
+            return None # -1 indicates the simulation is over. TODO Need a const here.
+
         pre_vehicle_step_time = time.time()
         target_speed, target_pos = self.agent.run_step(target_speed)
         end_time = time.time()
         logging.debug("Agent step time: %s" %(end_time - pre_vehicle_step_time))
-
-        # eCLOUD
-        if target_speed == -1 and self.run_distributed:
-            logger.info("run_step: simulation is over")
-            return None # -1 indicates the simulation is over. TODO Need a const here.
 
         control = self.controller.run_step(target_speed, target_pos)
         post_vehicle_step_time = time.time()
