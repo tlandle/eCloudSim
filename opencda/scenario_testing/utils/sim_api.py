@@ -56,9 +56,8 @@ from opencda.scenario_testing.utils.customized_map_api import \
     load_customized_world, bcolors
 from opencda.core.application.edge.edge_manager import \
      EdgeManager
+from opencda.sim_debug_helper import SimDebugHelper
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
-from opencda.core.application.edge.edge_debug_helper import \
-    EdgeDebugHelper
 import opencda.core.plan.drive_profile_plotting as open_plt
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -369,7 +368,7 @@ class ScenarioManager:
 
         simulation_config = scenario_params['world']
 
-        self.debug_helper = EdgeDebugHelper(0)
+        self.debug_helper = SimDebugHelper(0)
         cav_world.update_scenario_manager(self)
 
         random.seed(time.time())
@@ -1157,7 +1156,7 @@ class ScenarioManager:
         """
 
         #TODO change tick_id to msg_id
-
+        pre_client_tick_time = time.time()
         ScenarioManager.tick_id = ScenarioManager.tick_id + 1
         with ScenarioManager.lock:
             ScenarioManager.sim_state_responses.append(ScenarioManager.tick_id)
@@ -1185,7 +1184,8 @@ class ScenarioManager:
         ScenarioManager.tick_complete.clear()
 
         ScenarioManager.waypoint_buffer_overrides.clear()
-
+        post_client_tick_time = time.time()
+        self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time))
         if len(ScenarioManager.sim_state_completions) == ScenarioManager.vehicle_count:
             return False # TODO - make a better flag
         else:  
