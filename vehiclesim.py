@@ -418,6 +418,32 @@ def main():
             popped_message.set()
         
         # HANDLE TICK
+        elif sim_state_update.command == sim_state.Command.REQUEST_DEBUG_INFO:
+            
+            response = sim_state.VehicleUpdate()
+            response.tick_id = tick_id
+            response.vehicle_index = vehicle_index
+            response.vehicle_state = sim_state.VehicleState.DEBUG_INFO_UPDATE
+
+            
+            planer_debug_helper = vehicle_manager.agent.debug_helper
+            planer_debug_helper_msg = sim_state.PlanerDebugHelper()
+            planer_debug_helper.serialize_debug_info(planer_debug_helper_msg)
+            response.planer_debug_helper = planer_debug_helper_msg
+
+            loc_debug_helper = vehicle_manager.localizer.debug_helper
+            loc_debug_helper_msg = sim_state.LocDebugHelper()
+            loc_debug_helper.serialize_debug_info(loc_debug_helper_msg)
+            response.loc_debug_helper = loc_debug_helper_msg
+
+            pushed_message.clear()    
+            popped_message.set()
+
+            q.put(response)
+            pushed_response.set()
+            popped_response.wait()
+            popped_response.clear()     
+
         elif sim_state_update.command == sim_state.Command.TICK:
             # update info runs BEFORE waypoint injection
             vehicle_manager.update_info()

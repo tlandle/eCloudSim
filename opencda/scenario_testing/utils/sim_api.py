@@ -294,6 +294,28 @@ class ScenarioManager:
                     # make sure to add the tick_id to the root list when we do the tick
                     ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
 
+            elif request.vehicle_state == sim_state.VehicleState.DEBUG_INFO_UPDATE:
+
+                pass
+
+                # TODO: evaluation data deserialization
+                """
+                NEED TO REVERSE THIS FLOW
+                - get specific vehicle
+                - get vehicle manager (from proxy?)
+                - send over the protobuf data
+
+                planer_debug_helper = vehicle_manager.agent.debug_helper
+                planer_debug_helper_msg = sim_state.PlanerDebugHelper()
+                planer_debug_helper.serialize_debug_info(planer_debug_helper_msg)
+                response.planer_debug_helper = planer_debug_helper_msg
+
+                loc_debug_helper = vehicle_manager.localizer.debug_helper
+                loc_debug_helper_msg = sim_state.LocDebugHelper()
+                loc_debug_helper.serialize_debug_info(loc_debug_helper_msg)
+                response.loc_debug_helper = loc_debug_helper_msg
+                """
+
             elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
 
                 with ScenarioManager.lock:
@@ -308,7 +330,7 @@ class ScenarioManager:
                     - get specific vehicle
                     - get vehicle manager (from proxy?)
                     - send over the protobuf data
-                    
+
                     planer_debug_helper = vehicle_manager.agent.debug_helper
                     planer_debug_helper_msg = sim_state.PlanerDebugHelper()
                     planer_debug_helper.serialize_debug_info(planer_debug_helper_msg)
