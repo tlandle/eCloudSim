@@ -285,3 +285,93 @@ class LocDebugHelper(object):
                           yaw_error_mean)
 
         return figure, perform_txt
+
+    def serialize_debug_info(self, proto_debug_helper):
+        # TODO: extend instead of append? or [:] = ?
+
+        for obj in self.gnss_x:
+            proto_debug_helper.gnss_x.append(obj)
+
+        for obj in self.gnss_y:
+            proto_debug_helper.gnss_y.append(obj)
+
+        for obj in self.gnss_yaw:
+            proto_debug_helper.gnss_yaw.append(obj)
+        
+        for obj in self.gnss_spd:
+            proto_debug_helper.gnss_spd.append(obj)
+
+        for obj in self.filter_x:
+            proto_debug_helper.filter_x.append(obj)
+        
+        for obj in self.filter_y:
+            proto_debug_helper.filter_y.append(obj)
+        
+        for obj in self.filter_yaw:
+            proto_debug_helper.filter_yaw.append(obj)
+        
+        for obj in self.filter_spd:
+            proto_debug_helper.filter_spd.append(obj)
+
+        for obj in self.gt_x:
+            proto_debug_helper.gt_x.append(obj)
+        
+        for obj in self.gt_y:
+            proto_debug_helper.gt_y.append(obj)
+        
+        for obj in self.gt_yaw:
+            proto_debug_helper.gt_yaw.append(obj)
+        
+        for obj in self.gt_spd:
+            proto_debug_helper.gt_spd.append(obj)
+
+    def deserialize_debug_info(self, proto_debug_helper):
+        # call from Sim API to populate locally
+
+        self.gnss_x.clear()
+        for obj in proto_debug_helper.gnss_x:
+            self.gnss_x.append(obj)
+
+        self.gnss_y.clear()
+        for obj in proto_debug_helper.gnss_y:
+            self.gnss_y.append(obj)
+
+        self.gnss_yaw.clear()
+        for obj in proto_debug_helper.gnss_yaw:
+            self.gnss_yaw.append(obj)
+        
+        self.gnss_spd.clear()
+        for obj in proto_debug_helper.gnss_spd:
+            self.gnss_spd.append(obj)
+
+        self.filter_x.clear()
+        for obj in proto_debug_helper.filter_x:
+            self.filter_x.append(obj)
+        
+        self.filter_y.clear()
+        for obj in proto_debug_helper.filter_y:
+            self.filter_y.append(obj)
+        
+        self.filter_yaw.clear()
+        for obj in proto_debug_helper.filter_yaw:
+            self.filter_yaw.append(obj)
+        
+        self.filter_spd.clear()
+        for obj in proto_debug_helper.filter_spd:
+            self.filter_spd.append(obj)
+
+        self.gt_x.clear()
+        for obj in proto_debug_helper.gt_x:
+            self.gt_x.append(obj)
+        
+        self.gt_y.clear()
+        for obj in proto_debug_helper.gt_y:
+            self.gt_y.append(obj)
+        
+        self.gt_yaw.clear()
+        for obj in proto_debug_helper.gt_yaw:
+            self.gt_yaw.append(obj)
+        
+        self.gt_spd.clear()
+        for obj in proto_debug_helper.gt_spd:
+            self.gt_spd.append(obj)

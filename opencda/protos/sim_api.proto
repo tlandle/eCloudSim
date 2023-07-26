@@ -31,7 +31,7 @@ enum VehicleState {
   UPDATE_INFO_OK = 2;
   GET_DESTINATION = 3;
   TICK_OK = 4; // regular OK / ack
-  TICK_DONE = 5; // simulation ended
+  TICK_DONE = 5; // simulation ended --> include all Debug Info with this update
   OK = 6;
   ERROR = 7;
 }
@@ -86,13 +86,38 @@ message Rotation {
   float roll = 3;
 }
 
+message LocDebugHelper {
+    repeated float gnss_x = 1;
+    repeated float gnss_y = 2;
+    repeated float gnss_yaw = 3;
+    repeated float gnss_spd = 4;
+
+    repeated float filter_x = 5;
+    repeated float filter_y = 6;
+    repeated float filter_yaw = 7;
+    repeated float filter_spd = 8;
+
+    repeated float gt_x = 9;
+    repeated float gt_y = 10;
+    repeated float gt_yaw= 11;
+    repeated float gt_spd = 12;
+}
+
+message PlanerDebugHelper {
+    repeated float speed_list = 1;
+    repeated float acc_list = 2;
+    repeated float ttc_list = 3;
+}
+
 message VehicleUpdate {
   int32 tick_id = 1;
   int32 vehicle_index = 2;
   string vid = 3;
   int32 actor_id = 4;
   VehicleState vehicle_state = 5;
-  string message_id = 6; // use as a UID for message indentification when Server needs an ack
+  LocDebugHelper loc_debug_helper = 6;
+  PlanerDebugHelper planer_debug_helper = 7;
+  string message_id = 8; // use as a UID for message indentification when Server needs an ack
 }
 
 service OpenCDA {

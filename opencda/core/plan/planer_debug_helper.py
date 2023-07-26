@@ -107,3 +107,32 @@ class PlanDebugHelper(object):
                        'TTC std: %f (m/s) \n' % (ttc_avg, ttc_std)
 
         return figure, perform_txt
+    
+    def serialize_debug_info(self, proto_debug_helper):
+        # seems we only ever access [0] anywhere...
+        # but need to consider this when de-serializing info from protobuf
+        # TODO: extend instead of append? or [:] = ?
+
+        for obj in self.speed_list[0]:
+            proto_debug_helper.speed_list.append(obj)
+        
+        for obj in self.acc_list[0]:
+            proto_debug_helper.acc_list.append(obj)
+        
+        for obj in self.ttc_list[0]:
+            proto_debug_helper.ttc_list.append(obj)
+
+    def deserialize_debug_info(self, proto_debug_helper):
+        # call from Sim API to populate locally
+
+        self.ttc_list[0].clear()
+        for obj in proto_debug_helper.ttc_list:
+            self.ttc_list[0].append(obj)
+
+        self.acc_list[0].clear()
+        for obj in proto_debug_helper.acc_list:
+            self.acc_list[0].append(obj)
+
+        self.speed_list[0].clear()
+        for obj in proto_debug_helper.speed_list:
+            self.speed_list[0].append(obj)
