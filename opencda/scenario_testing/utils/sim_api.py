@@ -482,7 +482,7 @@ class ScenarioManager:
             print("start vehicle containers")
 
             while ScenarioManager.connections_received < ScenarioManager.vehicle_count:
-                time.sleep(1)
+                #time.sleep(1)
                 logger.info(f"received {ScenarioManager.connections_received} registrations. sim_api sleeping...")
                 #should we wait for a threading event instead?
 
@@ -665,7 +665,7 @@ class ScenarioManager:
             vid = None
 
             while len(ScenarioManager.vehicles) < ScenarioManager.vehicle_count:
-                time.sleep(1)
+                #time.sleep(1)
                 logger.info("waiting for Carla data: number of vehicles: %d" %(len(ScenarioManager.vehicles)))
 
             actor_id = ScenarioManager.vehicles[f"vehicle_{i}"][0]
@@ -877,7 +877,7 @@ class ScenarioManager:
                 vid = None
 
                 while len(ScenarioManager.vehicles) < ScenarioManager.vehicle_count:
-                    time.sleep(1)
+                    #time.sleep(1)
                     logger.info("waiting for Carla data")
 
                 actor_id = ScenarioManager.vehicles[f"vehicle_{i}"][0]
@@ -1225,7 +1225,7 @@ class ScenarioManager:
 
         ScenarioManager.waypoint_buffer_overrides.clear()
         post_client_tick_time = time.time()
-        self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time))
+        self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
         if len(ScenarioManager.sim_state_completions) == ScenarioManager.vehicle_count:
             return False # TODO - make a better flag
         else:  
@@ -1277,7 +1277,7 @@ class ScenarioManager:
         if self.run_distributed:
             logger.info("waiting for container shutdown...")
             for i in range(0, 5):
-                time.sleep(1)
+                #time.sleep(1)
                 logger.debug("destroying actors in %d", 5 - i) 
 
         actor_list = self.world.get_actors()
@@ -1323,31 +1323,61 @@ class ScenarioManager:
 
             if not os.path.exists(cumulative_stats_folder_path):
                 os.makedirs(cumulative_stats_folder_path)
-            
-            # ___________________________________Simulation Step time________________________________________________
+
+                
+            client_tick_time_list = self.debug_helper.client_tick_time_list
+            client_tick_time_list_flat = np.concatenate(client_tick_time_list).ravel()
+
+            client_step_time_df = pd.DataFrame(client_tick_time_list_flat, columns = ['client_step_time_ms'])
+            client_step_time_df['num_cars'] = ScenarioManager.vehicle_count
+            client_step_time_df['run_timestamp'] =  pd.Timestamp.today().strftime('%Y-%m-%d %X')
+            client_step_time_df = client_step_time_df[['num_cars','client_step_time_ms', 'run_timestamp']]
+
+            client_step_time_df_path = f'./{cumulative_stats_folder_path}/df_client_step_time'
+            client_step_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_client_step_time_cumstats'
+            try:
+                picklefile = open(client_step_time_df_path, 'rb+')
+                current_client_step_time_df = pickle.load(picklefile)  #unpickle the dataframe
+            except:
+                picklefile = open(client_step_time_df_path, 'wb+')
+                current_client_step_time_df = pd.DataFrame(columns=['num_cars', 'client_step_time_ms', 'run_timestamp'])
+
+            picklefile = open(client_step_time_df_path, 'wb+')
+            client_step_time_df = pd.concat([current_client_step_time_df, client_step_time_df], axis=0, ignore_index=True)
+
+            # pickle the dataFrame
+            pickle.dump(client_step_time_df, picklefile)
+            print(client_step_time_df)
+            #close file
+            picklefile.close()
+
+            # create new df with cumultaive stats (e.g. mean, std, median, min, max)
+            client_step_time_cumstats_df = pd.DataFrame()
+            client_step_time_cumstats_df = client_step_time_df.groupby('num_cars')['client_step_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            picklefile = open(client_step_time_df_cumstats_path, 'wb+')
+            pickle.dump(client_step_time_cumstats_df, picklefile)
+            picklefile.close()
+            print(client_step_time_cumstats_df)
+
+ 
+            # ___________________________________World Step time________________________________________________
             world_tick_time_list = self.debug_helper.world_tick_time_list
             world_tick_time_list_flat = np.concatenate(world_tick_time_list).ravel()
-            world_tick_time_list_tmp = \
-                    np.array(self.debug_helper.algorithm_time_list)
-            world_tick_time_list_tmp = \
-                    world_tick_time_list_tmp[world_tick_time_list_tmp < 100]
-            perform_txt += 'World tick time mean: %f, std: %f \n' % (
-                    np.mean(world_tick_time_list_tmp), np.std(world_tick_time_list_tmp))
     
 
-            step_time_df = pd.DataFrame(world_tick_time_list_flat, columns = ['step_time_ms'])
+            step_time_df = pd.DataFrame(world_tick_time_list_flat, columns = ['world_step_time_ms'])
             step_time_df['num_cars'] = ScenarioManager.vehicle_count
             step_time_df['run_timestamp'] =  pd.Timestamp.today().strftime('%Y-%m-%d %X')
-            step_time_df = step_time_df[['num_cars','step_time_ms', 'run_timestamp']]
+            step_time_df = step_time_df[['num_cars','world_step_time_ms', 'run_timestamp']]
 
-            step_time_df_path = f'./{cumulative_stats_folder_path}/df_step_time'
-            step_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_step_time_cumstats'
+            step_time_df_path = f'./{cumulative_stats_folder_path}/df_world_step_time'
+            step_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_world_step_time_cumstats'
             try:
                 picklefile = open(step_time_df_path, 'rb+')
                 current_step_time_df = pickle.load(picklefile)  #unpickle the dataframe
             except:
                 picklefile = open(step_time_df_path, 'wb+')
-                current_step_time_df = pd.DataFrame(columns=['num_cars', 'step_time_ms', 'run_timestamp'])
+                current_step_time_df = pd.DataFrame(columns=['num_cars', 'world_step_time_ms', 'run_timestamp'])
 
             picklefile = open(step_time_df_path, 'wb+')
             step_time_df = pd.concat([current_step_time_df, step_time_df], axis=0, ignore_index=True)
@@ -1360,7 +1390,7 @@ class ScenarioManager:
 
             # create new df with cumultaive stats (e.g. mean, std, median, min, max)
             step_time_cumstats_df = pd.DataFrame()
-            step_time_cumstats_df = step_time_df.groupby('num_cars')['step_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            step_time_cumstats_df = step_time_df.groupby('num_cars')['world_step_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
             picklefile = open(step_time_df_cumstats_path, 'wb+')
             pickle.dump(step_time_cumstats_df, picklefile)
             picklefile.close()

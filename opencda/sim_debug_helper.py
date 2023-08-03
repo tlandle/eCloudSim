@@ -44,7 +44,7 @@ class SimDebugHelper(PlanDebugHelper):
         self.world_tick_time_list[0].append(tick_time_step)
     
 
-    def update_world_tick(self, tick_time_step=None):
+    def update_client_tick(self, tick_time_step=None):
         """
         Update the platoon related vehicle information.
 
