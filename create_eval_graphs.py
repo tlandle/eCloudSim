@@ -15,7 +15,7 @@ import pandas as pd
 
 
 # Constants
-GRAPH_PERCEPTION = False
+GRAPH_PERCEPTION = True
 GRAPH_SINGLE_NODE = False
 PERCEPTION_TITLE = "with Perception" if GRAPH_PERCEPTION else "without Perception"
 NODE_TITLE = "single node" if GRAPH_SINGLE_NODE else "multi node"
@@ -154,8 +154,8 @@ sim_stats_df
 # In[275]:
 
 
-def plot_step_time():
-    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_step_time'
+def plot_world_step_time():
+    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_world_step_time'
     sim_stats_df = get_stats_df(step_time_df_path)
 
     labels = {"xlabel": 'Number of Cars',
@@ -164,8 +164,31 @@ def plot_step_time():
 
     # Box plot
     plt.figure(figsize=(10, 6))
-    ax = create_box_plot(data=sim_stats_df, x='num_cars', y='step_time_ms', labels=labels)
-    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/step_time_boxplot.png'
+    ax = create_box_plot(data=sim_stats_df, x='num_cars', y='world_step_time_ms', labels=labels)
+    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/world_step_time_boxplot.png'
+    save_ax(ax, save_file_path)
+    plt.show()
+    plt.clf()
+
+    # Scatter plot
+    # ax = create_scatter_plot(data=sim_stats_df, x='num_cars', y='step_time_ms', labels=labels)
+    # save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/step_time_scatterplot.png'
+    # save_ax(ax, save_file_path)
+    # plt.show()
+    # plt.clf()
+
+def plot_client_step_time():
+    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_step_time'
+    sim_stats_df = get_stats_df(step_time_df_path)
+
+    labels = {"xlabel": 'Number of Cars',
+              "ylabel": 'Simulation Step Time (ms)',
+              "title": f'eCloudSim: Simulation Step Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+
+    # Box plot
+    plt.figure(figsize=(10, 6))
+    ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_step_time_ms', labels=labels)
+    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_step_time_boxplot.png'
     save_ax(ax, save_file_path)
     plt.show()
     plt.clf()
@@ -178,10 +201,12 @@ def plot_step_time():
     # plt.clf()
 
 
+
 # In[276]:
 
 
-step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_step_time'
+step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_world_step_time'
+client_step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_step_time'
 sim_stats_df = get_stats_df(f'{CUMULATIVE_STATS_FOLDER_PATH}/df_step_time_cumstats')
 sim_stats_df
 
@@ -245,7 +270,11 @@ if __name__ == '__main__':
     plot_simulation_time()
 
     # Plotting simulation step time stats
-    plot_step_time()
+    plot_world_step_time()
+
+    # Plotting simulation step time stats
+    plot_client_step_time()
+
 
    # Example DataFrame for comparison chart
     comparison_data = pd.DataFrame({
