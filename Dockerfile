@@ -3,7 +3,7 @@ FROM nvidia/cuda:11.0.3-base-ubuntu20.04
 
 WORKDIR /root
 
-RUN apt-get update && apt-get install -y software-properties-common
+RUN apt-get update && apt-get upgrade -y && apt-get install -y software-properties-common
 
 RUN	add-apt-repository ppa:deadsnakes/ppa && \
 	apt-get install -y python3.7 && \
@@ -26,9 +26,9 @@ RUN python3.7 -m pip install coloredlogs
 
 RUN python3.7 -m pip install grpcio-tools
 
-RUN python3.7 -m pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116
+RUN python3.7 -m pip install torch torchvision torchaudio yolov5  --extra-index-url https://download.pytorch.org/whl/cu116
 
-RUN python3.7 -m pip install -qr https://raw.githubusercontent.com/ultralytics/yolov5/master/requirements.txt
+#RUN python3.7 -m pip install -qr https://raw.githubusercontent.com/ultralytics/yolov5/master/requirements.txt
 
 RUN apt-get install -y libglfw3-dev
 
