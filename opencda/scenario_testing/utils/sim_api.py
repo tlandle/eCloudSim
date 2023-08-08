@@ -217,6 +217,9 @@ class ScenarioManager:
     server_run = True
     server = None
 
+    vehicle_managers = {}
+    vehicle_index = 0
+
     class OpenCDA(rpc.OpenCDAServicer):
 
         def __init__(self, q, message_stack):
@@ -315,6 +318,9 @@ class ScenarioManager:
                 loc_debug_helper.serialize_debug_info(loc_debug_helper_msg)
                 response.loc_debug_helper = loc_debug_helper_msg
                 """
+                vehicle_index = request.vehicle_index
+                
+                
 
             elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
 
@@ -650,7 +656,7 @@ class ScenarioManager:
 
             # create vehicle manager for each cav
             vehicle_manager = VehicleManagerProxy(
-                i, self.config_file, application,
+                self.vehicle_index, self.config_file, application,
                 self.carla_map, self.cav_world,
                 current_time=self.scenario_params['current_time'],
                 data_dumping=data_dump, carla_version=self.carla_version)
@@ -733,6 +739,9 @@ class ScenarioManager:
             logger.debug(f"set destination complete for vehicle_index {i}")
 
             single_cav_list.append(vehicle_manager)
+            self.vehicle_managers[self.vehicle_index] = vehicle_manager
+            self.vehicle_index = self.vehicle_index + 1
+
 
             ScenarioManager.popped_message.wait(timeout=None)
             ScenarioManager.popped_message.clear()
@@ -855,7 +864,7 @@ class ScenarioManager:
 
                 # create vehicle manager for each cav
                 vehicle_manager = VehicleManagerProxy(
-                    i, self.config_file, application,
+                    self.vehicle_index, self.config_file, application,
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
                     data_dumping=data_dump, carla_version=self.carla_version)
@@ -924,7 +933,7 @@ class ScenarioManager:
                 sim_state_update = sim_state.SimulationState()
                 sim_state_update.state = sim_state.State.ACTIVE
                 sim_state_update.tick_id = ScenarioManager.tick_id
-                sim_state_update.vehicle_index = i
+                sim_state_update.vehicle_index = self.vehicle_index
 
                 start_location = vehicle_manager.vehicle.get_location()
                 message = { 
@@ -947,6 +956,8 @@ class ScenarioManager:
 
                 # add the vehicle manager to platoon
                 edge_manager.add_member(vehicle_manager)
+                self.vehicle_managers[self.vehicle_index] = vehicle_manager
+                self.vehicle_index = self.vehicle_index + 1
 
                 ScenarioManager.popped_message.wait(timeout=None)
                 ScenarioManager.popped_message.clear()         
