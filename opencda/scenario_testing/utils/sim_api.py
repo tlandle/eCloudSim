@@ -322,6 +322,8 @@ class ScenarioManager:
                 
                 
 
+                #vehicle_manager = request.
+
             elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
 
                 with ScenarioManager.lock:
