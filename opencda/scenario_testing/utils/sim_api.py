@@ -316,6 +316,8 @@ class ScenarioManager:
                 response.loc_debug_helper = loc_debug_helper_msg
                 """
 
+                #vehicle_manager = request.
+
             elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
 
                 with ScenarioManager.lock:
