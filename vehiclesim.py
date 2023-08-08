@@ -429,12 +429,12 @@ def main():
             planer_debug_helper = vehicle_manager.agent.debug_helper
             planer_debug_helper_msg = sim_state.PlanerDebugHelper()
             planer_debug_helper.serialize_debug_info(planer_debug_helper_msg)
-            response.planer_debug_helper = planer_debug_helper_msg
+            response.planer_debug_helper.CopyFrom( planer_debug_helper_msg )
 
             loc_debug_helper = vehicle_manager.localizer.debug_helper
             loc_debug_helper_msg = sim_state.LocDebugHelper()
             loc_debug_helper.serialize_debug_info(loc_debug_helper_msg)
-            response.loc_debug_helper = loc_debug_helper_msg
+            response.loc_debug_helper.CopyFrom( loc_debug_helper_msg )
 
             pushed_message.clear()    
             popped_message.set()

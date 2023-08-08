@@ -299,30 +299,13 @@ class ScenarioManager:
 
             elif request.vehicle_state == sim_state.VehicleState.DEBUG_INFO_UPDATE:
 
-                pass
-
-                # TODO: evaluation data deserialization
-                """
-                NEED TO REVERSE THIS FLOW
-                - get specific vehicle
-                - get vehicle manager (from proxy?)
-                - send over the protobuf data
-
-                planer_debug_helper = vehicle_manager.agent.debug_helper
-                planer_debug_helper_msg = sim_state.PlanerDebugHelper()
-                planer_debug_helper.serialize_debug_info(planer_debug_helper_msg)
-                response.planer_debug_helper = planer_debug_helper_msg
-
-                loc_debug_helper = vehicle_manager.localizer.debug_helper
-                loc_debug_helper_msg = sim_state.LocDebugHelper()
-                loc_debug_helper.serialize_debug_info(loc_debug_helper_msg)
-                response.loc_debug_helper = loc_debug_helper_msg
-                """
-                vehicle_index = request.vehicle_index
-                
-                
-
-                #vehicle_manager = request.
+                vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
+                # deserialize localization data
+                loc_debug_helper = vehicle_manager_proxy.localizer.debug_helper
+                loc_debug_helper.deserialize_debug_info( request.loc_debug_helper )
+                # deserialize planer data
+                planer_debug_helper = vehicle_manager_proxy.agent.debug_helper
+                planer_debug_helper.deserialize_debug_info( request.loc_debug_helper )
 
             elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
 
@@ -332,23 +315,13 @@ class ScenarioManager:
                     if request.vehicle_index not in ScenarioManager.sim_state_completions:
                         ScenarioManager.sim_state_completions.append(request.vehicle_index)
 
-                    # TODO: evaluation data deserialization
-                    """
-                    NEED TO REVERSE THIS FLOW
-                    - get specific vehicle
-                    - get vehicle manager (from proxy?)
-                    - send over the protobuf data
-
-                    planer_debug_helper = vehicle_manager.agent.debug_helper
-                    planer_debug_helper_msg = sim_state.PlanerDebugHelper()
-                    planer_debug_helper.serialize_debug_info(planer_debug_helper_msg)
-                    response.planer_debug_helper = planer_debug_helper_msg
-
-                    loc_debug_helper = vehicle_manager.localizer.debug_helper
-                    loc_debug_helper_msg = sim_state.LocDebugHelper()
-                    loc_debug_helper.serialize_debug_info(loc_debug_helper_msg)
-                    response.loc_debug_helper = loc_debug_helper_msg
-                    """
+                    vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
+                    # deserialize localization data
+                    loc_debug_helper = vehicle_manager_proxy.localizer.debug_helper
+                    loc_debug_helper.deserialize_debug_info( request.loc_debug_helper )
+                    # deserialize planer data
+                    planer_debug_helper = vehicle_manager_proxy.agent.debug_helper
+                    planer_debug_helper.deserialize_debug_info( request.loc_debug_helper )
 
                 # this means sim is done - end??    
 
@@ -741,7 +714,7 @@ class ScenarioManager:
             logger.debug(f"set destination complete for vehicle_index {i}")
 
             single_cav_list.append(vehicle_manager)
-            self.vehicle_managers[self.vehicle_index] = vehicle_manager
+            ScenarioManager.vehicle_managers[self.vehicle_index] = vehicle_manager
             self.vehicle_index = self.vehicle_index + 1
 
 
@@ -958,7 +931,7 @@ class ScenarioManager:
 
                 # add the vehicle manager to platoon
                 edge_manager.add_member(vehicle_manager)
-                self.vehicle_managers[self.vehicle_index] = vehicle_manager
+                ScenarioManager.vehicle_managers[self.vehicle_index] = vehicle_manager
                 self.vehicle_index = self.vehicle_index + 1
 
                 ScenarioManager.popped_message.wait(timeout=None)
