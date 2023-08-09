@@ -37,8 +37,7 @@ class ClientDebugHelper(PlanDebugHelper):
         self.agent_step_time_list = []
         self.controller_step_time_list = []
         self.vehicle_step_time_list = []
-
-        
+        self.control_time_list = []
 
     def update_perception_time(self, tick_time_step=None):
         """
@@ -114,6 +113,15 @@ class ClientDebugHelper(PlanDebugHelper):
         ----------
         """
         self.controller_step_time_list.append(time)
+   
+    def update_control_time(self, time=None):
+        """
+        Update the platoon related vehicle information.
+
+        Parameters
+        ----------
+        """
+        self.control_time_list.append(time)
 
 
     def serialize_debug_info(self, proto_debug_helper):
@@ -122,7 +130,7 @@ class ClientDebugHelper(PlanDebugHelper):
         for obj in self.perception_time_list:
             proto_debug_helper.perception_time_list.append(obj)
 
-        for obj in self.localization__time_list:
+        for obj in self.localization_time_list:
             proto_debug_helper.localization_time_list.append(obj)
 
         for obj in self.update_info_time_list:
@@ -142,6 +150,9 @@ class ClientDebugHelper(PlanDebugHelper):
         
         for obj in self.controller_step_time_list:
             proto_debug_helper.controller_step_time_list.append(obj)
+
+        for obj in self.control_time_list:
+            proto_debug_helper.control_time_list.append(obj)
 
 
     def deserialize_debug_info(self, proto_debug_helper):
@@ -178,4 +189,8 @@ class ClientDebugHelper(PlanDebugHelper):
         self.controller_step_time_list.clear()
         for obj in proto_debug_helper.controller_step_time_list:
             self.controller_step_time_list.append(obj)
+
+        self.control_time_list.clear()
+        for obj in proto_debug_helper.control_time_list:
+            self.control_time_list.append(obj)
   

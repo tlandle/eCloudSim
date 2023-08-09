@@ -417,15 +417,13 @@ def main():
             pushed_message.clear()    
             popped_message.set()
         
-        # HANDLE TICK
-        elif sim_state_update.command == sim_state.Command.REQUEST_DEBUG_INFO:
-            
+        # HANDLE DEBUG DATA REQUEST
+        elif sim_state_update.command == sim_state.Command.REQUEST_DEBUG_INFO:            
             response = sim_state.VehicleUpdate()
             response.tick_id = tick_id
             response.vehicle_index = vehicle_index
             response.vehicle_state = sim_state.VehicleState.DEBUG_INFO_UPDATE
 
-            
             planer_debug_helper = vehicle_manager.agent.debug_helper
             planer_debug_helper_msg = sim_state.PlanerDebugHelper()
             planer_debug_helper.serialize_debug_info(planer_debug_helper_msg)
@@ -436,6 +434,11 @@ def main():
             loc_debug_helper.serialize_debug_info(loc_debug_helper_msg)
             response.loc_debug_helper.CopyFrom( loc_debug_helper_msg )
 
+            client_debug_helper = vehicle_manager.debug_helper
+            client_debug_helper_msg = sim_state.ClientDebugHelper()
+            client_debug_helper.serialize_debug_info(client_debug_helper_msg)
+            response.client_debug_helper.CopyFrom(client_debug_helper_msg)
+
             pushed_message.clear()    
             popped_message.set()
 
@@ -444,6 +447,7 @@ def main():
             popped_response.wait()
             popped_response.clear()     
 
+        # HANDLE TICK
         elif sim_state_update.command == sim_state.Command.TICK:
             # update info runs BEFORE waypoint injection
             vehicle_manager.update_info()
@@ -529,6 +533,11 @@ def main():
                     loc_debug_helper.serialize_debug_info(loc_debug_helper_msg)
                     response.loc_debug_helper.CopyFrom(loc_debug_helper_msg)
 
+                    client_debug_helper = vehicle_manager.debug_helper
+                    client_debug_helper_msg = sim_state.ClientDebugHelper()
+                    client_debug_helper.serialize_debug_info(client_debug_helper_msg)
+                    response.client_debug_helper.CopyFrom(client_debug_helper_msg)
+
                 else:
 
                     vehicle_manager.apply_control(control)
@@ -550,6 +559,7 @@ def main():
             popped_response.clear()       
 
         # HANDLE END
+        # should we just do the debug info update here?
         elif sim_state_update.command == sim_state.Command.END:
             logger.info("END received")
             pushed_message.clear()    

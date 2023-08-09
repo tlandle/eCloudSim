@@ -295,39 +295,41 @@ class ScenarioManager:
                 with ScenarioManager.lock:
                     logger.debug(f"received TICK_OK from vehicle {request.vehicle_index}")
                     # make sure to add the tick_id to the root list when we do the tick
-                    ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
+                    # TODO: should we assert that we've not already received this response?
+                    if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
+                        ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
 
             elif request.vehicle_state == sim_state.VehicleState.DEBUG_INFO_UPDATE:
 
-                vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
-                # deserialize localization data
-                loc_debug_helper = vehicle_manager_proxy.localizer.debug_helper
-                loc_debug_helper.deserialize_debug_info( request.loc_debug_helper )
-                # deserialize planer data
-                planer_debug_helper = vehicle_manager_proxy.agent.debug_helper
-                planer_debug_helper.deserialize_debug_info( request.planer_debug_helper )
+                # TODO: we're just treating this a regular broadcast for now.
+                # - do we need per-vehicle
+                # - is it worth making something distinct from a tick?
 
-                vehicle_manager_proxy.client_debug_helper.deserialize_debug_info( request.client_debug_helper)
+                with ScenarioManager.lock:
+                    logger.debug(f"received DEBUG_INFO_UPDATE from vehicle {request.vehicle_index}")
+                    # make sure to add the tick_id to the root list when we do the tick
+                    # TODO: should we assert that we've not already received this response?
+                    if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
+                        ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
+
+                    vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
+                    vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
+                    vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
+                    vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)   
 
             elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
 
                 with ScenarioManager.lock:
                     logger.debug(f"received TICK_DONE from vehicle {request.vehicle_index}")
                     # make sure to add the tick_id to the root list when we do the tick
+                    # TODO: should we assert that we've not already received this response?
                     if request.vehicle_index not in ScenarioManager.sim_state_completions:
                         ScenarioManager.sim_state_completions.append(request.vehicle_index)
 
-                    vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
-                    # deserialize localization data
-                    loc_debug_helper = vehicle_manager_proxy.localizer.debug_helper
-                    loc_debug_helper.deserialize_debug_info( request.loc_debug_helper )
-                    # deserialize planer data
-                    planer_debug_helper = vehicle_manager_proxy.agent.debug_helper
-                    planer_debug_helper.deserialize_debug_info( request.planer_debug_helper )
-
-                    vehicle_manager_proxy.client_debug_helper.deserialize_debug_info(request.client_debug_helper)
-
-                # this means sim is done - end??    
+                        vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
+                        vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
+                        vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
+                        vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)   
 
             elif request.vehicle_state == sim_state.VehicleState.ERROR:
 
@@ -1177,10 +1179,13 @@ class ScenarioManager:
         logger.debug("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
         self.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
             
-
-    def broadcast_tick(self):
+    # just use tick logic here; need something smarter if we want per-vehicle data    
+    # could also just switch to a "broadcast message "    
+    def broadcast_message(self, message_type = sim_state.Command.TICK):
         """
-        Tick the server - broadcasts a message to all vehicles
+        Request all clients send debug data - broadcasts a message to all vehicles
+
+        just using the tick_id; as noted, we should change to message ID to make this more generic
 
         returns bool
         """
@@ -1195,31 +1200,44 @@ class ScenarioManager:
         sim_state_update = sim_state.SimulationState()
         sim_state_update.state = sim_state.State.ACTIVE
         sim_state_update.tick_id = ScenarioManager.tick_id
-        sim_state_update.command = sim_state.Command.TICK
-        for waypoint_buffer_proto in ScenarioManager.waypoint_buffer_overrides:
-            #logger.debug(waypoint_buffer_proto.SerializeToString())
-            sim_state_update.all_waypoint_buffers.extend([waypoint_buffer_proto])
+        sim_state_update.command = message_type
+        if message_type == sim_state.Command.TICK:
+            for waypoint_buffer_proto in ScenarioManager.waypoint_buffer_overrides:
+                #logger.debug(waypoint_buffer_proto.SerializeToString())
+                sim_state_update.all_waypoint_buffers.extend([waypoint_buffer_proto])
         sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
         self.message_queue.put(sim_state_update)
         ScenarioManager.pushed_message.set()
 
-        logger.debug(f"queued tick {ScenarioManager.tick_id}")
+        logger.debug(f"queued tick (broadcast message) {ScenarioManager.tick_id}")
 
         ScenarioManager.popped_message.wait(timeout=None)
         ScenarioManager.popped_message.clear()
 
-        logger.debug(f"pushed tick {ScenarioManager.tick_id}")
+        logger.debug(f"pushed tick (broadcast message) {ScenarioManager.tick_id}")
 
         ScenarioManager.tick_complete.wait(timeout=None)
         ScenarioManager.tick_complete.clear()
 
-        ScenarioManager.waypoint_buffer_overrides.clear()
+        if message_type == sim_state.Command.TICK:
+            ScenarioManager.waypoint_buffer_overrides.clear()
+    
         post_client_tick_time = time.time()
         self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
+        
         if len(ScenarioManager.sim_state_completions) == ScenarioManager.vehicle_count:
             return False # TODO - make a better flag
         else:  
             return True
+
+    def broadcast_tick(self):
+        """
+        Tick the server - broadcasts a message to all vehicles
+
+        returns bool
+        """
+        return self.broadcast_message(sim_state.Command.TICK)
+
 
     def add_waypoint_buffer_to_tick(self, waypoint_buffer): #, vehicle_index=None, vid=None, actor_id=None):
         """

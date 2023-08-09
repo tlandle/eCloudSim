@@ -182,6 +182,8 @@ class LidarSensor:
         self.sensor.listen(
             lambda event: LidarSensor._on_data_event(
                 weak_self, event))
+        
+        self.debug_helper = ClientDebugHelper(0)
 
     @staticmethod
     def _on_data_event(weak_self, event):
@@ -260,6 +262,8 @@ class SemanticLidarSensor:
         self.sensor.listen(
             lambda event: SemanticLidarSensor._on_data_event(
                 weak_self, event))
+        
+        self.debug_helper = ClientDebugHelper(0)
 
     @staticmethod
     def _on_data_event(weak_self, event):
@@ -372,6 +376,8 @@ class PerceptionManager:
 
         # the dictionary contains all objects
         self.objects = {}
+
+        self.debug_helper = ClientDebugHelper(0)
 
     def dist(self, a):
         """
