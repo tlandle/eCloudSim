@@ -305,7 +305,7 @@ class ScenarioManager:
                 loc_debug_helper.deserialize_debug_info( request.loc_debug_helper )
                 # deserialize planer data
                 planer_debug_helper = vehicle_manager_proxy.agent.debug_helper
-                planer_debug_helper.deserialize_debug_info( request.loc_debug_helper )
+                planer_debug_helper.deserialize_debug_info( request.planer_debug_helper )
 
             elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
 
