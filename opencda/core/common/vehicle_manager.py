@@ -29,6 +29,7 @@ from opencda.core.plan.behavior_agent \
     import BehaviorAgent
 from opencda.core.common.data_dumper import DataDumper
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
+from opencda.client_debug_helper import ClientDebugHelper
 
 import coloredlogs, logging
 logger = logging.getLogger(__name__)
@@ -181,6 +182,7 @@ class VehicleManager(object):
 
         # eCLOUD END    
 
+        self.debug_helper = ClientDebugHelper(0)
         # retrieve the configure for different modules
         sensing_config = cav_config['sensing']
         behavior_config = cav_config['behavior']
@@ -340,7 +342,10 @@ class VehicleManager(object):
         control = self.controller.run_step(target_speed, target_pos)
         post_vehicle_step_time = time.time()
         logging.debug("Controller step time: %s" %(post_vehicle_step_time - end_time))
-        logging.debug("Vehicle step time: %s" %(post_vehicle_step_time - pre_vehicle_step_time))        
+        logging.debug("Vehicle step time: %s" %(post_vehicle_step_time - pre_vehicle_step_time))
+        self.debug_helper.update_controller_step_time((post_vehicle_step_time - end_time)*1000)
+        self.debug_helper.update_vehicle_step_time((post_vehicle_step_time - pre_vehicle_step_time)*1000)
+        self.debug_helper.update_agent_step_time((end_time - pre_vehicle_step_time)*1000)        
  
         # dump data
         if self.data_dumper:
@@ -354,7 +359,10 @@ class VehicleManager(object):
         """
         Apply the controls to the vehicle
         """
+        start_time = time.time()
         self.vehicle.apply_control(control)
+        end_time = time.time()
+        self.debug_helper.update_control_time((end_time - start_time)*1000)
 
     def destroy(self):
         """

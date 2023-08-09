@@ -307,6 +307,8 @@ class ScenarioManager:
                 planer_debug_helper = vehicle_manager_proxy.agent.debug_helper
                 planer_debug_helper.deserialize_debug_info( request.planer_debug_helper )
 
+                vehicle_manager_proxy.client_debug_helper.deserialize_debug_info( request.client_debug_helper)
+
             elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
 
                 with ScenarioManager.lock:
@@ -322,6 +324,8 @@ class ScenarioManager:
                     # deserialize planer data
                     planer_debug_helper = vehicle_manager_proxy.agent.debug_helper
                     planer_debug_helper.deserialize_debug_info( request.planer_debug_helper )
+
+                    vehicle_manager_proxy.client_debug_helper.deserialize_debug_info(request.client_debug_helper)
 
                 # this means sim is done - end??    
 

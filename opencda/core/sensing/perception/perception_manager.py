@@ -24,7 +24,7 @@ from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.perception.o3d_lidar_libs import \
     o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show,\
     o3d_camera_lidar_fusion
-
+from opencda.client_debug_helper import ClientDebugHelper
 
 class CameraSensor:
     """
@@ -97,6 +97,8 @@ class CameraSensor:
         # camera attributes
         self.image_width = int(self.sensor.attributes['image_size_x'])
         self.image_height = int(self.sensor.attributes['image_size_y'])
+
+        self.debug_helper = ClientDebugHelper(0)
 
     @staticmethod
     def _on_rgb_image_event(weak_self, event):
@@ -435,6 +437,7 @@ class PerceptionManager:
             Updated object dictionary.
         """
         # retrieve current cameras and lidar data
+        
         rgb_images = []
         for rgb_camera in self.rgb_camera:
             while rgb_camera.image is None:
@@ -514,6 +517,7 @@ class PerceptionManager:
          objects: dict
             Updated object dictionary.
         """
+        perception_start_time = time.time()
         world = self.vehicle.get_world()
 
         vehicle_list = world.get_actors().filter("*vehicle*")
@@ -577,6 +581,8 @@ class PerceptionManager:
         # add traffic light
         objects = self.retrieve_traffic_lights(objects)
         self.objects = objects
+        perception_end_time = time.time()
+        self.debug_helper.update_perception_time((perception_end_time - perception_start_time)*1000)
 
         return objects
 

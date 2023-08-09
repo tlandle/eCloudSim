@@ -28,6 +28,7 @@ from opencda.core.plan.behavior_agent \
     import BehaviorAgent
 from opencda.core.common.data_dumper import DataDumper
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
+from opencda.client_debug_helper import ClientDebugHelper
 
 RESULT_SUCCESS = 0 # Step ran ok
 RESULT_ERROR = 1 # Step resulted in an error
@@ -118,6 +119,7 @@ class VehicleManagerProxy(object):
 
         # Use sockets for interprocess communication between OpenCDA and each vehicle
         #self._socket = conn
+        self.debug_helper = ClientDebugHelper(0)
 
     def start_vehicle(self, actor_id, vid):
         # Send the START message to the vehicle with simulation parameters       
