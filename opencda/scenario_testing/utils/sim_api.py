@@ -321,7 +321,7 @@ class ScenarioManager:
                     loc_debug_helper.deserialize_debug_info( request.loc_debug_helper )
                     # deserialize planer data
                     planer_debug_helper = vehicle_manager_proxy.agent.debug_helper
-                    planer_debug_helper.deserialize_debug_info( request.loc_debug_helper )
+                    planer_debug_helper.deserialize_debug_info( request.planer_debug_helper )
 
                 # this means sim is done - end??    
 
