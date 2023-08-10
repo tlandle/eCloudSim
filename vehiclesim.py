@@ -435,6 +435,7 @@ def main():
             response.loc_debug_helper.CopyFrom( loc_debug_helper_msg )
 
             client_debug_helper = vehicle_manager.debug_helper
+            #logger.debug(vehicle_manager.debug_helper.perception_time_list)
             client_debug_helper_msg = sim_state.ClientDebugHelper()
             client_debug_helper.serialize_debug_info(client_debug_helper_msg)
             response.client_debug_helper.CopyFrom(client_debug_helper_msg)

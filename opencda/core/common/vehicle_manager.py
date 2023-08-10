@@ -300,12 +300,16 @@ class VehicleManager(object):
         ego_spd = self.localizer.get_ego_spd()
         end_time = time.time()
         logging.debug("Localizer time: %s" %(end_time - start_time)) 
+        self.debug_helper.update_localization_time((end_time-start_time)*1000)
 
         # object detection
         start_time = time.time()
         objects = self.perception_manager.detect(ego_pos)
         end_time = time.time()
-        logging.debug("Perception time: %s" %(end_time - start_time)) 
+        logging.debug("Perception time: %s" %(end_time - start_time))
+        self.debug_helper.update_perception_time((end_time-start_time)*1000)
+
+
 
         # update ego position and speed to v2x manager,
         # and then v2x manager will search the nearby cavs
@@ -317,12 +321,15 @@ class VehicleManager(object):
         start_time = time.time()
         self.agent.update_information(ego_pos, ego_spd, objects)
         end_time = time.time()
-        logging.debug("Agent Update info time: %s" %(end_time - start_time)) 
+        logging.debug("Agent Update info time: %s" %(end_time - start_time))
+        self.debug_helper.update_agent_update_info_time((end_time-start_time)*1000)
+
         # pass position and speed info to controller
         start_time = time.time()
         self.controller.update_info(ego_pos, ego_spd)
         end_time = time.time()
-        logging.debug("Controller update time: %s" %(end_time - start_time)) 
+        logging.debug("Controller update time: %s" %(end_time - start_time))
+        self.debug_helper.update_controller_update_info_time((end_time-start_time)*1000)
 
     def run_step(self, target_speed=None):
         """

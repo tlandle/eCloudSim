@@ -315,7 +315,10 @@ class ScenarioManager:
                     vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
                     vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
                     vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
-                    vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)   
+                    vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)
+                    #logger.debug(vehicle_manager_proxy.debug_helper.perception_time_list)
+                    #logger.debug(vehicle_manager_proxy.debug_helper.localization_time_list)
+ 
 
             elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
 
@@ -1332,7 +1335,125 @@ class ScenarioManager:
             if not os.path.exists(cumulative_stats_folder_path):
                 os.makedirs(cumulative_stats_folder_path)
 
-                
+
+            client_perception_time_list = []
+            for vehicle_index, vehicle_manager_proxy in self.vehicle_managers.items():
+              client_perception_time_list.append(vehicle_manager_proxy.debug_helper.perception_time_list)
+
+            logger.debug(client_perception_time_list)
+
+            client_perception_time_list_flat = np.array(client_perception_time_list).ravel()
+            client_perception_time_df = pd.DataFrame(client_perception_time_list_flat, columns = ['client_perception_time_ms'])
+            client_perception_time_df['num_cars'] = ScenarioManager.vehicle_count
+            client_perception_time_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
+            client_perception_time_df = client_perception_time_df[['num_cars', 'client_perception_time_ms', 'run_timestamp']]
+
+            client_perception_time_df_path = f'./{cumulative_stats_folder_path}/df_client_perception_time'
+            client_perception_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_client_perception_time_cumstats'
+            try:
+                picklefile = open(client_perception_time_df_path, 'rb+')
+                current_client_perception_time_df = pickle.load(picklefile)  #unpickle the dataframe
+            except:
+                picklefile = open(client_perception_time_df_path, 'wb+')
+                current_client_perception_time_df = pd.DataFrame(columns=['num_cars', 'client_perception_time_ms', 'run_timestamp'])
+
+            picklefile = open(client_perception_time_df_path, 'wb+')
+            client_perception_time_df = pd.concat([current_client_perception_time_df, client_perception_time_df], axis=0, ignore_index=True)
+
+            # pickle the dataFrame
+            pickle.dump(client_perception_time_df, picklefile)
+            print(client_perception_time_df)
+            #close file
+            picklefile.close()
+
+            # create new df with cumultaive stats (e.g. mean, std, median, min, max)
+            client_perception_time_cumstats_df = pd.DataFrame()
+            client_perception_time_cumstats_df = client_perception_time_df.groupby('num_cars')['client_perception_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            picklefile = open(client_perception_time_df_cumstats_path, 'wb+')
+            pickle.dump(client_perception_time_cumstats_df, picklefile)
+            picklefile.close()
+            print(client_perception_time_cumstats_df)
+              # ___________________________________Client Localization time________________________________________________
+
+            client_localization_time_list = []
+            for vehicle_index, vehicle_manager_proxy in self.vehicle_managers.items():
+              client_localization_time_list.append(vehicle_manager_proxy.debug_helper.localization_time_list)
+
+            logger.debug(client_localization_time_list)
+
+            client_localization_time_list_flat = np.array(client_localization_time_list).ravel()
+            client_localization_time_df = pd.DataFrame(client_localization_time_list_flat, columns = ['client_localization_time_ms'])
+            client_localization_time_df['num_cars'] = ScenarioManager.vehicle_count
+            client_localization_time_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
+            client_localization_time_df = client_localization_time_df[['num_cars', 'client_localization_time_ms', 'run_timestamp']]
+
+            client_localization_time_df_path = f'./{cumulative_stats_folder_path}/df_client_localization_time'
+            client_localization_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_client_localization_time_cumstats'
+            try:
+                picklefile = open(client_localization_time_df_path, 'rb+')
+                current_client_localization_time_df = pickle.load(picklefile)  #unpickle the dataframe
+            except:
+                picklefile = open(client_localization_time_df_path, 'wb+')
+                current_client_localization_time_df = pd.DataFrame(columns=['num_cars', 'client_localization_time_ms', 'run_timestamp'])
+
+            picklefile = open(client_localization_time_df_path, 'wb+')
+            client_localization_time_df = pd.concat([current_client_localization_time_df, client_localization_time_df], axis=0, ignore_index=True)
+
+            # pickle the dataFrame
+            pickle.dump(client_localization_time_df, picklefile)
+            print(client_localization_time_df)
+            #close file
+            picklefile.close()
+
+            # create new df with cumultaive stats (e.g. mean, std, median, min, max)
+            client_localization_time_cumstats_df = pd.DataFrame()
+            client_localization_time_cumstats_df = client_localization_time_df.groupby('num_cars')['client_localization_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            picklefile = open(client_localization_time_df_cumstats_path, 'wb+')
+            pickle.dump(client_localization_time_cumstats_df, picklefile)
+            picklefile.close()
+            print(client_localization_time_cumstats_df)
+
+              # ___________________________________Client Control time________________________________________________
+
+            client_control_time_list = []
+            for vehicle_index, vehicle_manager_proxy in self.vehicle_managers.items():
+              client_control_time_list.append(vehicle_manager_proxy.debug_helper.control_time_list)
+
+            client_control_time_list_flat = np.array(client_control_time_list).ravel()
+            client_control_time_df = pd.DataFrame(client_control_time_list_flat, columns = ['client_control_time_ms'])
+            client_control_time_df['num_cars'] = ScenarioManager.vehicle_count
+            client_control_time_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
+            client_control_time_df = client_control_time_df[['num_cars', 'client_control_time_ms', 'run_timestamp']]
+
+            client_control_time_df_path = f'./{cumulative_stats_folder_path}/df_client_control_time'
+            client_control_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_client_control_time_cumstats'
+            try:
+                picklefile = open(client_control_time_df_path, 'rb+')
+                current_client_control_time_df = pickle.load(picklefile)  #unpickle the dataframe
+            except:
+                picklefile = open(client_control_time_df_path, 'wb+')
+                current_client_control_time_df = pd.DataFrame(columns=['num_cars', 'client_control_time_ms', 'run_timestamp'])
+
+            picklefile = open(client_control_time_df_path, 'wb+')
+            client_control_time_df = pd.concat([current_client_control_time_df, client_control_time_df], axis=0, ignore_index=True)
+
+            # pickle the dataFrame
+            pickle.dump(client_control_time_df, picklefile)
+            print(client_control_time_df)
+            #close file
+            picklefile.close()
+
+            # create new df with cumultaive stats (e.g. mean, std, median, min, max)
+            client_control_time_cumstats_df = pd.DataFrame()
+            client_control_time_cumstats_df = client_control_time_df.groupby('num_cars')['client_control_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            picklefile = open(client_control_time_df_cumstats_path, 'wb+')
+            pickle.dump(client_control_time_cumstats_df, picklefile)
+            picklefile.close()
+            print(client_control_time_cumstats_df)
+ 
+
+             # ___________________________________Client Step time________________________________________________
+   
             client_tick_time_list = self.debug_helper.client_tick_time_list
             client_tick_time_list_flat = np.concatenate(client_tick_time_list).ravel()
 

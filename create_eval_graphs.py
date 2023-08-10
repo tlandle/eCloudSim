@@ -200,13 +200,60 @@ def plot_client_step_time():
     # plt.show()
     # plt.clf()
 
+def plot_client_perception_time():
+    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_perception_time'
+    sim_stats_df = get_stats_df(step_time_df_path)
 
+    labels = {"xlabel": 'Number of Cars',
+              "ylabel": 'Client Perception Time (ms)',
+              "title": f'eCloudSim: Client Perception Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+
+    # Box plot
+    plt.figure(figsize=(10, 6))
+    ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_perception_time_ms', labels=labels)
+    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_perception_time_boxplot.png'
+    save_ax(ax, save_file_path)
+    plt.show()
+    plt.clf()
+
+def plot_client_localization_time():
+    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_localization_time'
+    sim_stats_df = get_stats_df(step_time_df_path)
+
+    labels = {"xlabel": 'Number of Cars',
+              "ylabel": 'Client Localization Time (ms)',
+              "title": f'eCloudSim: Client Localization Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+
+    # Box plot
+    plt.figure(figsize=(10, 6))
+    ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_localization_time_ms', labels=labels)
+    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_localization_time_boxplot.png'
+    save_ax(ax, save_file_path)
+    plt.show()
+    plt.clf()
+
+def plot_client_control_time():
+    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_control_time'
+    sim_stats_df = get_stats_df(step_time_df_path)
+
+    labels = {"xlabel": 'Number of Cars',
+              "ylabel": 'Client Control Time (ms)',
+              "title": f'eCloudSim: Client Control Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+
+    # Box plot
+    plt.figure(figsize=(10, 6))
+    ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_control_time_ms', labels=labels)
+    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_control_time_boxplot.png'
+    save_ax(ax, save_file_path)
+    plt.show()
+    plt.clf()
 
 # In[276]:
 
 
 step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_world_step_time'
 client_step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_step_time'
+client_perception_time_df_path =  f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_perception_time' 
 sim_stats_df = get_stats_df(f'{CUMULATIVE_STATS_FOLDER_PATH}/df_step_time_cumstats')
 sim_stats_df
 
@@ -274,6 +321,15 @@ if __name__ == '__main__':
 
     # Plotting simulation step time stats
     plot_client_step_time()
+
+    # Plotting simulation step time stats
+    plot_client_perception_time()
+
+    # Plotting simulation step time stats
+    plot_client_localization_time()
+
+    # Plotting simulation step time stats
+    plot_client_control_time()
 
 
    # Example DataFrame for comparison chart

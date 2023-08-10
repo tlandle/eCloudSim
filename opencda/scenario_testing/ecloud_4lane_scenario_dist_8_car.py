@@ -29,6 +29,8 @@ from opencda.scenario_testing.evaluations.evaluate_manager import \
 # ONLY *required* for 2 Lane highway scenarios
 # import opencda.scenario_testing.utils.customized_map_api as map_api
 
+import sim_api_pb2 as sim_state
+
 # Consts
 LOG_NAME = "ecloud_4lane.log" # data drive from file name?
 SCENARIO_NAME = "ecloud_4lane_scenario" # data drive from file name?
@@ -87,11 +89,15 @@ def run_scenario(opt, config_yaml):
 
                 # update the Carla data on VehicleManagerProxies
                 # REQUIRED for Evaluation which runs on Proxies' local data
-                for _, single_cav in enumerate(single_cav_list):
-                    single_cav.update_info()
+                # DO NOT WANT THIS TO RUN! SLOW!!
+                # for _, single_cav in enumerate(single_cav_list):
+                #     single_cav.update_info()
+
                 step = step + 1
-                if(step > 550):
+                if(step > 250):
+                    flag = scenario_manager.broadcast_message(sim_state.Command.REQUEST_DEBUG_INFO)
                     break
+            
             else:    
                 # non-dist will break automatically; don't need to set flag
                 scenario_manager.tick()
