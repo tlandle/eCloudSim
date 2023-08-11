@@ -10,6 +10,7 @@ import subprocess
 import random
 import socket
 import json
+import psutil
 
 import carla
 import numpy as np
@@ -102,7 +103,7 @@ class VehicleManagerProxy(object):
         if 'single_cav_list' in config_yaml['scenario']:
             self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index]
         elif 'edge_list' in config_yaml['scenario']:
-            # TODO: support multiple edges... 
+            # TODO: support multiple edges...
             self.cav_config = config_yaml['scenario']['edge_list'][0]['members'][vehicle_index]
         else:
             assert(False, "no known vehicle indexing format found")
@@ -122,7 +123,7 @@ class VehicleManagerProxy(object):
         self.debug_helper = ClientDebugHelper(0)
 
     def start_vehicle(self, actor_id, vid):
-        # Send the START message to the vehicle with simulation parameters       
+        # Send the START message to the vehicle with simulation parameters
         self.vid = vid # message["vid"] # Vehicle sends back the uuid id we use as unique identifier
 
         # print("eCloud debug | actor_id: " + str(actor_id))
@@ -253,7 +254,7 @@ class VehicleManagerProxy(object):
 
         # self._socket.send(json.dumps({"cmd": "update_info"}).encode('utf-8'))
         # resp = json.loads(self._socket.recv(1024).decode('utf-8'))
-        return 
+        return
 
     def run_step(self, target_speed=None):
         """
@@ -296,11 +297,28 @@ class VehicleManagerProxy(object):
         # self._socket.send(json.dumps({"cmd": "END"}).encode('utf-8'))
         # resp = json.loads(self._socket.recv(1024).decode('utf-8'))
 
+    def is_process_running(self, processName):
+        '''
+        Check if there is any running process that contains the given name processName.
+        '''
+        #Iterate over the all the running process
+        for proc in psutil.process_iter():
+            try:
+                # Check if process name contains the given name string.
+                if processName.lower() in proc.name().lower():
+                    return True
+
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+
+        return False
+
     def destroy(self):
         """
         Destroy the actor vehicle
         """
-        self.perception_manager.destroy()
-        self.localizer.destroy()
-        self.vehicle.destroy()
-        #self._socket.close()
+        if self.is_process_running("CarlaUE4-Linux-Shipping"):
+            self.perception_manager.destroy()
+            self.localizer.destroy()
+            self.vehicle.destroy()
+            #self._socket.close()
