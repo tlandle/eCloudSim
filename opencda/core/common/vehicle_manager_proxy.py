@@ -311,13 +311,14 @@ class VehicleManagerProxy(object):
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
 
+        print(f"{processName} is no longer running...")
         return False
 
     def destroy(self):
         """
         Destroy the actor vehicle
         """
-        if self.is_process_running("CarlaUE4-Linux-Shipping"):
+        if self.is_process_running("CarlaUE4"):
             self.perception_manager.destroy()
             self.localizer.destroy()
             self.vehicle.destroy()
