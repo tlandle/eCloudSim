@@ -189,7 +189,7 @@ class ScenarioManager:
     """
 
     # eCLOUD BEGIN
-    
+
     connections_received = 0
     tick_id = 0 # current tick counter
     sim_state_responses = [[]] # list of responses per tick - e.g. sim_state_responses[tick_id = 1] = [veh_id = 1, veh_id = 2]
@@ -201,7 +201,7 @@ class ScenarioManager:
     set_sim_active = threading.Event()
     set_sim_started = threading.Event()
     lock = threading.Lock()
-    
+
     vehicles = {} # vehicle_index -> tuple (actor_id, vid)
     vehicle_count = 0
 
@@ -226,15 +226,15 @@ class ScenarioManager:
             self._id_counter = 0
             self._q = q
             self._message_stack = message_stack
-            random.seed(time.time())    
+            random.seed(time.time())
 
         def SimulationStateStream(self, request, context):
             last_tick_id = 0
             has_printed = False
 
-            logger.debug(f"request vehicle_index {request.vehicle_index}")    
+            logger.debug(f"request vehicle_index {request.vehicle_index}")
 
-            stack_index = 0 
+            stack_index = 0
             count = 0
             big_count = 0
             logger.debug("before while stack_index: " + str(stack_index))
@@ -255,26 +255,26 @@ class ScenarioManager:
                                     found = True
                             if not found:
                                 #print("new message:")
-                                #print(sim_state_update.SerializeToString()) 
-                                logger.debug("appended new message to stack")       
+                                #print(sim_state_update.SerializeToString())
+                                logger.debug("appended new message to stack")
                                 ScenarioManager.message_stack.append(sim_state_update.SerializeToString())
 
                     ScenarioManager.pushed_message.clear()
-                    ScenarioManager.popped_message.set()  
+                    ScenarioManager.popped_message.set()
 
                 #print("message_stack has " + str(len(self._message_stack)) + " messages...")
                 #print("stack_index" + str(stack_index))
                 while stack_index < len(ScenarioManager.message_stack):
                     m = ScenarioManager.message_stack[stack_index]
                     message = sim_state.SimulationState()
-                    message.ParseFromString(m)    
+                    message.ParseFromString(m)
                     logger.debug("in while stack_index: " + str(stack_index))
                     logger.debug("SimulationStateStream yield - message id: " + str(message.message_id) + " | command: " + str(message.command) + " | tick: " + str(message.tick_id))
 
                     stack_index += 1
 
                     yield message
-                
+
                 count += 1
                 time.sleep(0.1)
                 if count % 1000 == 0:
@@ -282,7 +282,7 @@ class ScenarioManager:
                     big_count += 1
                     logger.debug("looping " + str(big_count) + "...")
 
-            logger.debug(f"SimulationStateStream complete")            
+            logger.debug(f"SimulationStateStream complete")
 
         def SendUpdate(self, request: sim_state.VehicleUpdate, context):
 
@@ -318,7 +318,7 @@ class ScenarioManager:
                     vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)
                     #logger.debug(vehicle_manager_proxy.debug_helper.perception_time_list)
                     #logger.debug(vehicle_manager_proxy.debug_helper.localization_time_list)
- 
+
 
             elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
 
@@ -332,7 +332,7 @@ class ScenarioManager:
                         vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
                         vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
                         vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
-                        vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)   
+                        vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)
 
             elif request.vehicle_state == sim_state.VehicleState.ERROR:
 
@@ -342,11 +342,11 @@ class ScenarioManager:
             if len(ScenarioManager.sim_state_responses[request.tick_id]) == ScenarioManager.vehicle_count or \
                ( ( len(ScenarioManager.sim_state_responses[request.tick_id]) + len(ScenarioManager.sim_state_completions) ) == ScenarioManager.vehicle_count ):
                 logger.debug(f"TICK_COMPLETE for {request.tick_id}")
-                ScenarioManager.tick_complete.set()    
-            
-            return sim_state.Empty()   
+                ScenarioManager.tick_complete.set()
 
-        
+            return sim_state.Empty()
+
+
         def RegisterVehicle(self, request: sim_state.VehicleUpdate, context):
             #register the vehicle
             if request.vehicle_state == sim_state.VehicleState.REGISTERING:
@@ -359,7 +359,7 @@ class ScenarioManager:
                 logger.debug("RegisterVehicle - REGISTERING - message id: " + str(response.message_id))
                 with ScenarioManager.lock:
                     ScenarioManager.connections_received += 1
-                return response  
+                return response
 
             if request.vehicle_state == sim_state.VehicleState.CARLA_UPDATE:
                 logger.debug("got a carla update")
@@ -367,11 +367,11 @@ class ScenarioManager:
                 response.state = sim_state.State.START # do we need a new state? like "registering"?
                 response.tick_id = 0
                 response.vehicle_index = request.vehicle_index
-                logger.debug(f"Request vehicle_index: " + str(request.vehicle_index) + " | actor_id: " + str(request.actor_id) + " | vid: " + str(request.vid)) 
+                logger.debug(f"Request vehicle_index: " + str(request.vehicle_index) + " | actor_id: " + str(request.actor_id) + " | vid: " + str(request.vid))
                 ScenarioManager.vehicles[f"vehicle_{request.vehicle_index}"] = ( request.actor_id, request.vid )
                 response.message_id = str(hashlib.sha256(response.SerializeToString()).hexdigest())
                 logger.debug("RegisterVehicle - CARLA_UPDATE - message id: " + str(response.message_id))
-                return response                    
+                return response
 
     def serve(self, q: Queue(), message_stack, address: str) -> None:
         ScenarioManager.server = grpc.server(ThreadPoolExecutor(max_workers=200))
@@ -453,7 +453,7 @@ class ScenarioManager:
         if self.run_distributed:
             self.apply_ml = False
             if apply_ml == True:
-                assert( False, "ML should only be run on the distributed clients")       
+                assert( False, "ML should only be run on the distributed clients")
 
             # gRPC hello block begin
             self.message_queue = Queue()
@@ -464,7 +464,7 @@ class ScenarioManager:
             if 'single_cav_list' in scenario_params['scenario']:
                 ScenarioManager.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
             elif 'edge_list' in scenario_params['scenario']:
-                # TODO: support multiple edges... 
+                # TODO: support multiple edges...
                 ScenarioManager.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['members'])
             else:
                 assert(False, "no known vehicle indexing format found")
@@ -481,7 +481,7 @@ class ScenarioManager:
 
             ScenarioManager.scenario = json.dumps(scenario_params) #self.config_file
             ScenarioManager.carla_version = self.carla_version
-        
+
             # signal server to put ACTIVE on the wire
             #ScenarioManager.set_sim_started.set()
 
@@ -688,9 +688,9 @@ class ScenarioManager:
             self.message_queue.put(sim_state_update)
             ScenarioManager.pushed_message.set()
             # end gRPC update_info
-            
+
             logger.debug(f"update info complete for vehicle_index {i}")
-            
+
             # vehicle_manager.set_destination(
             #     vehicle_manager.vehicle.get_location(),
             #     destination,
@@ -705,7 +705,7 @@ class ScenarioManager:
             sim_state_update.vehicle_index = i
 
             start_location = vehicle_manager.vehicle.get_location()
-            message = { 
+            message = {
                     "params": {
                     "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
                     "end": {"x": destination.x, "y": destination.y, "z": destination.z},
@@ -831,8 +831,8 @@ class ScenarioManager:
             A list contains all single CAVs' vehicle manager.
         """
 
-        # TODO: needs to support multiple edges. 
-        # Probably a more significant refactor, 
+        # TODO: needs to support multiple edges.
+        # Probably a more significant refactor,
         # since I think each edge wants its own gRPC server
 
         logger.info('Creating edge CAVs.')
@@ -903,9 +903,9 @@ class ScenarioManager:
                 self.message_queue.put(sim_state_update)
                 ScenarioManager.pushed_message.set()
                 # end gRPC update_info
-                
+
                 logger.debug(f"update info complete for vehicle_index {i}")
-                
+
                 # vehicle_manager.set_destination(
                 #     vehicle_manager.vehicle.get_location(),
                 #     destination,
@@ -920,7 +920,7 @@ class ScenarioManager:
                 sim_state_update.vehicle_index = self.vehicle_index
 
                 start_location = vehicle_manager.vehicle.get_location()
-                message = { 
+                message = {
                         "params": {
                         "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
                         "end": {"x": destination.x, "y": destination.y, "z": destination.z},
@@ -944,7 +944,7 @@ class ScenarioManager:
                 self.vehicle_index = self.vehicle_index + 1
 
                 ScenarioManager.popped_message.wait(timeout=None)
-                ScenarioManager.popped_message.clear()         
+                ScenarioManager.popped_message.clear()
 
             self.world.tick()
             destination = carla.Location(x=edge['destination'][0],
@@ -952,9 +952,9 @@ class ScenarioManager:
                                          z=edge['destination'][2])
 
             edge_manager.set_destination(destination)
-            
+
             edge_manager.start_edge()
-            
+
             edge_list.append(edge_manager)
 
         return edge_list
@@ -1165,7 +1165,7 @@ class ScenarioManager:
         """
         Tick the server; just a pass-through to broadcast_tick to preserve backwards compatibility for now...
 
-        returns bool 
+        returns bool
         """
         self.world.tick()
 
@@ -1174,16 +1174,16 @@ class ScenarioManager:
         """
         Tick the server; just a pass-through to broadcast_tick to preserve backwards compatibility for now...
 
-        returns bool 
+        returns bool
         """
         pre_world_tick_time = time.time()
-        self.world.tick()  
+        self.world.tick()
         post_world_tick_time = time.time()
         logger.debug("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
         self.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
-            
-    # just use tick logic here; need something smarter if we want per-vehicle data    
-    # could also just switch to a "broadcast message "    
+
+    # just use tick logic here; need something smarter if we want per-vehicle data
+    # could also just switch to a "broadcast message "
     def broadcast_message(self, message_type = sim_state.Command.TICK):
         """
         Request all clients send debug data - broadcasts a message to all vehicles
@@ -1224,13 +1224,13 @@ class ScenarioManager:
 
         if message_type == sim_state.Command.TICK:
             ScenarioManager.waypoint_buffer_overrides.clear()
-    
+
         post_client_tick_time = time.time()
         self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
-        
+
         if len(ScenarioManager.sim_state_completions) == ScenarioManager.vehicle_count:
             return False # TODO - make a better flag
-        else:  
+        else:
             return True
 
     def broadcast_tick(self):
@@ -1249,13 +1249,13 @@ class ScenarioManager:
         currently assumes the scenario has constructed a WaypointBuffer protobuf with explicit vehicle_index UID
 
         returns bool
-        """             
+        """
         assert( len(ScenarioManager.waypoint_buffer_overrides) == 0 )
 
         # TODO: clone?
         ScenarioManager.waypoint_buffer_overrides = waypoint_buffer
 
-        return True       
+        return True
 
     def end(self):
         """
@@ -1277,9 +1277,9 @@ class ScenarioManager:
 
         for i in range(0, 5):
             time.sleep(1)
-            logger.debug("scenario ending in %d", 5 - i) 
-    
-    # eCLOUD END    
+            logger.debug("scenario ending in %d", 5 - i)
+
+    # eCLOUD END
 
     def destroyActors(self):
         """
@@ -1289,7 +1289,7 @@ class ScenarioManager:
             logger.info("waiting for container shutdown...")
             for i in range(0, 5):
                 #time.sleep(1)
-                logger.debug("destroying actors in %d", 5 - i) 
+                logger.debug("destroying actors in %d", 5 - i)
 
         actor_list = self.world.get_actors()
         for actor in actor_list:
@@ -1307,7 +1307,7 @@ class ScenarioManager:
             logger.debug(f"telling server_thread to STOP")
             self.server_thread.join()
             logger.debug(f"server_thread joined")
-        
+
         # restore to origin setting
         self.world.apply_settings(self.origin_settings)
         logger.debug(f"world state restored...")
@@ -1366,20 +1366,21 @@ class ScenarioManager:
             #close file
             picklefile.close()
 
-            # create new df with cumultaive stats (e.g. mean, std, median, min, max)
-            client_perception_time_cumstats_df = pd.DataFrame()
-            client_perception_time_cumstats_df = client_perception_time_df.groupby('num_cars')['client_perception_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
-            picklefile = open(client_perception_time_df_cumstats_path, 'wb+')
-            pickle.dump(client_perception_time_cumstats_df, picklefile)
-            picklefile.close()
-            print(client_perception_time_cumstats_df)
-              # ___________________________________Client Localization time________________________________________________
+            # # create new df with cumultaive stats (e.g. mean, std, median, min, max)
+            # client_perception_time_cumstats_df = pd.DataFrame()
+            # client_perception_time_cumstats_df = client_perception_time_df.groupby('num_cars')['client_perception_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            # picklefile = open(client_perception_time_df_cumstats_path, 'wb+')
+            # pickle.dump(client_perception_time_cumstats_df, picklefile)
+            # picklefile.close()
+            # print(client_perception_time_cumstats_df)
+
+            # ___________________________________Client Localization time________________________________________________
 
             client_localization_time_list = []
             for vehicle_index, vehicle_manager_proxy in self.vehicle_managers.items():
                 if len(vehicle_manager_proxy.debug_helper.localization_time_list) > 0:
                     client_localization_time_list.append(vehicle_manager_proxy.debug_helper.localization_time_list)
-                else: 
+                else:
                     logger.error(f"EMPTY localization_time_list for vehicle_index {vehicle_index}")
 
             logger.debug(client_localization_time_list)
@@ -1391,7 +1392,7 @@ class ScenarioManager:
             client_localization_time_df = client_localization_time_df[['num_cars', 'client_localization_time_ms', 'run_timestamp']]
 
             client_localization_time_df_path = f'./{cumulative_stats_folder_path}/df_client_localization_time'
-            client_localization_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_client_localization_time_cumstats'
+            #client_localization_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_client_localization_time_cumstats'
             try:
                 picklefile = open(client_localization_time_df_path, 'rb+')
                 current_client_localization_time_df = pickle.load(picklefile)  #unpickle the dataframe
@@ -1408,13 +1409,13 @@ class ScenarioManager:
             #close file
             picklefile.close()
 
-            # create new df with cumultaive stats (e.g. mean, std, median, min, max)
-            client_localization_time_cumstats_df = pd.DataFrame()
-            client_localization_time_cumstats_df = client_localization_time_df.groupby('num_cars')['client_localization_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
-            picklefile = open(client_localization_time_df_cumstats_path, 'wb+')
-            pickle.dump(client_localization_time_cumstats_df, picklefile)
-            picklefile.close()
-            print(client_localization_time_cumstats_df)
+            # # create new df with cumultaive stats (e.g. mean, std, median, min, max)
+            # client_localization_time_cumstats_df = pd.DataFrame()
+            # client_localization_time_cumstats_df = client_localization_time_df.groupby('num_cars')['client_localization_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            # picklefile = open(client_localization_time_df_cumstats_path, 'wb+')
+            # pickle.dump(client_localization_time_cumstats_df, picklefile)
+            # picklefile.close()
+            # print(client_localization_time_cumstats_df)
 
               # ___________________________________Client Control time________________________________________________
 
@@ -1429,7 +1430,7 @@ class ScenarioManager:
             client_control_time_df = client_control_time_df[['num_cars', 'client_control_time_ms', 'run_timestamp']]
 
             client_control_time_df_path = f'./{cumulative_stats_folder_path}/df_client_control_time'
-            client_control_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_client_control_time_cumstats'
+            #client_control_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_client_control_time_cumstats'
             try:
                 picklefile = open(client_control_time_df_path, 'rb+')
                 current_client_control_time_df = pickle.load(picklefile)  #unpickle the dataframe
@@ -1447,16 +1448,16 @@ class ScenarioManager:
             picklefile.close()
 
             # create new df with cumultaive stats (e.g. mean, std, median, min, max)
-            client_control_time_cumstats_df = pd.DataFrame()
-            client_control_time_cumstats_df = client_control_time_df.groupby('num_cars')['client_control_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
-            picklefile = open(client_control_time_df_cumstats_path, 'wb+')
-            pickle.dump(client_control_time_cumstats_df, picklefile)
-            picklefile.close()
-            print(client_control_time_cumstats_df)
- 
+            # client_control_time_cumstats_df = pd.DataFrame()
+            # client_control_time_cumstats_df = client_control_time_df.groupby('num_cars')['client_control_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            # picklefile = open(client_control_time_df_cumstats_path, 'wb+')
+            # pickle.dump(client_control_time_cumstats_df, picklefile)
+            # picklefile.close()
+            # print(client_control_time_cumstats_df)
+
 
              # ___________________________________Client Step time________________________________________________
-   
+
             client_tick_time_list = self.debug_helper.client_tick_time_list
             client_tick_time_list_flat = np.concatenate(client_tick_time_list).flatten()
 
@@ -1466,7 +1467,7 @@ class ScenarioManager:
             client_step_time_df = client_step_time_df[['num_cars','client_step_time_ms', 'run_timestamp']]
 
             client_step_time_df_path = f'./{cumulative_stats_folder_path}/df_client_step_time'
-            client_step_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_client_step_time_cumstats'
+            #client_step_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_client_step_time_cumstats'
             try:
                 picklefile = open(client_step_time_df_path, 'rb+')
                 current_client_step_time_df = pickle.load(picklefile)  #unpickle the dataframe
@@ -1484,18 +1485,18 @@ class ScenarioManager:
             picklefile.close()
 
             # create new df with cumultaive stats (e.g. mean, std, median, min, max)
-            client_step_time_cumstats_df = pd.DataFrame()
-            client_step_time_cumstats_df = client_step_time_df.groupby('num_cars')['client_step_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
-            picklefile = open(client_step_time_df_cumstats_path, 'wb+')
-            pickle.dump(client_step_time_cumstats_df, picklefile)
-            picklefile.close()
-            print(client_step_time_cumstats_df)
+            # client_step_time_cumstats_df = pd.DataFrame()
+            # client_step_time_cumstats_df = client_step_time_df.groupby('num_cars')['client_step_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            # picklefile = open(client_step_time_df_cumstats_path, 'wb+')
+            # pickle.dump(client_step_time_cumstats_df, picklefile)
+            # picklefile.close()
+            # print(client_step_time_cumstats_df)
 
- 
+
             # ___________________________________World Step time________________________________________________
             world_tick_time_list = self.debug_helper.world_tick_time_list
             world_tick_time_list_flat = np.concatenate(world_tick_time_list).flatten()
-    
+
 
             step_time_df = pd.DataFrame(world_tick_time_list_flat, columns = ['world_step_time_ms'])
             step_time_df['num_cars'] = ScenarioManager.vehicle_count
@@ -1503,7 +1504,7 @@ class ScenarioManager:
             step_time_df = step_time_df[['num_cars','world_step_time_ms', 'run_timestamp']]
 
             step_time_df_path = f'./{cumulative_stats_folder_path}/df_world_step_time'
-            step_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_world_step_time_cumstats'
+            #step_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_world_step_time_cumstats'
             try:
                 picklefile = open(step_time_df_path, 'rb+')
                 current_step_time_df = pickle.load(picklefile)  #unpickle the dataframe
@@ -1521,12 +1522,12 @@ class ScenarioManager:
             picklefile.close()
 
             # create new df with cumultaive stats (e.g. mean, std, median, min, max)
-            step_time_cumstats_df = pd.DataFrame()
-            step_time_cumstats_df = step_time_df.groupby('num_cars')['world_step_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
-            picklefile = open(step_time_df_cumstats_path, 'wb+')
-            pickle.dump(step_time_cumstats_df, picklefile)
-            picklefile.close()
-            print(step_time_cumstats_df)
+            # step_time_cumstats_df = pd.DataFrame()
+            # step_time_cumstats_df = step_time_df.groupby('num_cars')['world_step_time_ms'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            # picklefile = open(step_time_df_cumstats_path, 'wb+')
+            # pickle.dump(step_time_cumstats_df, picklefile)
+            # picklefile.close()
+            # print(step_time_cumstats_df)
 
 
             # ________________________________________Total simulation time __________________________________________________
@@ -1536,7 +1537,7 @@ class ScenarioManager:
             perform_txt += f"Total Simulation Time: {total_sim_time}"
 
             sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
-            sim_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_total_sim_time_cumstats'
+            #sim_time_df_cumstats_path = f'./{cumulative_stats_folder_path}/df_total_sim_time_cumstats'
 
             try:
                 picklefile = open(sim_time_df_path, 'rb+')
@@ -1551,7 +1552,7 @@ class ScenarioManager:
                     "time_s": total_sim_time, \
                     "run_timestamp": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
                     ignore_index=True)
-            
+
             # pickle the dataFrame
             pickle.dump(sim_time_df, picklefile)
             print(sim_time_df)
@@ -1559,13 +1560,13 @@ class ScenarioManager:
             picklefile.close()
 
             # create new df with cumultaive stats (e.g. mean, std, median, min, max)
-            sim_time_cumstats_df = pd.DataFrame()
-            sim_time_cumstats_df = sim_time_df.groupby('num_cars')['time_s'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
-            picklefile = open(sim_time_df_cumstats_path, 'wb+')
-            pickle.dump(sim_time_cumstats_df, picklefile)
-            picklefile.close()
-            print(sim_time_cumstats_df)
-        
+            # sim_time_cumstats_df = pd.DataFrame()
+            # sim_time_cumstats_df = sim_time_df.groupby('num_cars')['time_s'].agg(['std', 'mean', 'median', 'min', 'max']).reset_index()
+            # picklefile = open(sim_time_df_cumstats_path, 'wb+')
+            # pickle.dump(sim_time_cumstats_df, picklefile)
+            # picklefile.close()
+            # print(sim_time_cumstats_df)
+
             # plotting
             figure = plt.figure()
 
