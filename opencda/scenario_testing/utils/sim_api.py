@@ -1384,7 +1384,7 @@ class ScenarioManager:
 
             logger.debug(client_localization_time_list)
 
-            client_localization_time_list_flat = np.array(client_localization_time_list).ravel()
+            client_localization_time_list_flat = np.array(client_localization_time_list).flatten()
             client_localization_time_df = pd.DataFrame(client_localization_time_list_flat, columns = ['client_localization_time_ms'])
             client_localization_time_df['num_cars'] = ScenarioManager.vehicle_count
             client_localization_time_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
