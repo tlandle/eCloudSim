@@ -10,6 +10,7 @@ import subprocess
 import random
 import socket
 import json
+import weakref
 
 import carla
 import numpy as np
@@ -102,11 +103,11 @@ class VehicleManagerProxy(object):
         if 'single_cav_list' in config_yaml['scenario']:
             self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index]
         elif 'edge_list' in config_yaml['scenario']:
-            # TODO: support multiple edges... 
+            # TODO: support multiple edges...
             self.cav_config = config_yaml['scenario']['edge_list'][0]['members'][vehicle_index]
         else:
             assert(False, "no known vehicle indexing format found")
-        self.cav_world = cav_world
+        self.cav_world = weakref.ref(cav_world)()
         self.data_dumping = data_dumping
         self.application = application
         self.current_time = current_time
@@ -122,7 +123,7 @@ class VehicleManagerProxy(object):
         self.debug_helper = ClientDebugHelper(0)
 
     def start_vehicle(self, actor_id, vid):
-        # Send the START message to the vehicle with simulation parameters       
+        # Send the START message to the vehicle with simulation parameters
         self.vid = vid # message["vid"] # Vehicle sends back the uuid id we use as unique identifier
 
         # print("eCloud debug | actor_id: " + str(actor_id))
@@ -253,7 +254,7 @@ class VehicleManagerProxy(object):
 
         # self._socket.send(json.dumps({"cmd": "update_info"}).encode('utf-8'))
         # resp = json.loads(self._socket.recv(1024).decode('utf-8'))
-        return 
+        return
 
     def run_step(self, target_speed=None):
         """

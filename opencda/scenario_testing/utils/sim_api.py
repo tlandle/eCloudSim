@@ -20,6 +20,7 @@ import random
 import copy
 import hashlib
 import os
+import weakref
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor, thread
@@ -445,7 +446,7 @@ class ScenarioManager:
         weather = self.set_weather(simulation_config['weather'])
         self.world.set_weather(weather)
 
-        self.cav_world = cav_world
+        self.cav_world = weakref.ref(cav_world)()
         self.carla_map = self.world.get_map()
         self.apply_ml = apply_ml
 
