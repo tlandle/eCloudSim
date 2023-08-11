@@ -1342,7 +1342,7 @@ class ScenarioManager:
 
             logger.debug(client_perception_time_list)
 
-            client_perception_time_list_flat = np.array(client_perception_time_list).ravel()
+            client_perception_time_list_flat = np.array(client_perception_time_list).flatten()
             client_perception_time_df = pd.DataFrame(client_perception_time_list_flat, columns = ['client_perception_time_ms'])
             client_perception_time_df['num_cars'] = ScenarioManager.vehicle_count
             client_perception_time_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
@@ -1422,7 +1422,7 @@ class ScenarioManager:
             for vehicle_index, vehicle_manager_proxy in self.vehicle_managers.items():
               client_control_time_list.append(vehicle_manager_proxy.debug_helper.control_time_list)
 
-            client_control_time_list_flat = np.array(client_control_time_list).ravel()
+            client_control_time_list_flat = np.array(client_control_time_list).flatten()
             client_control_time_df = pd.DataFrame(client_control_time_list_flat, columns = ['client_control_time_ms'])
             client_control_time_df['num_cars'] = ScenarioManager.vehicle_count
             client_control_time_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
@@ -1458,7 +1458,7 @@ class ScenarioManager:
              # ___________________________________Client Step time________________________________________________
    
             client_tick_time_list = self.debug_helper.client_tick_time_list
-            client_tick_time_list_flat = np.concatenate(client_tick_time_list).ravel()
+            client_tick_time_list_flat = np.concatenate(client_tick_time_list).flatten()
 
             client_step_time_df = pd.DataFrame(client_tick_time_list_flat, columns = ['client_step_time_ms'])
             client_step_time_df['num_cars'] = ScenarioManager.vehicle_count
@@ -1494,7 +1494,7 @@ class ScenarioManager:
  
             # ___________________________________World Step time________________________________________________
             world_tick_time_list = self.debug_helper.world_tick_time_list
-            world_tick_time_list_flat = np.concatenate(world_tick_time_list).ravel()
+            world_tick_time_list_flat = np.concatenate(world_tick_time_list).flatten()
     
 
             step_time_df = pd.DataFrame(world_tick_time_list_flat, columns = ['world_step_time_ms'])
