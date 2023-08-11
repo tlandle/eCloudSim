@@ -292,8 +292,8 @@ class ScenarioManager:
 
             elif request.vehicle_state == sim_state.VehicleState.TICK_OK:
 
+                logger.debug(f"received TICK_OK from vehicle {request.vehicle_index}")
                 with ScenarioManager.lock:
-                    logger.debug(f"received TICK_OK from vehicle {request.vehicle_index}")
                     # make sure to add the tick_id to the root list when we do the tick
                     # TODO: should we assert that we've not already received this response?
                     if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
@@ -305,8 +305,8 @@ class ScenarioManager:
                 # - do we need per-vehicle
                 # - is it worth making something distinct from a tick?
 
+                logger.debug(f"received DEBUG_INFO_UPDATE from vehicle {request.vehicle_index}")
                 with ScenarioManager.lock:
-                    logger.debug(f"received DEBUG_INFO_UPDATE from vehicle {request.vehicle_index}")
                     # make sure to add the tick_id to the root list when we do the tick
                     # TODO: should we assert that we've not already received this response?
                     if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
@@ -322,8 +322,8 @@ class ScenarioManager:
 
             elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
 
+                logger.debug(f"received TICK_DONE from vehicle {request.vehicle_index}")
                 with ScenarioManager.lock:
-                    logger.debug(f"received TICK_DONE from vehicle {request.vehicle_index}")
                     # make sure to add the tick_id to the root list when we do the tick
                     # TODO: should we assert that we've not already received this response?
                     if request.vehicle_index not in ScenarioManager.sim_state_completions:
@@ -1377,7 +1377,10 @@ class ScenarioManager:
 
             client_localization_time_list = []
             for vehicle_index, vehicle_manager_proxy in self.vehicle_managers.items():
-              client_localization_time_list.append(vehicle_manager_proxy.debug_helper.localization_time_list)
+                if len(vehicle_manager_proxy.debug_helper.localization_time_list) > 0:
+                    client_localization_time_list.append(vehicle_manager_proxy.debug_helper.localization_time_list)
+                else: 
+                    logger.error(f"EMPTY localization_time_list for vehicle_index {vehicle_index}")
 
             logger.debug(client_localization_time_list)
 
