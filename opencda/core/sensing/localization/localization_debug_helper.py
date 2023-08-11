@@ -233,19 +233,19 @@ class LocDebugHelper(object):
 
             figure.suptitle('localization plotting of actor id %d' % self.actor_id)
 
-            x_error_mean = np.mean(
+            x_error_mean = np.nanmean(
                 np.abs(
                     np.array(
                         self.gt_x) -
                     np.array(
                         self.gnss_x)))
-            y_error_mean = np.mean(
+            y_error_mean = np.nanmean(
                 np.abs(
                     np.array(
                         self.gt_y) -
                     np.array(
                         self.gnss_y)))
-            yaw_error_mean = np.mean(
+            yaw_error_mean = np.nanmean(
                 np.abs(
                     np.array(
                         self.gt_yaw) -
@@ -259,19 +259,19 @@ class LocDebugHelper(object):
                             y_error_mean,
                             yaw_error_mean)
 
-            x_error_mean = np.mean(
+            x_error_mean = np.nanmean(
                 np.abs(
                     np.array(
                         self.gt_x) -
                     np.array(
                         self.filter_x)))
-            y_error_mean = np.mean(
+            y_error_mean = np.nanmean(
                 np.abs(
                     np.array(
                         self.gt_y) -
                     np.array(
                         self.filter_y)))
-            yaw_error_mean = np.mean(
+            yaw_error_mean = np.nanmean(
                 np.abs(
                     np.array(
                         self.gt_yaw) -
