@@ -7,6 +7,7 @@ Visualization tools for localization
 
 import numpy as np
 import matplotlib
+import warnings
 
 import matplotlib.pyplot as plt
 
@@ -179,7 +180,8 @@ class LocDebugHelper(object):
         """
         figure, axis = plt.subplots(3, 2)
         figure.set_size_inches(16, 12)
-        try:    
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)   
             # x, y coordinates
             axis[0, 0].plot(self.gnss_x, self.gnss_y, ".g", label='gnss')
             axis[0, 0].plot(self.gt_x, self.gt_y, ".b", label='gt')
@@ -286,10 +288,6 @@ class LocDebugHelper(object):
                             yaw_error_mean)
 
             return figure, perform_txt
-        
-        except Exception as e:
-            print(f"EXCEPTION THROWN: localization.evaluate() for actor_id {self.actor_id}")
-            return figure, ""
 
     def serialize_debug_info(self, proto_debug_helper):
         # TODO: extend instead of append? or [:] = ?
