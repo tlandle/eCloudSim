@@ -2,6 +2,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# docker issues when using this in everyone's environ
+start_vehicles.sh
+
 # C extensions
 *.so
 
