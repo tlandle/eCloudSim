@@ -162,6 +162,6 @@ class PlanDebugHelper(object):
 
         for time_list in self.agent_step_list:
             time_list.clear()
-        for idx, proto_time_list in enumerate(proto_debug_helper.agent_step_list):
-            for obj in proto_time_list:
+        for idx, proto_agent_list in enumerate(proto_debug_helper.agent_step_list):
+            for obj in proto_agent_list.time_list:
                 self.agent_step_list[idx].append(obj)        
