@@ -1385,7 +1385,7 @@ class ScenarioManager:
             if not os.path.exists(cumulative_stats_folder_path):
                 os.makedirs(cumulative_stats_folder_path)
 
-
+            self.evaluate_agent_data(cumulative_stats_folder_path)
 
             client_helper = ClientDebugHelper(0)
             debug_data_lists = client_helper.get_debug_data().keys()
