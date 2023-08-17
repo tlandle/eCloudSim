@@ -1326,7 +1326,7 @@ class ScenarioManager:
             picklefile = open(data_df_path, 'wb+')
             current_data_df = pd.DataFrame(columns=['num_cars', f'{column_key}_ms', 'run_timestamp'])
 
-        picklefile = open(current_data_df, 'wb+')
+        picklefile = open(data_df_path, 'wb+')
         data_df = pd.concat([current_data_df, data_df], axis=0, ignore_index=True)
 
         # pickle the dataFrame
