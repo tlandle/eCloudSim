@@ -260,7 +260,7 @@ def plot_agent_step_times():
 
         # Box plot
         plt.figure(figsize=(10, 6))
-        ax = create_box_plot(data=sim_stats_df, x='num_cars', y=f'agent_step_{i}_time_ms', labels=labels)
+        ax = create_box_plot(data=sim_stats_df, x='num_cars', y=f'agent_step_list_{i}_ms', labels=labels)
         save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/agent_step_{i}_time_boxplot.png'
         save_ax(ax, save_file_path)
         plt.show()
@@ -272,9 +272,6 @@ def plot_agent_step_times():
 step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_world_step_time'
 client_step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_step_time'
 client_perception_time_df_path =  f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_perception_time' 
-sim_stats_df = get_stats_df(f'{CUMULATIVE_STATS_FOLDER_PATH}/df_step_time_cumstats')
-sim_stats_df
-
 
 # In[277]:
 
