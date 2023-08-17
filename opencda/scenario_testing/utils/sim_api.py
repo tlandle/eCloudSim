@@ -1336,6 +1336,21 @@ class ScenarioManager:
         #close file
         picklefile.close()
 
+    def evaluate_agent_data(self, cumulative_stats_folder_path):
+        PLANER_AGENT_STEPS = 12
+        all_agent_data_lists = [[] for _ in range(PLANER_AGENT_STEPS)]
+        for _, vehicle_manager_proxy in self.vehicle_managers.items():
+            agent_data_list = vehicle_manager_proxy.agent.debug_helper.get_agent_step_list()
+            for idx, sub_list in enumerate(agent_data_list):
+                all_agent_data_lists[idx].append(sub_list)
+
+        logger.debug(all_agent_data_lists)
+
+        for idx, all_agent_sub_list in enumerate(all_agent_data_lists):
+            all_client_data_list_flat = np.array(all_agent_sub_list).flatten()
+            data_key = f"agent_step_list_{idx}"
+            self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
+
     def evaluate_client_data(self, client_data_key, cumulative_stats_folder_path):
         all_client_data_list = []
         for _, vehicle_manager_proxy in self.vehicle_managers.items():
@@ -1369,6 +1384,8 @@ class ScenarioManager:
 
             if not os.path.exists(cumulative_stats_folder_path):
                 os.makedirs(cumulative_stats_folder_path)
+
+
 
             client_helper = ClientDebugHelper(0)
             debug_data_lists = client_helper.get_debug_data().keys()

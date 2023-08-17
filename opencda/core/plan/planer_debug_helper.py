@@ -55,6 +55,9 @@ class PlanDebugHelper(object):
 
         self.count = 0
 
+    def get_agent_step_list(self):
+        return self.agent_step_list
+
     def update(self, ego_speed, ttc):
         """
         Update the speed info.
