@@ -123,6 +123,10 @@ message ClientDebugHelper {
     repeated float control_time_list = 9;
 }
 
+message AgentDebugHelper {
+    repeated float time_list = 1;
+}
+
 message VehicleUpdate {
   int32 tick_id = 1;
   int32 vehicle_index = 2;
@@ -132,7 +136,8 @@ message VehicleUpdate {
   LocDebugHelper loc_debug_helper = 6;
   PlanerDebugHelper planer_debug_helper = 7;
   ClientDebugHelper client_debug_helper = 8;
-  string message_id = 9; // use as a UID for message indentification when Server needs an ack
+  repeated AgentDebugHelper agent_step_list = 9;
+  string message_id = 10; // use as a UID for message indentification when Server needs an ack
 }
 
 service OpenCDA {
