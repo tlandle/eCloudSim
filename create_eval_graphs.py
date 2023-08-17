@@ -281,7 +281,7 @@ def plot_agent_step_times():
 
         labels = {"xlabel": 'Number of Cars',
               "ylabel": f'Agent Step {i} Time (ms)',
-              "title": f'eCloudSim: Agent Step {i} Time \n {AGENT_STEPS[i].title()} \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+              "title": f'eCloudSim: Agent Step {i} Time - {AGENT_STEPS[i].title()} \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
 
         # Box plot
         plt.figure(figsize=(10, 6))
