@@ -635,13 +635,14 @@ class ScenarioManager:
         logger.debug("main thread setting simulation active")
         #ScenarioManager.set_sim_active.set()
 
+        config_yaml = load_yaml(self.config_file)
         for i, cav_config in enumerate(
                 self.scenario_params['scenario']['single_cav_list']):
             logger.debug(f"Creating VehiceManagerProxy for vehicle {i}")
 
             # create vehicle manager for each cav
             vehicle_manager = VehicleManagerProxy(
-                self.vehicle_index, self.config_file, application,
+                self.vehicle_index, config_yaml, application,
                 self.carla_map, self.cav_world,
                 current_time=self.scenario_params['current_time'],
                 data_dumping=data_dump, carla_version=self.carla_version)
@@ -788,7 +789,7 @@ class ScenarioManager:
                                                  spawn_transform)
 
                 # create vehicle manager for each cav
-                vehicle_manager = VehicleManagerProxy(
+                vehicle_manager = VehicleManager(
                     vehicle, cav, ['platooning'],
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
@@ -839,6 +840,7 @@ class ScenarioManager:
         logger.info('Creating edge CAVs.')
         edge_list = []
 
+        config_yaml = load_yaml(self.config_file)
         # create edges
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
@@ -849,7 +851,7 @@ class ScenarioManager:
 
                 # create vehicle manager for each cav
                 vehicle_manager = VehicleManagerProxy(
-                    self.vehicle_index, self.config_file, application,
+                    self.vehicle_index, config_yaml, application,
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
                     data_dumping=data_dump, carla_version=self.carla_version)

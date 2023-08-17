@@ -91,7 +91,7 @@ class VehicleManagerProxy(object):
             self,
             vehicle_index,
             #conn,
-            config_file,
+            config_yaml,
             application,
             carla_map,
             cav_world,
@@ -99,7 +99,6 @@ class VehicleManagerProxy(object):
             current_time='',
             data_dumping=False):
 
-        config_yaml = load_yaml(config_file)
         if 'single_cav_list' in config_yaml['scenario']:
             self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index]
         elif 'edge_list' in config_yaml['scenario']:
