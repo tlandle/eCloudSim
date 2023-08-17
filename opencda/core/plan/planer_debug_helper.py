@@ -127,6 +127,12 @@ class PlanDebugHelper(object):
         perform_txt += 'TTC average: %f (m/s), ' \
                        'TTC std: %f (m/s) \n' % (ttc_avg, ttc_std)
 
+        for idx, sub_list in enumerate(self.agent_step_list):
+            sub_list_mean = np.nanmean(np.array(sub_list))
+            sub_list_std = np.nanstd(np.array(sub_list))
+            print(f"actor {self.actor_id} | agent step list_{idx} - mean: {sub_list_mean}")
+            print(f"actor {self.actor_id} | agent step list_{idx} - std: {sub_list_std}")
+
         return figure, perform_txt
     
     def serialize_debug_info(self, proto_debug_helper):
