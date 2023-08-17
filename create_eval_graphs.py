@@ -260,13 +260,28 @@ def plot_client_control_time():
 
 def plot_agent_step_times():
     TOTAL_AGENT_STEPS = 12
+    AGENT_STEPS = {
+            0: "sim end",
+            1: "lights",
+            2: "temp route",
+            3: "path generation",
+            4: "lane change",
+            5: "collision",
+            6: "no lane change composite",
+            7: "push",
+            8: "blocking",
+            9: "overtake",
+            10: "following",
+            11: "normal",
+    }
+
     for i in range(TOTAL_AGENT_STEPS):
         step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_agent_step_list_{i}'
         sim_stats_df = get_stats_df(step_time_df_path)
 
         labels = {"xlabel": 'Number of Cars',
               "ylabel": f'Agent Step {i} Time (ms)',
-              "title": f'eCloudSim: Agent Step {i} Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+              "title": f'eCloudSim: Agent Step {i} Time \n {AGENT_STEPS[i].title()} \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
 
         # Box plot
         plt.figure(figsize=(10, 6))
