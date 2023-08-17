@@ -1347,7 +1347,11 @@ class ScenarioManager:
         logger.debug(all_agent_data_lists)
 
         for idx, all_agent_sub_list in enumerate(all_agent_data_lists):
-            all_client_data_list_flat = np.array(all_agent_sub_list).flatten()
+            all_client_data_list_flat = np.array(all_agent_sub_list)
+            if all_client_data_list_flat.any():
+                all_client_data_list_flat = np.hstack(all_client_data_list_flat)
+            else:
+                all_client_data_list_flat = all_client_data_list_flat.flatten()
             data_key = f"agent_step_list_{idx}"
             self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
@@ -1359,7 +1363,11 @@ class ScenarioManager:
 
         logger.debug(all_client_data_list)
 
-        all_client_data_list_flat = np.array(all_client_data_list).flatten()
+        all_client_data_list_flat = np.array(all_client_data_list)
+        if all_client_data_list_flat.any():
+            all_client_data_list_flat = np.hstack(all_client_data_list_flat)
+        else:
+            all_client_data_list_flat = all_client_data_list_flat.flatten()
         self.do_pickling(client_data_key, all_client_data_list_flat, cumulative_stats_folder_path)
        
     def evaluate(self, excludes_list = None):
@@ -1396,13 +1404,21 @@ class ScenarioManager:
 
             # ___________Client Step time__________________________________
             client_tick_time_list = self.debug_helper.client_tick_time_list
-            client_tick_time_list_flat = np.concatenate(client_tick_time_list).flatten()
+            client_tick_time_list_flat = np.concatenate(client_tick_time_list)
+            if client_tick_time_list_flat.any():
+                client_tick_time_list_flat = np.hstack(client_tick_time_list_flat)
+            else:
+                client_tick_time_list_flat = client_tick_time_list_flat.flatten()
             client_step_time_key = 'client_step_time'
             self.do_pickling(client_step_time_key, client_tick_time_list_flat, cumulative_stats_folder_path)
 
             # ___________World Step time_________________________________
             world_tick_time_list = self.debug_helper.world_tick_time_list
-            world_tick_time_list_flat = np.concatenate(world_tick_time_list).flatten()
+            world_tick_time_list_flat = np.concatenate(world_tick_time_list)
+            if world_tick_time_list_flat.any():
+                world_tick_time_list_flat = np.hstack(world_tick_time_list_flat)
+            else:
+                world_tick_time_list_flat = world_tick_time_list_flat.flatten()
             world_step_time_key = 'world_step_time'
             self.do_pickling(world_step_time_key, world_tick_time_list_flat, cumulative_stats_folder_path)
 
