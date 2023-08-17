@@ -1370,7 +1370,8 @@ class ScenarioManager:
             if not os.path.exists(cumulative_stats_folder_path):
                 os.makedirs(cumulative_stats_folder_path)
 
-            debug_data_lists = ClientDebugHelper.get_debug_data().keys()
+            client_helper = ClientDebugHelper(0)
+            debug_data_lists = client_helper.get_debug_data().keys()
             for list_name in debug_data_lists:
                 if excludes_list is not None and list_name in excludes_list:
                     continue
