@@ -140,10 +140,10 @@ class PlanDebugHelper(object):
         for obj in self.ttc_list[0]:
             proto_debug_helper.ttc_list.append(obj)
            
-        for time_list in self.agent_step_list:
+        for sub_step_time_list in self.agent_step_list:
             step_list = proto_debug_helper.agent_step_list.add()
-            for obj in time_list:
-                step_list.append(obj)    
+            for obj in sub_step_time_list:
+                step_list.time_list.append(obj)    
 
     def deserialize_debug_info(self, proto_debug_helper):
         # call from Sim API to populate locally
