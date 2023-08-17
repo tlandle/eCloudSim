@@ -39,6 +39,22 @@ class ClientDebugHelper(PlanDebugHelper):
         self.vehicle_step_time_list = []
         self.control_time_list = []
 
+        self.debug_data = {
+            "client_control_time" : self.control_time_list,
+            "client_perception_time" : self.perception_time_list,
+            "client_localization_time" : self.localization_time_list,
+            "client_update_info_time" : self.update_info_time_list,
+            "client_agent_update_info_time" : self.agent_update_info_time_list,
+            "client_controller_update_info_time_list" : self.controller_update_info_time_list,
+            "client_agent_step_time_list" : self.agent_step_time_list,
+            "client_controller_step_time_list" : self.controller_step_time_list,
+            "client_vehicle_step_time_list" : self.vehicle_step_time_list,
+            "client_control_time_list" : self.control_time_list,
+        }
+
+    def get_debug_data(self):
+        return self.debug_data    
+
     def update_perception_time(self, tick_time_step=None):
         """
         Update the platoon related vehicle information.
