@@ -375,7 +375,7 @@ class ScenarioManager:
                 return response
 
     def serve(self, q: Queue(), message_stack, address: str) -> None:
-        ScenarioManager.server = grpc.server(ThreadPoolExecutor(max_workers=200))
+        ScenarioManager.server = grpc.server(ThreadPoolExecutor(max_workers=512))
         rpc.add_OpenCDAServicer_to_server(self.OpenCDA(q, message_stack), ScenarioManager.server)
         ScenarioManager.server.add_insecure_port(address)
         ScenarioManager.server.start()
