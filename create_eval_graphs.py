@@ -248,6 +248,24 @@ def plot_client_control_time():
     plt.show()
     plt.clf()
 
+def plot_agent_step_times():
+    TOTAL_AGENT_STEPS = 12
+    for i in range(TOTAL_AGENT_STEPS):
+        step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_agent_step_list_{i}'
+        sim_stats_df = get_stats_df(step_time_df_path)
+
+        labels = {"xlabel": 'Number of Cars',
+              "ylabel": f'Agent Step {i} Time (ms)',
+              "title": f'eCloudSim: Agent Step {i} Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+
+        # Box plot
+        plt.figure(figsize=(10, 6))
+        ax = create_box_plot(data=sim_stats_df, x='num_cars', y=f'agent_step_{i}_time_ms', labels=labels)
+        save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/agent_step_{i}_time_boxplot.png'
+        save_ax(ax, save_file_path)
+        plt.show()
+        plt.clf()
+
 # In[276]:
 
 
@@ -331,6 +349,7 @@ if __name__ == '__main__':
     # Plotting simulation step time stats
     plot_client_control_time()
 
+    plot_agent_step_times()
 
    # Example DataFrame for comparison chart
     comparison_data = pd.DataFrame({
