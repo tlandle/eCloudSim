@@ -21,6 +21,7 @@ PERCEPTION_TITLE = "with Perception" if GRAPH_PERCEPTION else "without Perceptio
 NODE_TITLE = "single node" if GRAPH_SINGLE_NODE else "multi node"
 CUMULATIVE_STATS_FOLDER_PATH = './evaluation_outputs/cumulative_stats_with_perception' if GRAPH_PERCEPTION else './evaluation_outputs/cumulative_stats_no_perception'
 
+SHOULD_SHOW = False
 
 # In[3]:
 
@@ -131,14 +132,16 @@ def plot_simulation_time():
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='time_s', labels=labels)
     save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/total_sim_time_boxplot.png'
     save_ax(ax, save_file_path)
-    plt.show()
+    if SHOULD_SHOW:
+        plt.show()
     plt.clf()
 
     # Scatter plot
     # ax = create_scatter_plot(data=sim_stats_df, x='num_cars', y='time_s', labels=labels)
     # save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/total_sim_time_scatterplot.png'
     # save_ax(ax, save_file_path)
-    # plt.show()
+    # if SHOULD_SHOW:
+    #    plt.show()
     # plt.clf()
 
 
@@ -167,14 +170,16 @@ def plot_world_step_time():
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='world_step_time_ms', labels=labels)
     save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/world_step_time_boxplot.png'
     save_ax(ax, save_file_path)
-    plt.show()
+    if SHOULD_SHOW:
+        plt.show()
     plt.clf()
 
     # Scatter plot
     # ax = create_scatter_plot(data=sim_stats_df, x='num_cars', y='step_time_ms', labels=labels)
     # save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/step_time_scatterplot.png'
     # save_ax(ax, save_file_path)
-    # plt.show()
+    # if SHOULD_SHOW:
+    #    plt.show()
     # plt.clf()
 
 def plot_client_step_time():
@@ -190,14 +195,16 @@ def plot_client_step_time():
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_step_time_ms', labels=labels)
     save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_step_time_boxplot.png'
     save_ax(ax, save_file_path)
-    plt.show()
+    if SHOULD_SHOW:
+        plt.show()
     plt.clf()
 
     # Scatter plot
     # ax = create_scatter_plot(data=sim_stats_df, x='num_cars', y='step_time_ms', labels=labels)
     # save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/step_time_scatterplot.png'
     # save_ax(ax, save_file_path)
-    # plt.show()
+    # if SHOULD_SHOW:
+    #    plt.show()
     # plt.clf()
 
 def plot_client_perception_time():
@@ -213,7 +220,8 @@ def plot_client_perception_time():
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_perception_time_ms', labels=labels)
     save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_perception_time_boxplot.png'
     save_ax(ax, save_file_path)
-    plt.show()
+    if SHOULD_SHOW:
+        plt.show()
     plt.clf()
 
 def plot_client_localization_time():
@@ -229,7 +237,8 @@ def plot_client_localization_time():
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_localization_time_ms', labels=labels)
     save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_localization_time_boxplot.png'
     save_ax(ax, save_file_path)
-    plt.show()
+    if SHOULD_SHOW:
+        plt.show()
     plt.clf()
 
 def plot_client_control_time():
@@ -245,7 +254,8 @@ def plot_client_control_time():
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_control_time_ms', labels=labels)
     save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_control_time_boxplot.png'
     save_ax(ax, save_file_path)
-    plt.show()
+    if SHOULD_SHOW:
+        plt.show()
     plt.clf()
 
 def plot_agent_step_times():
@@ -263,7 +273,8 @@ def plot_agent_step_times():
         ax = create_box_plot(data=sim_stats_df, x='num_cars', y=f'agent_step_list_{i}_ms', labels=labels)
         save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/agent_step_{i}_time_boxplot.png'
         save_ax(ax, save_file_path)
-        plt.show()
+        if SHOULD_SHOW:
+            plt.show()
         plt.clf()
 
 # In[276]:
@@ -296,7 +307,8 @@ def plot_comparison_chart_time(data):
 
     plt.legend(['eCloudSim', 'openCDA'])
 
-    plt.show()
+    if SHOULD_SHOW:
+        plt.show()
 
 
 # In[278]:
@@ -321,7 +333,8 @@ def plot_comparison_chart_cpu(data):
 
     plt.ylim([40, 80])
 
-    plt.show()
+    if SHOULD_SHOW:
+        plt.show()
 
 
 # In[279]:
