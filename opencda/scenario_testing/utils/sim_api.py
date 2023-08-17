@@ -57,6 +57,7 @@ from opencda.scenario_testing.utils.customized_map_api import \
 from opencda.core.application.edge.edge_manager import \
      EdgeManager
 from opencda.sim_debug_helper import SimDebugHelper
+from opencda.client_debug_helper import ClientDebugHelper
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 import opencda.core.plan.drive_profile_plotting as open_plt
 logger = logging.getLogger(__name__)
@@ -1346,7 +1347,7 @@ class ScenarioManager:
         all_client_data_list_flat = np.array(all_client_data_list).flatten()
         self.do_pickling(client_data_key, all_client_data_list_flat, cumulative_stats_folder_path)
        
-    def evaluate(self):
+    def evaluate(self, excludes_list = None):
             """
             Used to save all members' statistics.
 
@@ -1369,20 +1370,10 @@ class ScenarioManager:
             if not os.path.exists(cumulative_stats_folder_path):
                 os.makedirs(cumulative_stats_folder_path)
 
-            debug_data_lists = [
-                "client_control_time",
-                "client_perception_time",
-                "client_localization_time",
-                "client_update_info_time",
-                "client_agent_update_info_time",
-                "client_controller_update_info_time_list",
-                "client_agent_step_time_list",
-                "client_controller_step_time_list",
-                "client_vehicle_step_time_list",
-                "client_control_time_list",
-            ]
-
+            debug_data_lists = ClientDebugHelper.get_debug_data().keys()
             for list_name in debug_data_lists:
+                if excludes_list is not None and list_name in excludes_list:
+                    continue
                 self.evaluate_client_data(list_name, cumulative_stats_folder_path)
 
             # ___________Client Step time__________________________________
