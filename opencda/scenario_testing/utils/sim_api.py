@@ -247,18 +247,18 @@ class ScenarioManager:
                     logger.debug("Popped sim_state_update:\n" + str(sim_state_update))
                     if type(sim_state_update) == type(sim_state.SimulationState()):
                         logger.debug("SimulationStateStream message_stack - message id: " + str(sim_state_update.message_id) + " | command: " + str(sim_state_update.command) + " | tick: " + str(sim_state_update.tick_id))
-                        #with ScenarioManager.lock:
-                        found = False
-                        for message in ScenarioManager.message_stack:
-                            state = sim_state.SimulationState()
-                            state.ParseFromString(message)
-                            if state.message_id == sim_state_update.message_id:
-                                found = True
-                        if not found:
-                            #print("new message:")
-                            #print(sim_state_update.SerializeToString())
-                            logger.debug("appended new message to stack")
-                            ScenarioManager.message_stack.append(sim_state_update.SerializeToString())
+                        with ScenarioManager.lock:
+                            found = False
+                            for message in ScenarioManager.message_stack:
+                                state = sim_state.SimulationState()
+                                state.ParseFromString(message)
+                                if state.message_id == sim_state_update.message_id:
+                                    found = True
+                            if not found:
+                                #print("new message:")
+                                #print(sim_state_update.SerializeToString())
+                                logger.debug("appended new message to stack")
+                                ScenarioManager.message_stack.append(sim_state_update.SerializeToString())
 
                     ScenarioManager.pushed_message.clear()
                     ScenarioManager.popped_message.set()
@@ -294,11 +294,11 @@ class ScenarioManager:
             elif request.vehicle_state == sim_state.VehicleState.TICK_OK:
 
                 logger.debug(f"received TICK_OK from vehicle {request.vehicle_index}")
-                #with ScenarioManager.lock:
-                # make sure to add the tick_id to the root list when we do the tick
-                # TODO: should we assert that we've not already received this response?
-                if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
-                    ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
+                with ScenarioManager.lock:
+                    # make sure to add the tick_id to the root list when we do the tick
+                    # TODO: should we assert that we've not already received this response?
+                    if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
+                        ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
 
             elif request.vehicle_state == sim_state.VehicleState.DEBUG_INFO_UPDATE:
 
@@ -307,33 +307,33 @@ class ScenarioManager:
                 # - is it worth making something distinct from a tick?
 
                 logger.debug(f"received DEBUG_INFO_UPDATE from vehicle {request.vehicle_index}")
-                #with ScenarioManager.lock:
-                # make sure to add the tick_id to the root list when we do the tick
-                # TODO: should we assert that we've not already received this response?
-                if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
-                    ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
-
-                vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
-                vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
-                vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
-                vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)
-                #logger.debug(vehicle_manager_proxy.debug_helper.perception_time_list)
-                #logger.debug(vehicle_manager_proxy.debug_helper.localization_time_list)
-
-
-            elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
-
-                logger.debug(f"received TICK_DONE from vehicle {request.vehicle_index}")
-                #with ScenarioManager.lock:
-                # make sure to add the tick_id to the root list when we do the tick
-                # TODO: should we assert that we've not already received this response?
-                if request.vehicle_index not in ScenarioManager.sim_state_completions:
-                    ScenarioManager.sim_state_completions.append(request.vehicle_index)
+                with ScenarioManager.lock:
+                    # make sure to add the tick_id to the root list when we do the tick
+                    # TODO: should we assert that we've not already received this response?
+                    if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
+                        ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
 
                     vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
                     vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
                     vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
                     vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)
+                    #logger.debug(vehicle_manager_proxy.debug_helper.perception_time_list)
+                    #logger.debug(vehicle_manager_proxy.debug_helper.localization_time_list)
+
+
+            elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
+
+                logger.debug(f"received TICK_DONE from vehicle {request.vehicle_index}")
+                with ScenarioManager.lock:
+                    # make sure to add the tick_id to the root list when we do the tick
+                    # TODO: should we assert that we've not already received this response?
+                    if request.vehicle_index not in ScenarioManager.sim_state_completions:
+                        ScenarioManager.sim_state_completions.append(request.vehicle_index)
+
+                        vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
+                        vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
+                        vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
+                        vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)
 
             elif request.vehicle_state == sim_state.VehicleState.ERROR:
 
@@ -358,8 +358,8 @@ class ScenarioManager:
                 response.vehicle_index = ScenarioManager.connections_received
                 response.message_id = str(hashlib.sha256(response.SerializeToString()).hexdigest())
                 logger.debug("RegisterVehicle - REGISTERING - message id: " + str(response.message_id))
-                #with ScenarioManager.lock:
-                ScenarioManager.connections_received += 1
+                with ScenarioManager.lock:
+                    ScenarioManager.connections_received += 1
                 return response
 
             if request.vehicle_state == sim_state.VehicleState.CARLA_UPDATE:
@@ -1199,9 +1199,9 @@ class ScenarioManager:
         #TODO change tick_id to msg_id
         pre_client_tick_time = time.time()
         ScenarioManager.tick_id = ScenarioManager.tick_id + 1
-        #with ScenarioManager.lock:
-        ScenarioManager.sim_state_responses.append(ScenarioManager.tick_id)
-        ScenarioManager.sim_state_responses[ScenarioManager.tick_id] = []
+        with ScenarioManager.lock:
+            ScenarioManager.sim_state_responses.append(ScenarioManager.tick_id)
+            ScenarioManager.sim_state_responses[ScenarioManager.tick_id] = []
 
         sim_state_update = sim_state.SimulationState()
         sim_state_update.state = sim_state.State.ACTIVE
