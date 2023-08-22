@@ -10,7 +10,6 @@ import seaborn as sns
 import pickle
 import pandas as pd
 
-
 # In[2]:
 
 
@@ -345,21 +344,23 @@ def plot_client_stacked_barchart():
       agent_df = agent_df.join(sim_stats_df[f'agent_step_list_{i}_ms'])
       #print(agent_df)
 
-    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_perception_time'
-    sim_stats_df = get_stats_df(step_time_df_path)
-    agent_df = agent_df.join(sim_stats_df['client_perception_time_ms'])
-    y_columns.append(f'client_perception_time_ms')
-
-    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_localization_time'
-    sim_stats_df = get_stats_df(step_time_df_path)
-    agent_df = agent_df.join(sim_stats_df['client_localization_time_ms'])
-    y_columns.append(f'client_localization_time_ms')
-
-
-    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_control_time'
-    sim_stats_df = get_stats_df(step_time_df_path)
-    agent_df = agent_df.join(sim_stats_df['client_control_time_ms'])
-    y_columns.append(f'client_control_time_ms') 
+    client_debug_data = [ # see ClientDebugHelper.debug_data
+            "client_control_time",
+            "client_perception_time",
+            "client_localization_time",
+            "client_update_info_time",
+            "client_agent_update_info_time",
+            "client_controller_update_info_time_list",
+            # "client_agent_step_time_list", # handled by AGENT_STEPS
+            "client_controller_step_time_list",
+            "client_vehicle_step_time_list",
+            "client_control_time_list",
+    ]
+    for list_name in client_debug_data:
+        step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_{list_name}'
+        sim_stats_df = get_stats_df(step_time_df_path)
+        agent_df = agent_df.join(sim_stats_df[f'{list_name}_ms'])
+        y_columns.append(f'{list_name}_ms')
 
     new_df = agent_df.groupby(by='num_cars').mean()
 
