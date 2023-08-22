@@ -387,13 +387,12 @@ def plot_client_stacked_barchart():
             "client_control_time",
             "client_perception_time",
             "client_localization_time",
-            # TODO: FIX ME - client_update_info_time
-            # "client_update_info_time", # bugged
+            # "client_update_info_time", # NOT NEEDED --> v2x
             "client_agent_update_info_time",
             "client_controller_update_info_time_list",
             # "client_agent_step_time_list", # handled by AGENT_STEPS
             "client_controller_step_time_list",
-            "client_vehicle_step_time_list",
+            # "client_vehicle_step_time_list", # COMPOSITE: client_agent_step_time_list + client_controller_step_time_list
             "client_control_time_list",
     ]
     for list_name in client_debug_data:
