@@ -107,7 +107,7 @@ def create_stacked_bar_chart(data,  y, labels):
     colors = [
         'black', 
         'silver', 
-        'lightcoral', 
+        'chartreuse', 
         'red', 
         'chocolate', 
         'darkorange',
@@ -121,7 +121,6 @@ def create_stacked_bar_chart(data,  y, labels):
         'indigo',
         'violet',
         'pink',
-        'chartreuse',
      ]
     
     labels_legend = [
@@ -139,8 +138,7 @@ def create_stacked_bar_chart(data,  y, labels):
         'client_localization', 
         'client_agent_update_info', 
         'client_controller_update_info', 
-        'client_controller_step', 
-        'client_vehicle_step', 
+        'client_controller_step',  
         'client_control']
 
     ax = data.plot(y=y, kind='bar', stacked=True, color=colors, figsize=(11, 8))
