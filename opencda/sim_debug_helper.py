@@ -31,10 +31,8 @@ class SimDebugHelper(PlanDebugHelper):
 
         self.world_tick_time_list = [[]]
         self.client_tick_time_list = [[]]
-        self.client_tx_time_list = [[]]
-        self.client_rx_time_list = [[]]
         self.sim_start_timestamp = None
-
+        
 
     def update_world_tick(self, tick_time_step=None):
         """
@@ -44,7 +42,7 @@ class SimDebugHelper(PlanDebugHelper):
         ----------
         """
         self.world_tick_time_list[0].append(tick_time_step)
-
+    
 
     def update_client_tick(self, tick_time_step=None):
         """
@@ -54,30 +52,6 @@ class SimDebugHelper(PlanDebugHelper):
         ----------
         """
         self.client_tick_time_list[0].append(tick_time_step)
-
-    def update_client_tx(self, tx_time_step=None, tick_id=0):
-        """
-        Update the platoon related vehicle information.
-
-        Parameters
-        ----------
-        """
-        # if tick_id not in self.client_tx_time_list:
-        #     assert( tick_id == len(self.client_tx_time_list))
-        #     self.client_tx_time_list.append([])
-        self.client_tx_time_list[0].append(tx_time_step)
-
-    def update_client_rx(self, rx_time_step=None, tick_id=0):
-        """
-        Update the platoon related vehicle information.
-
-        Parameters
-        ----------
-        """
-        # if tick_id not in self.client_rx_time_list:
-        #     assert( tick_id == len(self.client_rx_time_list))
-        #     self.client_rx_time_list.append([])
-        self.client_rx_time_list[0].append(rx_time_step)
 
 
     def update_sim_start_timestamp(self, timestamp=None):

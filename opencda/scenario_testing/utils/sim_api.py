@@ -220,9 +220,6 @@ class ScenarioManager:
 
     vehicle_managers = {}
     vehicle_index = 0
-    tx_time = 0
-    rx_time = 0
-    tx_count = 0
 
     class OpenCDA(rpc.OpenCDAServicer):
 
@@ -244,8 +241,7 @@ class ScenarioManager:
             logger.debug("before while stack_index: " + str(stack_index))
             while ScenarioManager.server_run:
                 #print("eCloud debug: listening for new messages in queue")
-                ScenarioManager.pushed_message.wait(timeout=None) # TODO: add this back in and only clear when ALL vehicles have broadcast
-                start_tx_time = time.time()
+                #ScenarioManager.pushed_message.wait(timeout=None)
                 if not self._q.empty():
                     sim_state_update = self._q.get()
                     logger.debug("Popped sim_state_update:\n" + str(sim_state_update))
@@ -264,6 +260,9 @@ class ScenarioManager:
                                 logger.debug("appended new message to stack")
                                 ScenarioManager.message_stack.append(sim_state_update.SerializeToString())
 
+                    ScenarioManager.pushed_message.clear()
+                    ScenarioManager.popped_message.set()
+
                 #print("message_stack has " + str(len(self._message_stack)) + " messages...")
                 #print("stack_index" + str(stack_index))
                 while stack_index < len(ScenarioManager.message_stack):
@@ -276,19 +275,10 @@ class ScenarioManager:
                     stack_index += 1
 
                     yield message
-                    ScenarioManager.tx_count += 1
-                    end_tx_time = time.time()
-                    ScenarioManager.tx_time = ScenarioManager.tx_time + (end_tx_time - start_tx_time)
-
-                    if ScenarioManager.tx_count == ScenarioManager.vehicle_count:
-                        logger.info(f"TICK_TX time for {request.tick_id} is {ScenarioManager.tx_time*1000}ms")
-                        print(f"TICK_TX time for {request.tick_id} is {ScenarioManager.tx_time*1000}ms")
-                        ScenarioManager.pushed_message.clear()
-                        ScenarioManager.popped_message.set()
 
                 count += 1
-                # time.sleep(0.01) # TODO: remove in favor of signal wait
-                if count % 10000 == 0:
+                time.sleep(0.1)
+                if count % 1000 == 0:
                     count = 0
                     big_count += 1
                     logger.debug("looping " + str(big_count) + "...")
@@ -296,8 +286,6 @@ class ScenarioManager:
             logger.debug(f"SimulationStateStream complete")
 
         def SendUpdate(self, request: sim_state.VehicleUpdate, context):
-
-            rx_start_time = time.time()
 
             # need to case handle based on response type... but we don't necessarily *need* this for acks (for now...)
             if request.vehicle_state == sim_state.VehicleState.OK:
@@ -355,12 +343,8 @@ class ScenarioManager:
             if len(ScenarioManager.sim_state_responses[request.tick_id]) == ScenarioManager.vehicle_count or \
                ( ( len(ScenarioManager.sim_state_responses[request.tick_id]) + len(ScenarioManager.sim_state_completions) ) == ScenarioManager.vehicle_count ):
                 logger.debug(f"TICK_COMPLETE for {request.tick_id}")
-                logger.info(f"TICK_RX time for {request.tick_id} is {ScenarioManager.rx_time*1000}ms")
-                print(f"TICK_RX time for {request.tick_id} is {ScenarioManager.rx_time*1000}ms")
                 ScenarioManager.tick_complete.set()
 
-            rx_end_time = time.time()
-            ScenarioManager.rx_time = ScenarioManager.rx_time + ( rx_end_time - rx_start_time )
             return sim_state.Empty()
 
 
@@ -514,9 +498,6 @@ class ScenarioManager:
 
             logger.debug("eCloud debug: pushed START")
 
-            ScenarioManager.tx_time = 0
-            ScenarioManager.rx_time = 0
-            ScenarioManager.tx_count = 0
             ScenarioManager.pushed_message.set()
 
             ScenarioManager.popped_message.wait(timeout=None)
@@ -707,9 +688,6 @@ class ScenarioManager:
             sim_state_update.vehicle_index = i
             sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
             self.message_queue.put(sim_state_update)
-            ScenarioManager.tx_time = 0
-            ScenarioManager.rx_time = 0
-            ScenarioManager.tx_count = 0
             ScenarioManager.pushed_message.set()
             # end gRPC update_info
 
@@ -741,9 +719,6 @@ class ScenarioManager:
             sim_state_update.command = sim_state.Command.SET_DESTINATION
             sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
             self.message_queue.put(sim_state_update)
-            ScenarioManager.tx_time = 0
-            ScenarioManager.rx_time = 0
-            ScenarioManager.tx_count = 0
             ScenarioManager.pushed_message.set()
             # end gRPC set_destination
 
@@ -929,9 +904,6 @@ class ScenarioManager:
                 sim_state_update.vehicle_index = i
                 sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
                 self.message_queue.put(sim_state_update)
-                ScenarioManager.tx_time = 0
-                ScenarioManager.rx_time = 0
-                ScenarioManager.tx_count = 0
                 ScenarioManager.pushed_message.set()
                 # end gRPC update_info
 
@@ -964,9 +936,6 @@ class ScenarioManager:
                 sim_state_update.command = sim_state.Command.SET_DESTINATION
                 sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
                 self.message_queue.put(sim_state_update)
-                ScenarioManager.tx_time = 0
-                ScenarioManager.rx_time = 0
-                ScenarioManager.tx_count = 0
                 ScenarioManager.pushed_message.set()
                 # end gRPC set_destination
 
@@ -1244,10 +1213,6 @@ class ScenarioManager:
                 sim_state_update.all_waypoint_buffers.extend([waypoint_buffer_proto])
         sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
         self.message_queue.put(sim_state_update)
-
-        ScenarioManager.tx_time = 0
-        ScenarioManager.rx_time = 0
-        ScenarioManager.tx_count = 0
         ScenarioManager.pushed_message.set()
 
         logger.debug(f"queued tick (broadcast message) {ScenarioManager.tick_id}")
@@ -1255,16 +1220,10 @@ class ScenarioManager:
         ScenarioManager.popped_message.wait(timeout=None)
         ScenarioManager.popped_message.clear()
 
-        self.debug_helper.update_client_tx(ScenarioManager.tx_time*1000)
-        ScenarioManager.tx_time = 0
-
-        logger.debug(f"pushed tick (broadcast message) {ScenarioManager.tick_id} to ALL clients")
+        logger.debug(f"pushed tick (broadcast message) {ScenarioManager.tick_id}")
 
         ScenarioManager.tick_complete.wait(timeout=None)
         ScenarioManager.tick_complete.clear()
-
-        self.debug_helper.update_client_rx(ScenarioManager.rx_time*1000)
-        ScenarioManager.rx_time = 0
 
         if message_type == sim_state.Command.TICK:
             ScenarioManager.waypoint_buffer_overrides.clear()
@@ -1310,10 +1269,6 @@ class ScenarioManager:
         sim_state_update.command = sim_state.Command.END
         sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
         self.message_queue.put(sim_state_update)
-
-        ScenarioManager.tx_time = 0
-        ScenarioManager.rx_time = 0
-        ScenarioManager.tx_count = 0
         ScenarioManager.pushed_message.set()
 
         logger.debug(f"queued END")
@@ -1416,7 +1371,7 @@ class ScenarioManager:
         else:
             all_client_data_list_flat = all_client_data_list_flat.flatten()
         self.do_pickling(client_data_key, all_client_data_list_flat, cumulative_stats_folder_path)
-
+       
     def evaluate(self, excludes_list = None):
             """
             Used to save all members' statistics.
@@ -1448,26 +1403,6 @@ class ScenarioManager:
                 if excludes_list is not None and list_name in excludes_list:
                     continue
                 self.evaluate_client_data(list_name, cumulative_stats_folder_path)
-
-            # ___________Client Tx time__________________________________
-            client_tx_time_list = self.debug_helper.client_tx_time_list
-            client_tx_time_list_flat = np.concatenate(client_tx_time_list)
-            if client_tx_time_list_flat.any():
-                client_tx_time_list_flat = np.hstack(client_tx_time_list_flat)
-            else:
-                client_tx_time_list_flat = client_tx_time_list_flat.flatten()
-            client_step_time_key = 'client_tx_time'
-            self.do_pickling(client_step_time_key, client_tx_time_list_flat, cumulative_stats_folder_path)
-
-            # ___________Client Rx time__________________________________
-            client_rx_time_list = self.debug_helper.client_rx_time_list
-            client_rx_time_list_flat = np.concatenate(client_rx_time_list)
-            if client_rx_time_list_flat.any():
-                client_rx_time_list_flat = np.hstack(client_rx_time_list_flat)
-            else:
-                client_rx_time_list_flat = client_rx_time_list_flat.flatten()
-            client_step_time_key = 'client_rx_time'
-            self.do_pickling(client_step_time_key, client_rx_time_list_flat, cumulative_stats_folder_path)
 
             # ___________Client Step time__________________________________
             client_tick_time_list = self.debug_helper.client_tick_time_list
