@@ -348,7 +348,7 @@ def plot_client_stacked_barchart():
             "client_control_time",
             "client_perception_time",
             "client_localization_time",
-            "client_update_info_time",
+            # "client_update_info_time", # bugged
             "client_agent_update_info_time",
             "client_controller_update_info_time_list",
             # "client_agent_step_time_list", # handled by AGENT_STEPS
@@ -364,6 +364,7 @@ def plot_client_stacked_barchart():
 
     new_df = agent_df.groupby(by='num_cars').mean()
 
+    pd.options.display.max_columns = 99
     print(new_df)
     print(y_columns)
 
