@@ -120,9 +120,8 @@ def create_stacked_bar_chart(data,  y, labels):
         'royalblue',
         'indigo',
         'violet',
-        'fuschia',
+        'pink',
         'chartreuse',
-
      ]
     
     labels_legend = [
