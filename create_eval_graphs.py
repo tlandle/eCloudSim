@@ -322,9 +322,6 @@ def plot_client_stacked_barchart():
             4: "lane change",
             5: "collision",
             6: "no lane change composite",
-            7: "push",
-            8: "blocking",
-            9: "overtake",
             10: "following",
             11: "normal",
     }
@@ -338,7 +335,9 @@ def plot_client_stacked_barchart():
               "title": f'eCloudSim: Agent Step Time - Composite \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
 
 
-    for i in range(1, TOTAL_AGENT_STEPS):
+    for i, step in AGENT_STEPS.items():
+      if i == 0:
+        continue
       step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_agent_step_list_{i}'
       sim_stats_df = get_stats_df(step_time_df_path)
       #print(sim_stats_df[f'agent_step_list_{i}_ms'])
@@ -346,6 +345,21 @@ def plot_client_stacked_barchart():
       agent_df = agent_df.join(sim_stats_df[f'agent_step_list_{i}_ms'])
       #print(agent_df)
 
+    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_perception_time'
+    sim_stats_df = get_stats_df(step_time_df_path)
+    agent_df = agent_df.join(sim_stats_df['client_perception_time_ms'])
+    y_columns.append(f'client_perception_time_ms')
+
+    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_localization_time'
+    sim_stats_df = get_stats_df(step_time_df_path)
+    agent_df = agent_df.join(sim_stats_df['client_localization_time_ms'])
+    y_columns.append(f'client_localization_time_ms')
+
+
+    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_control_time'
+    sim_stats_df = get_stats_df(step_time_df_path)
+    agent_df = agent_df.join(sim_stats_df['client_control_time_ms'])
+    y_columns.append(f'client_control_time_ms') 
 
     new_df = agent_df.groupby(by='num_cars').mean()
 

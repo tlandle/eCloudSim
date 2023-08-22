@@ -292,10 +292,7 @@ class VehicleManager(object):
         # localization
         start_time = time.time()
         self.localizer.localize()
-        end_time = time.time()
-        logging.debug("Localizer time: %s" %(end_time - start_time))
 
-        start_time = time.time()
         ego_pos = self.localizer.get_ego_pos()
         ego_spd = self.localizer.get_ego_spd()
         end_time = time.time()
