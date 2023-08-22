@@ -72,9 +72,27 @@ def create_box_plot(data, x, y, labels):
 
 
 # In[5]:
+def create_bar_plot(data, x, y, labels):
+    """
+    Create a bar plot using seaborn.
+
+    Args:
+    data (pd.DataFrame): The DataFrame containing the data to be plotted.
+    x (str): The column name for the x-axis variable.
+    y (str): The column name for the y-axis variable.
+    labels (dict): A dictionary containing the labels for the plot (xlabel, ylabel, title).
+
+    Returns:
+    Axes: The axis object containing the box plot.
+    """
+    ax = sns.barplot(data=data, x=x, y=y)
+    ax.set(xlabel=labels['xlabel'],
+           ylabel=labels['ylabel'],
+           title=labels['title'])
+    return ax
 
 
-def create_scatter_plot(data, x, y, labels):
+def create_stacked_bar_chart(data,  y, labels):
     """
     Create a scatter plot using seaborn.
 
@@ -87,10 +105,11 @@ def create_scatter_plot(data, x, y, labels):
     Returns:
     Axes: The axis object containing the scatter plot.
     """
-    ax = sns.scatterplot(data=data, x=x, y=y)
-    ax.set(xlabel=labels['xlabel'],
-           ylabel=labels['ylabel'],
-           title=labels['title'])
+
+    ax = data.plot(y=y, kind = 'bar', stacked=True, color=['red', 'blue', 'green', 'purple', 'yellow', 'black'])
+    plt.xlabel(labels['xlabel'])
+    plt.ylabel(labels['ylabel'])
+    plt.title(labels['title'])
     return ax
 
 
@@ -292,6 +311,56 @@ def plot_agent_step_times():
             plt.show()
         plt.clf()
 
+
+def plot_client_stacked_barchart():
+    TOTAL_AGENT_STEPS = 7
+    AGENT_STEPS = {
+            0: "sim end",
+            1: "lights",
+            2: "temp route",
+            3: "path generation",
+            4: "lane change",
+            5: "collision",
+            6: "no lane change composite",
+            7: "push",
+            8: "blocking",
+            9: "overtake",
+            10: "following",
+            11: "normal",
+    }
+
+    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_agent_step_list_0'
+    agent_df = get_stats_df(step_time_df_path)
+    y_columns = ['agent_step_list_0_ms']
+
+    labels = {"xlabel": 'Number of Cars',
+              "ylabel": f'Agent Step Time',
+              "title": f'eCloudSim: Agent Step Time - Composite \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+
+
+    for i in range(1, TOTAL_AGENT_STEPS):
+      step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_agent_step_list_{i}'
+      sim_stats_df = get_stats_df(step_time_df_path)
+      #print(sim_stats_df[f'agent_step_list_{i}_ms'])
+      y_columns.append(f'agent_step_list_{i}_ms')
+      agent_df = agent_df.join(sim_stats_df[f'agent_step_list_{i}_ms'])
+      #print(agent_df)
+
+
+    new_df = agent_df.groupby(by='num_cars').mean()
+
+    print(new_df)
+    print(y_columns)
+
+    ax = create_stacked_bar_chart(y=y_columns, data=new_df , labels=labels)
+
+    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/agent_step_time_boxplot.png'
+    save_ax(ax, save_file_path)
+    if SHOULD_SHOW:
+      plt.show()
+    plt.clf()
+
+
 # In[276]:
 
 
@@ -375,6 +444,8 @@ if __name__ == '__main__':
     plot_client_control_time()
 
     plot_agent_step_times()
+
+    plot_client_stacked_barchart()
 
    # Example DataFrame for comparison chart
     comparison_data = pd.DataFrame({

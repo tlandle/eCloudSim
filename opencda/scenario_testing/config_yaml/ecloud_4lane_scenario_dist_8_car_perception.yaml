@@ -145,7 +145,7 @@ scenario:
         <<: *base_behavior
         max_speed: 100 # maximum speed, km/h
         tailgate_speed: 111
-        overtake_allowed: true
+        overtake_allowed: false
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
@@ -173,7 +173,7 @@ scenario:
         <<: *base_behavior
         max_speed: 100 # maximum speed, km/h
         tailgate_speed: 111
-        overtake_allowed: true
+        overtake_allowed: false
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
@@ -201,7 +201,7 @@ scenario:
         <<: *base_behavior
         max_speed: 100 # maximum speed, km/h
         tailgate_speed: 111
-        overtake_allowed: true
+        overtake_allowed: false
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
@@ -229,7 +229,7 @@ scenario:
         <<: *base_behavior
         max_speed: 100 # maximum speed, km/h
         tailgate_speed: 111
-        overtake_allowed: true
+        overtake_allowed: false
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
@@ -257,7 +257,7 @@ scenario:
         <<: *base_behavior
         max_speed: 100 # maximum speed, km/h
         tailgate_speed: 111
-        overtake_allowed: true
+        overtake_allowed: false
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
@@ -285,7 +285,7 @@ scenario:
         <<: *base_behavior
         max_speed: 100 # maximum speed, km/h
         tailgate_speed: 111
-        overtake_allowed: true
+        overtake_allowed: false
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
@@ -313,7 +313,7 @@ scenario:
         <<: *base_behavior
         max_speed: 100 # maximum speed, km/h
         tailgate_speed: 111
-        overtake_allowed: true
+        overtake_allowed: false
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
@@ -341,7 +341,7 @@ scenario:
         <<: *base_behavior
         max_speed: 100 # maximum speed, km/h
         tailgate_speed: 111
-        overtake_allowed: true
+        overtake_allowed: false
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
