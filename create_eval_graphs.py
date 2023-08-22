@@ -104,11 +104,51 @@ def create_stacked_bar_chart(data,  y, labels):
     Returns:
     Axes: The axis object containing the scatter plot.
     """
+    colors = [
+        'black', 
+        'silver', 
+        'lightcoral', 
+        'red', 
+        'chocolate', 
+        'darkorange',
+        'tan',
+        'gold',
+        'beige',
+        'olivedrab',
+        'lime',
+        'powderblue',
+        'royalblue',
+        'indigo',
+        'violet',
+        'fuschia',
+        'chartreuse',
 
-    ax = data.plot(y=y, kind = 'bar', stacked=True, color=['red', 'blue', 'green', 'purple', 'yellow', 'black'])
+     ]
+    
+    labels_legend = [
+        'agent_step_0',
+        'agent_step_1',
+        'agent_step_2', 
+        'agent_step_3', 
+        'agent_step_4', 
+        'agent_step_5', 
+        'agent_step_6', 
+        'agent_step_10', 
+        'agent_step_11', 
+        'client_control', 
+        'client_perception', 
+        'client_localization', 
+        'client_agent_update_info', 
+        'client_controller_update_info', 
+        'client_controller_step', 
+        'client_vehicle_step', 
+        'client_control']
+
+    ax = data.plot(y=y, kind='bar', stacked=True, color=colors, figsize=(11, 8))
     plt.xlabel(labels['xlabel'])
     plt.ylabel(labels['ylabel'])
     plt.title(labels['title'])
+    ax.legend(labels=labels_legend)
     return ax
 
 
@@ -348,6 +388,7 @@ def plot_client_stacked_barchart():
             "client_control_time",
             "client_perception_time",
             "client_localization_time",
+            # TODO: FIX ME - client_update_info_time
             # "client_update_info_time", # bugged
             "client_agent_update_info_time",
             "client_controller_update_info_time_list",
