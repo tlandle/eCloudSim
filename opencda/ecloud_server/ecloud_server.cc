@@ -49,7 +49,8 @@ std::atomic<int8_t> repliedCars;
 std::atomic<int16_t> tickId;
 std::atomic<int8_t> simState;
 
-std::vector<int8_t> 
+static std::vector<int8_t> repliedVehicles;
+static std::vector<int8_t> completedVehicles;
 
 static std::string latestMessage; // serialized protobuf
 static std::string configYaml;
