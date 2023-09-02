@@ -3,7 +3,7 @@
 
 # In[1]:
 
-
+import sys
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -254,6 +254,11 @@ def plot_client_step_time():
         plt.show()
     plt.clf()
 
+    new_df = sim_stats_df.groupby(by='num_cars').mean()
+
+    pd.options.display.max_columns = 99
+    print(new_df)
+
     # Scatter plot
     # ax = create_scatter_plot(data=sim_stats_df, x='num_cars', y='step_time_ms', labels=labels)
     # save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/step_time_scatterplot.png'
@@ -486,6 +491,8 @@ if __name__ == '__main__':
 
     # Plotting simulation step time stats
     plot_client_step_time()
+
+    sys.exit(0)
 
     # Plotting simulation step time stats
     plot_client_perception_time()
