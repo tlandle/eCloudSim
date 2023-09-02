@@ -96,8 +96,8 @@ public:
                                Ping* ping) override {
         ping->set_tick_id(( numRepliedVehicles_ + numCompletedVehicles_ ) == numCars_ ? 1 : 0);
 
-        if (ping->tick_id() == 1)
-            std::cout << "LOG(DEBUG) " << "Server_Ping - TICK_COMPLETE - tick id: " << tickId_ << std::endl;
+        //if (ping->tick_id() == 1)
+            // std::cout << "LOG(DEBUG) " << "Server_Ping - TICK_COMPLETE - tick id: " << tickId_ << std::endl;
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -139,7 +139,7 @@ public:
         if ( request->vehicle_state() == VehicleState::TICK_DONE )
         {
             numCompletedVehicles_++;
-            std::cout << "LOG(DEBUG) " << "Client_SendUpdate - TICK_DONE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index() << std::endl;
+            // std::cout << "LOG(DEBUG) " << "Client_SendUpdate - TICK_DONE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index() << std::endl;
         }
         else if ( request->vehicle_state() == VehicleState::TICK_OK )
         {
@@ -148,7 +148,7 @@ public:
         else if ( request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
         {
             numCompletedVehicles_++;
-            std::cout << "LOG(DEBUG) " << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index() << std::endl;
+            // std::cout << "LOG(DEBUG) " << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index() << std::endl;
         }
 
         // std::cout << "LOG(DEBUG) " << "Client_SendUpdate - replying tick id: " << tickId_ << std::endl;
@@ -176,7 +176,7 @@ public:
             reply->set_application(application_);
             reply->set_version(version_);
             
-            std::cout << "LOG(DEBUG) " << "RegisterVehicle - REGISTERING - vehicle id: " << reply->vehicle_index() << std::endl;
+            // std::cout << "LOG(DEBUG) " << "RegisterVehicle - REGISTERING - vehicle id: " << reply->vehicle_index() << std::endl;
             
             numRegisteredVehicles_++;
         }
@@ -188,7 +188,7 @@ public:
             reply->set_tick_id(0);
             reply->set_vehicle_index(request->vehicle_index());
             
-            std::cout << "LOG(DEBUG) " << "RegisterVehicle - CARLA_UPDATE - vehicle_index: " << request->vehicle_index() << " | actor_id: " << request->actor_id() << " | vid: " << request->vid() << std::endl;
+            // std::cout << "LOG(DEBUG) " << "RegisterVehicle - CARLA_UPDATE - vehicle_index: " << request->vehicle_index() << " | actor_id: " << request->actor_id() << " | vid: " << request->vid() << std::endl;
             
             mu_.Lock();
             std::string msg;
@@ -298,7 +298,7 @@ void RunServer(uint16_t port) {
         10 * 1000 /*10 sec*/);
     // Finally assemble the server.
     std::unique_ptr<Server> server(builder.BuildAndStart());
-    std::cout << "LOG(INFO) " << "Server listening on " << server_address << std::endl;
+    // std::cout << "LOG(INFO) " << "Server listening on " << server_address << std::endl;
 
     // Wait for the server to shutdown. Note that some other thread must be
     // responsible for shutting down the server for this call to ever return.
