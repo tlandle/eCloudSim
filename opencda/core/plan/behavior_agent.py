@@ -23,6 +23,7 @@ from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.planer_debug_helper import PlanDebugHelper
 
+logger = logging.getLogger(__name__)
 
 class BehaviorAgent(object):
     """
@@ -312,13 +313,13 @@ class BehaviorAgent(object):
             List of possible destinations for the agent.
         """
 
-        print("Target almost reached, setting new destination...")
+        logger.debug("Target almost reached, setting new destination...")
         random.shuffle(spawn_points)
         new_start = \
             self._local_planner.waypoints_queue[-1][0].transform.location
         destination = spawn_points[0].location if \
             spawn_points[0].location != new_start else spawn_points[1].location
-        print("New destination: " + str(destination))
+        logger.debug("New destination: " + str(destination))
 
         self.set_destination(new_start, destination)
 
@@ -491,7 +492,7 @@ class BehaviorAgent(object):
                 rx, ry, ryaw, self._map.get_waypoint(
                     self._ego_pos.location), True)
             if not vehicle_state:
-                print("left overtake is operated")
+                logger.debug("left overtake is operated")
                 self.overtake_counter = 100
                 next_wpt_list = left_wpt.next(self._ego_speed / 3.6 * 6)
                 if len(next_wpt_list) == 0:
@@ -522,7 +523,7 @@ class BehaviorAgent(object):
                 rx, ry, ryaw, self._map.get_waypoint(
                     self._ego_pos.location), True)
             if not vehicle_state:
-                print("right overtake is operated")
+                logger.debug("right overtake is operated")
                 self.overtake_counter = 100
                 next_wpt_list = right_wpt.next(self._ego_speed / 3.6 * 6)
                 if len(next_wpt_list) == 0:
@@ -697,7 +698,7 @@ class BehaviorAgent(object):
         if lane_change_enabled_flag:
             lane_change_allowed = lane_change_allowed and self.lane_change_management()
             if not lane_change_allowed:
-                print("lane change not allowed")
+                logger.debug("lane change not allowed")
 
         return lane_change_allowed
 
@@ -732,7 +733,7 @@ class BehaviorAgent(object):
                 ego_vehicle_wp.next(max(self._ego_speed / 3.6 * 3,
                                         10.0))[0]
 
-        print(
+        logger.debug(
             'Vehicle id: %d :destination pushed forward because of '
             'potential collision, reset destination :%f. %f, %f' %
             (self.vehicle.id, reset_target.transform.location.x,
@@ -805,7 +806,7 @@ class BehaviorAgent(object):
         # 2. when the temporary route is finished, we return to the global route
         if len(self.get_local_planner().get_waypoints_queue()) == 0 \
                 and len(self.get_local_planner().get_waypoint_buffer()) <= 2:
-            print('Destination Reset!')
+            logger.debug('Destination Reset!')
             # in case the vehicle is disabled overtaking function
             # at the beginning
             self.overtake_allowed = True and self.overtake_allowed_origin

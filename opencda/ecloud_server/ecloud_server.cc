@@ -75,11 +75,8 @@ public:
         command_ = Command::TICK;
         
         numCars_ = 0;
-        latestMessage_ = ""; // serialized protobuf
         configYaml_ = "";
 
-        repliedVehicles_.clear();
-        completedVehicles_.clear();
         pendingReplies_.clear();
     }
 
@@ -117,7 +114,6 @@ public:
         }
 
         numRepliedVehicles_ = 0;
-        repliedVehicles_.clear();
         pendingReplies_.clear();
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -131,10 +127,9 @@ public:
 
         if ( request->vehicle_state() == VehicleState::TICK_DONE || request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
         {   
-            mu_.Lock();
-            completedVehicles_.push_back(request->vehicle_index());
             std::string msg;
             request->SerializeToString(&msg);
+            mu_.Lock();
             pendingReplies_.push_back(msg);
             mu_.Unlock();
         }
@@ -196,7 +191,6 @@ public:
             std::cout << "LOG(DEBUG) " << "RegisterVehicle - CARLA_UPDATE - vehicle_index: " << request->vehicle_index() << " | actor_id: " << request->actor_id() << " | vid: " << request->vid() << std::endl;
             
             mu_.Lock();
-            //repliedVehicles_.push_back(request->vehicle_index());
             std::string msg;
             request->SerializeToString(&msg);
             pendingReplies_.push_back(msg);
@@ -224,7 +218,6 @@ public:
         numRepliedVehicles_ = 0;
         tickId_ = request->tick_id();
         command_ = request->command();
-        //request->SerializeToString(&latestMessage_);
 
         // std::cout << "LOG(DEBUG) Server_DoTick: " << tickId_ << std::endl;
 
@@ -238,7 +231,6 @@ public:
                                EcloudResponse* reply) override {
         simState_ = State::NEW;
 
-        request->SerializeToString(&latestMessage_);
         configYaml_ = request->test_scenario();
         application_ = request->application();
         version_ = request->version();
@@ -268,7 +260,6 @@ private:
     std::atomic<int16_t> tickId_;
 
     int8_t numCars_;
-    std::string latestMessage_; // serialized protobuf
     std::string configYaml_;
     std::string application_;
     std::string version_;
@@ -277,9 +268,6 @@ private:
     Command command_;
 
     absl::Mutex mu_;
-
-    std::vector<int8_t> repliedVehicles_ ABSL_GUARDED_BY(mu_);
-    std::vector<int8_t> completedVehicles_ ABSL_GUARDED_BY(mu_);
     std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // serialized protobuf
 };
 

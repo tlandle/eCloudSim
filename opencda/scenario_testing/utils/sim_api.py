@@ -216,7 +216,7 @@ class ScenarioManager:
                 break
 
             if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
-                self.server_unpack_debug_data(stub_)
+                await self.server_unpack_debug_data(stub_)
 
         return response
     
@@ -349,7 +349,6 @@ class ScenarioManager:
             server_request.test_scenario = self.scenario
             server_request.application = self.application[0]
             server_request.version = self.carla_version
-            server_request.message_id = str(hashlib.sha256(server_request.SerializeToString()).hexdigest())
             server_request.state = ecloud.State.START
             server_request.tick_id = self.tick_id
             server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
@@ -938,7 +937,6 @@ class ScenarioManager:
             for waypoint_buffer_proto in self.waypoint_buffer_overrides:
                 #logger.debug(waypoint_buffer_proto.SerializeToString())
                 sim_state_update.all_waypoint_buffers.extend([waypoint_buffer_proto])
-        sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
 
         asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, sim_state_update))
 
@@ -986,7 +984,6 @@ class ScenarioManager:
         sim_state_update = ecloud.SimulationState()
         sim_state_update.state = ecloud.State.ENDED
         sim_state_update.command = ecloud.Command.END
-        sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
         
         asyncio.get_event_loop().run_until_complete(self.server_end_scenario(self.ecloud_server, sim_state_update))
 

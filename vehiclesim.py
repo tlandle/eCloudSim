@@ -321,7 +321,7 @@ async def main():
         if not reported_done:
             ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
 
-            while 1: # poll
+            while vehicle_update.vehicle_state != ecloud.VehicleState.TICK_DONE and vehicle_update.vehicle_state != ecloud.VehicleState.DEBUG_INFO_UPDATE: # poll
                 ping = await ecloud_server.Client_Ping(ecloud.Empty())
                 if ping.tick_id != tick_id:
                     tick_id = ping.tick_id

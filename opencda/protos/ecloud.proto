@@ -43,9 +43,7 @@ message SimulationState {
   string application = 5;
   string version = 6;
   Command command = 7;
-  string params_json = 8;
-  string message_id = 9; // use as a UID for message indentification when Server needs an ack
-  repeated WaypointBuffer all_waypoint_buffers = 10;
+  repeated WaypointBuffer all_waypoint_buffers = 8;
 }
 
 message WaypointBuffer {
