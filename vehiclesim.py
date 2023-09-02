@@ -16,6 +16,8 @@ import asyncio
 
 import carla
 
+import numpy as np
+
 from opencda.version import __version__
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
@@ -103,7 +105,7 @@ async def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid):
 async def send_vehicle_update(stub_, vehicle_update_):
     response = await stub_.Client_SendUpdate(vehicle_update_)
 
-    logger.debug(f"send_vehicle_update: response received")
+    #logger.debug(f"send_vehicle_update: response received")
 
     return response
 
@@ -203,6 +205,7 @@ async def main():
                 destination,
                 clean=True)
 
+    tick_time = []
     while state != ecloud.State.ENDED:   
 
         vehicle_update = ecloud.VehicleUpdate()
@@ -211,6 +214,9 @@ async def main():
         
         # HANDLE DEBUG DATA REQUEST
         if ecloud_update.command == ecloud.Command.REQUEST_DEBUG_INFO:
+            nparr = np.array(tick_time)
+            mean = np.mean(nparr)
+            logger.error(f"tick average time: {mean}ms")
             vehicle_update.tick_id = tick_id
             vehicle_update.vehicle_index = vehicle_index
             vehicle_update.vehicle_state = ecloud.VehicleState.DEBUG_INFO_UPDATE            
@@ -218,6 +224,7 @@ async def main():
   
         # HANDLE TICK
         elif ecloud_update.command == ecloud.Command.TICK:
+            start_time = time.time()
             # update info runs BEFORE waypoint injection
             vehicle_manager.update_info()
 
@@ -300,8 +307,10 @@ async def main():
             else:
                 vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK # TODO: make a WP error status
 
-            cur_location = vehicle_manager.vehicle.get_location()
-            logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")   
+            end_time = time.time()
+            tick_time.append((end_time - start_time)*1000)
+            #cur_location = vehicle_manager.vehicle.get_location()
+            #logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")   
 
         # HANDLE END
         elif ecloud_update.command == ecloud.Command.END:
@@ -316,10 +325,14 @@ async def main():
                 ping = await ecloud_server.Client_Ping(ecloud.Empty())
                 if ping.tick_id != tick_id:
                     tick_id = ping.tick_id
+
+                    if ping.command == ecloud.Command.REQUEST_DEBUG_INFO:
+                        ecloud_update.command = ecloud.Command.REQUEST_DEBUG_INFO
+
                     break
 
-            logger.debug(f"received tick: {tick_id}")
-            if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE:
+            #logger.debug(f"received tick: {tick_id}")
+            if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
                 reported_done = True
         
         else: # done

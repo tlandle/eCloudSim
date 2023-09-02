@@ -101,15 +101,15 @@ class LocalPlanner(object):
 
         # waypoint pop out thresholding
         self._min_distance = config_yaml['min_dist']
-        self._buffer_size = 8 # config_yaml['buffer_size']
+        self._buffer_size = config_yaml['buffer_size'] # anything over 8 impacts perf a lot
 
         # global route
-        self.waypoints_queue = deque(maxlen=64) #20000
+        self.waypoints_queue = deque(maxlen=20000) # it does not NEED to be so large 64 - 128 is fine
         # waypoint route
         self._waypoint_buffer = deque(maxlen=self._buffer_size)
         # trajectory buffer
         self._long_plan_debug = []
-        self._trajectory_buffer = deque(maxlen=32)
+        self._trajectory_buffer = deque(maxlen=30)
         self._history_buffer = deque(maxlen=3)
         self.trajectory_update_freq = config_yaml['trajectory_update_freq']
         self.waypoint_update_freq = config_yaml['waypoint_update_freq']
@@ -255,8 +255,8 @@ class LocalPlanner(object):
         x = []
         y = []
 
-        logger.debug(f"waypoints_queue: {len(self.waypoints_queue)}")
-        logger.debug(f"_waypoints_buffer: {len(self._waypoint_buffer)}")
+        #logger.debug(f"waypoints_queue: {len(self.waypoints_queue)}")
+        #logger.debug(f"_waypoints_buffer: {len(self._waypoint_buffer)}")
 
         # pop out the waypoints that may damage driving performance
         self.buffer_filter()
@@ -368,10 +368,10 @@ class LocalPlanner(object):
         if len(x) < 2 or len(y) < 2:
             return rx, ry, rk, ryaw
 
-        start_time = time.time()
+        #start_time = time.time()
         sp = Spline2D(x, y)
-        end_time = time.time()
-        logger.debug(f"Spline2D: {(end_time - start_time)*1000} | len(x): {len(x)} & len(y): {len(y)}")
+        #end_time = time.time()
+        #logger.debug(f"Spline2D: {(end_time - start_time)*1000} | len(x): {len(x)} & len(y): {len(y)}")
 
         diff_x = current_location.x - sp.sx.y[0]
         diff_y = current_location.y - sp.sy.y[0]
@@ -380,7 +380,7 @@ class LocalPlanner(object):
         # we only need the interpolation points after current position
         s = np.arange(diff_s, sp.s[-1], ds)
 
-        start_time = time.time()
+        #start_time = time.time()
         self._long_plan_debug = []
         # we only need the interpolation points until next waypoint
         for (i, i_s) in enumerate(s):
@@ -394,8 +394,8 @@ class LocalPlanner(object):
             ry.append(iy)
             rk.append(max(min(sp.calc_curvature(i_s), 0.2), -0.2))
             ryaw.append(sp.calc_yaw(i_s))
-        end_time = time.time()
-        logger.debug(f"interpolate: {(end_time - start_time)*1000}")
+        #end_time = time.time()
+        #logger.debug(f"interpolate: {(end_time - start_time)*1000}")
 
         return rx, ry, rk, ryaw
 

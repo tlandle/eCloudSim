@@ -6,6 +6,7 @@ message Empty {}
 
 message Ping {
   int32 tick_id = 1; // use as bool for server
+  Command command = 2;
 }
 
 enum State {

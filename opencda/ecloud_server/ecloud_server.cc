@@ -72,6 +72,7 @@ public:
         numRegisteredVehicles_ = 0;
         tickId_ = 0;
         simState_ = State::UNDEFINED;
+        command_ = Command::TICK;
         
         numCars_ = 0;
         latestMessage_ = ""; // serialized protobuf
@@ -86,6 +87,7 @@ public:
                                const Empty* empty,
                                Ping* ping) override {
         ping->set_tick_id(tickId_);
+        ping->set_command(command_);
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -108,7 +110,6 @@ public:
     ServerUnaryReactor* Server_GetVehicleUpdates(CallbackServerContext* context,
                                const Empty* empty,
                                EcloudResponse* reply) override {
-
         for ( int i = 0; i < pendingReplies_.size(); i++ )
         {
             VehicleUpdate *update = reply->add_vehicle_update();
@@ -127,10 +128,8 @@ public:
     ServerUnaryReactor* Client_SendUpdate(CallbackServerContext* context,
                                const VehicleUpdate* request,
                                SimulationState* reply) override {
-        //std::string prefix("Hello ");
-        //reply->set_message(prefix + request->name());
 
-        if ( request->vehicle_state() == VehicleState::TICK_DONE )
+        if ( request->vehicle_state() == VehicleState::TICK_DONE || request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
         {   
             mu_.Lock();
             completedVehicles_.push_back(request->vehicle_index());
@@ -149,13 +148,14 @@ public:
         }
         else if ( request->vehicle_state() == VehicleState::TICK_OK )
         {
-                numRepliedVehicles_++;
+            numRepliedVehicles_++;
+        }
+        else if ( request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
+        {
+            numCompletedVehicles_++;
+            std::cout << "LOG(DEBUG) " << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index() << std::endl;
         }
 
-        std::hash<std::string> hasher;
-        std::string message_id;
-        reply->SerializeToString(&message_id);
-        reply->set_message_id(std::to_string(hasher(message_id)));
         // std::cout << "LOG(DEBUG) " << "Client_SendUpdate - replying tick id: " << tickId_ << std::endl;
         reply->set_tick_id(tickId_);
 
@@ -167,9 +167,6 @@ public:
     ServerUnaryReactor* Client_RegisterVehicle(CallbackServerContext* context,
                                const VehicleUpdate* request,
                                SimulationState* reply) override {
-        //std::string prefix("Hello ");
-        //reply->set_message(prefix + request->name());
-
         // TODO: remove once done debugging
         //assert( configYaml_ != " " );
 
@@ -183,11 +180,6 @@ public:
             reply->set_test_scenario(configYaml_);
             reply->set_application(application_);
             reply->set_version(version_);
-            
-            std::hash<std::string> hasher;
-            std::string message_id;
-            reply->SerializeToString(&message_id);
-            reply->set_message_id(std::to_string(hasher(message_id)));
             
             std::cout << "LOG(DEBUG) " << "RegisterVehicle - REGISTERING - vehicle id: " << reply->vehicle_index() << std::endl;
             
@@ -210,10 +202,6 @@ public:
             pendingReplies_.push_back(msg);
             mu_.Unlock();
             
-            std::hash<std::string> hasher;
-            std::string message_id;
-            reply->SerializeToString(&message_id);
-            reply->set_message_id(std::to_string(hasher(message_id)));
             // std::cout << "LOG(DEBUG) " << "RegisterVehicle - CARLA_UPDATE - message id: " << reply->message_id() << std::endl;
 
             numRepliedVehicles_++;
@@ -231,15 +219,14 @@ public:
     ServerUnaryReactor* Server_DoTick(CallbackServerContext* context,
                                const SimulationState* request,
                                EcloudResponse* reply) override {
-        //std::string prefix("Hello ");
-        //reply->set_message(prefix + request->name());
         simState_ = State::ACTIVE;
 
         numRepliedVehicles_ = 0;
-        //repliedVehicles_.clear();
         tickId_ = request->tick_id();
+        command_ = request->command();
+        //request->SerializeToString(&latestMessage_);
 
-        std::cout << "LOG(DEBUG) Server_DoTick: " << tickId_ << std::endl;
+        // std::cout << "LOG(DEBUG) Server_DoTick: " << tickId_ << std::endl;
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -249,8 +236,6 @@ public:
     ServerUnaryReactor* Server_StartScenario(CallbackServerContext* context,
                                const SimulationState* request,
                                EcloudResponse* reply) override {
-        //std::string prefix("Hello ");
-        //reply->set_message(prefix + request->name());
         simState_ = State::NEW;
 
         request->SerializeToString(&latestMessage_);
@@ -267,8 +252,6 @@ public:
     ServerUnaryReactor* Server_EndScenario(CallbackServerContext* context,
                                const Empty* request,
                                Empty* reply) override {
-        //std::string prefix("Hello ");
-        //reply->set_message(prefix + request->name());
         simState_ = State::ENDED;
 
         // need to collect debug info and then send back
@@ -291,6 +274,7 @@ private:
     std::string version_;
 
     State simState_;
+    Command command_;
 
     absl::Mutex mu_;
 
