@@ -131,6 +131,7 @@ async def main():
     version = "0.9.12"
     tick_id = 0
     state = ecloud.State.UNDEFINED #do we need a global state?
+    reported_done = False
 
     opt = arg_parse()
     if opt.verbose:
@@ -186,6 +187,7 @@ async def main():
 
     while 1:
             ping = await ecloud_server.Client_Ping(ecloud.Empty())
+            time.sleep(0.1) # we don't want to spam the server here
             if ping.tick_id != tick_id:
                 tick_id = ping.tick_id
                 break
@@ -287,13 +289,10 @@ async def main():
             
             if should_run_step:
                 if control is None or vehicle_manager.is_close_to_scenario_destination():
-                    
                     vehicle_update.vehicle_state = ecloud.VehicleState.TICK_DONE
-
                     serialize_debug_info(vehicle_update, vehicle_manager)
 
                 else:
-
                     vehicle_manager.apply_control(control)
                     vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
                     #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
@@ -310,15 +309,22 @@ async def main():
             break
         
         # block waiting for a response
-        ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
+        if not reported_done:
+            ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
 
-        while 1:
-            ping = await ecloud_server.Client_Ping(ecloud.Empty())
-            if ping.tick_id != tick_id:
-                tick_id = ping.tick_id
-                break
+            while 1: # poll
+                ping = await ecloud_server.Client_Ping(ecloud.Empty())
+                if ping.tick_id != tick_id:
+                    tick_id = ping.tick_id
+                    break
 
-        logger.debug(f"received tick: {tick_id}")
+            logger.debug(f"received tick: {tick_id}")
+            if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE:
+                reported_done = True
+        
+        else: # done
+            logger.info("arrived at destination. exiting.")
+            sys.exit(0)
 
     # end while    
     

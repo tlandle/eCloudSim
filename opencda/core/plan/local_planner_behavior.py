@@ -10,6 +10,7 @@ from enum import Enum
 import statistics
 import math
 import logging
+import time
 
 import carla
 import numpy as np
@@ -100,15 +101,15 @@ class LocalPlanner(object):
 
         # waypoint pop out thresholding
         self._min_distance = config_yaml['min_dist']
-        self._buffer_size = config_yaml['buffer_size']
+        self._buffer_size = 8 # config_yaml['buffer_size']
 
         # global route
-        self.waypoints_queue = deque(maxlen=20000)
+        self.waypoints_queue = deque(maxlen=64) #20000
         # waypoint route
         self._waypoint_buffer = deque(maxlen=self._buffer_size)
         # trajectory buffer
         self._long_plan_debug = []
-        self._trajectory_buffer = deque(maxlen=30)
+        self._trajectory_buffer = deque(maxlen=32)
         self._history_buffer = deque(maxlen=3)
         self.trajectory_update_freq = config_yaml['trajectory_update_freq']
         self.waypoint_update_freq = config_yaml['waypoint_update_freq']
@@ -254,6 +255,9 @@ class LocalPlanner(object):
         x = []
         y = []
 
+        logger.debug(f"waypoints_queue: {len(self.waypoints_queue)}")
+        logger.debug(f"_waypoints_buffer: {len(self._waypoint_buffer)}")
+
         # pop out the waypoints that may damage driving performance
         self.buffer_filter()
 
@@ -316,7 +320,7 @@ class LocalPlanner(object):
             if self.potential_curved_road:
                 x.append(prev_wpt.x)
                 y.append(prev_wpt.y)
-                index += 1
+                index += 1      
 
         # to make sure the vehicle is stable during lane change, we don't
         # include any current position
@@ -364,15 +368,19 @@ class LocalPlanner(object):
         if len(x) < 2 or len(y) < 2:
             return rx, ry, rk, ryaw
 
+        start_time = time.time()
         sp = Spline2D(x, y)
+        end_time = time.time()
+        logger.debug(f"Spline2D: {(end_time - start_time)*1000} | len(x): {len(x)} & len(y): {len(y)}")
 
         diff_x = current_location.x - sp.sx.y[0]
         diff_y = current_location.y - sp.sy.y[0]
         diff_s = np.hypot(diff_x, diff_y)
-
+        
         # we only need the interpolation points after current position
         s = np.arange(diff_s, sp.s[-1], ds)
 
+        start_time = time.time()
         self._long_plan_debug = []
         # we only need the interpolation points until next waypoint
         for (i, i_s) in enumerate(s):
@@ -386,6 +394,8 @@ class LocalPlanner(object):
             ry.append(iy)
             rk.append(max(min(sp.calc_curvature(i_s), 0.2), -0.2))
             ryaw.append(sp.calc_yaw(i_s))
+        end_time = time.time()
+        logger.debug(f"interpolate: {(end_time - start_time)*1000}")
 
         return rx, ry, rk, ryaw
 
@@ -491,7 +501,7 @@ class LocalPlanner(object):
             logger.debug(f"LOCAL_PLANNER: buffer_filter() angle: {angle}")
 
             if angle > 90:
-                print('delete waypoint!')
+                logger.error('delete waypoint!')
                 del self._waypoint_buffer[j]
                 continue
 

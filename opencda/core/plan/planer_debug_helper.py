@@ -5,6 +5,7 @@ Analysis + Visualization functions for planning
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License:  TDG-Attribution-NonCommercial-NoDistrib
 import warnings
+import logging
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,6 +13,8 @@ import matplotlib.pyplot as plt
 import opencda.core.plan.drive_profile_plotting as open_plt
 
 import ecloud_pb2 as sim_state
+
+logger = logging.getLogger(__name__)
 
 class PlanDebugHelper(object):
     """
@@ -130,8 +133,8 @@ class PlanDebugHelper(object):
         for idx, sub_list in enumerate(self.agent_step_list):
             sub_list_mean = np.nanmean(np.array(sub_list))
             sub_list_std = np.nanstd(np.array(sub_list))
-            print(f"actor {self.actor_id} | agent step list_{idx} - mean: {sub_list_mean}")
-            print(f"actor {self.actor_id} | agent step list_{idx} - std: {sub_list_std}")
+            logger.debug(f"actor {self.actor_id} | agent step list_{idx} - mean: {sub_list_mean}")
+            logger.debug(f"actor {self.actor_id} | agent step list_{idx} - std: {sub_list_std}")
 
         return figure, perform_txt
     

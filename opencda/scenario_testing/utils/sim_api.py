@@ -275,12 +275,24 @@ class ScenarioManager:
     async def server_start_scenario(self, stub_, update_):
         await stub_.Server_StartScenario(update_)
     
+        logger.info(f"pushed scenario start")
+
+        count = 0
         while 1:
             ping = await stub_.Server_Ping(ecloud.Empty())
+            time.sleep(0.1)
+            logger.debug(f"waiting for registration to complete")
+            if count % 10 == 0:
+                logger.info(f"waiting for registration to complete")
             if ping.tick_id == 1:
                 break
+            count += 1
+
+        logger.info(f"vehicle registration complete")
 
         response = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
+
+        logger.info(f"vehicle registration data received")
 
         return response
 
@@ -945,7 +957,7 @@ class ScenarioManager:
         pre_world_tick_time = time.time()
         self.world.tick()
         post_world_tick_time = time.time()
-        logger.debug("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
+        logger.info("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
         self.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
 
     def tick(self):
@@ -991,7 +1003,9 @@ class ScenarioManager:
             self.waypoint_buffer_overrides.clear()
 
         post_client_tick_time = time.time()
-        self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
+        logger.info("Client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
+        if self.tick_id > 1: # discard the first tick as startup is a major outlier
+            self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
         if len(self.sim_state_completions) == self.vehicle_count:
             return False # TODO - make a better flag
@@ -1058,7 +1072,7 @@ class ScenarioManager:
 
         # pickle the dataFrame
         pickle.dump(data_df, picklefile)
-        print(data_df)
+        logger.info(data_df)
         #close file
         picklefile.close()
 

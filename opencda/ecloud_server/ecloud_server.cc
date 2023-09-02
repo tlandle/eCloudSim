@@ -97,6 +97,9 @@ public:
                                Ping* ping) override {
         ping->set_tick_id(( numRepliedVehicles_ + numCompletedVehicles_ ) == numCars_ ? 1 : 0);
 
+        if (ping->tick_id() == 1)
+            std::cout << "LOG(DEBUG) " << "Server_Ping - TICK_COMPLETE - tick id: " << tickId_ << std::endl;
+
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
         return reactor;
@@ -113,7 +116,6 @@ public:
         }
 
         numRepliedVehicles_ = 0;
-        
         repliedVehicles_.clear();
         pendingReplies_.clear();
 
@@ -141,9 +143,14 @@ public:
         // std::cout << "LOG(DEBUG) " << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id() << std::endl;
 
         if ( request->vehicle_state() == VehicleState::TICK_DONE )
+        {
             numCompletedVehicles_++;
+            std::cout << "LOG(DEBUG) " << "Client_SendUpdate - TICK_DONE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index() << std::endl;
+        }
         else if ( request->vehicle_state() == VehicleState::TICK_OK )
-            numRepliedVehicles_++;
+        {
+                numRepliedVehicles_++;
+        }
 
         std::hash<std::string> hasher;
         std::string message_id;
@@ -229,8 +236,7 @@ public:
         simState_ = State::ACTIVE;
 
         numRepliedVehicles_ = 0;
-        repliedVehicles_.clear();
-        pendingReplies_.clear();
+        //repliedVehicles_.clear();
         tickId_ = request->tick_id();
 
         std::cout << "LOG(DEBUG) Server_DoTick: " << tickId_ << std::endl;
