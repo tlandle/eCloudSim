@@ -20,6 +20,7 @@ import random
 import copy
 import hashlib
 import os
+import asyncio
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor, thread
@@ -70,7 +71,7 @@ elif cloud_config["log_level"] == "warning":
 elif cloud_config["log_level"] == "info":
     logger.setLevel(logging.INFO)
 
-TIMEOUT_S = 60
+TIMEOUT_S = 10
 TIMEOUT_MS = TIMEOUT_S * 1000
 
 def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
@@ -198,6 +199,96 @@ class ScenarioManager:
     scenario = None
     ecloud_server = None
 
+    async def server_unpack_debug_data():
+        return
+           
+        # need to case handle based on response type... but we don't necessarily *need* this for acks (for now...)
+        if request.vehicle_state == VehicleState.OK:
+            pass
+
+        elif request.vehicle_state == VehicleState.TICK_OK:
+
+            logger.debug(f"received TICK_OK from vehicle {request.vehicle_index}")
+            with ScenarioManager.lock:
+                # make sure to add the tick_id to the root list when we do the tick
+                # TODO: should we assert that we've not already received this response?
+                if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
+                    ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
+
+        elif request.vehicle_state == VehicleState.DEBUG_INFO_UPDATE:
+
+            # TODO: we're just treating this a regular broadcast for now.
+            # - do we need per-vehicle
+            # - is it worth making something distinct from a tick?
+
+            logger.debug(f"received DEBUG_INFO_UPDATE from vehicle {request.vehicle_index}")
+            with ScenarioManager.lock:
+                # make sure to add the tick_id to the root list when we do the tick
+                # TODO: should we assert that we've not already received this response?
+                if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
+                    ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
+
+                vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
+                vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
+                vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
+                vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)
+                #logger.debug(vehicle_manager_proxy.debug_helper.perception_time_list)
+                #logger.debug(vehicle_manager_proxy.debug_helper.localization_time_list)
+
+
+        elif request.vehicle_state == VehicleState.TICK_DONE:
+
+            logger.debug(f"received TICK_DONE from vehicle {request.vehicle_index}")
+            with ScenarioManager.lock:
+                # make sure to add the tick_id to the root list when we do the tick
+                # TODO: should we assert that we've not already received this response?
+                if request.vehicle_index not in ScenarioManager.sim_state_completions:
+                    ScenarioManager.sim_state_completions.append(request.vehicle_index)
+
+                    vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
+                    vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
+                    vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
+                    vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)
+
+        elif request.vehicle_state == VehicleState.ERROR:
+
+            pass
+            # TODO handle graceful termination
+
+        if len(ScenarioManager.sim_state_responses[request.tick_id]) == ScenarioManager.vehicle_count or \
+            ( ( len(ScenarioManager.sim_state_responses[request.tick_id]) + len(ScenarioManager.sim_state_completions) ) == ScenarioManager.vehicle_count ):
+            logger.debug(f"TICK_COMPLETE for {request.tick_id}")
+            ScenarioManager.tick_complete.set()
+
+        return Empty()
+
+    async def server_do_tick(self, stub_, update_):
+        response = await stub_.Server_DoTick(update_)
+    
+        while 1:
+            ping = await stub_.Server_Ping(ecloud.Empty())
+            if ping.tick_id == 1:
+                break
+
+        return response
+    
+    async def server_start_scenario(self, stub_, update_):
+        await stub_.Server_StartScenario(update_)
+    
+        while 1:
+            ping = await stub_.Server_Ping(ecloud.Empty())
+            if ping.tick_id == 1:
+                break
+
+        response = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
+
+        return response
+
+    async def server_end_scenario(self, stub_, update_):
+        response = await stub_.Server_EndScenario(update_)
+    
+        return response
+
     def __init__(self, scenario_params,
                  apply_ml,
                  carla_version,
@@ -271,7 +362,7 @@ class ScenarioManager:
             if apply_ml == True:
                 assert( False, "ML should only be run on the distributed clients")
 
-            channel = grpc.insecure_channel(
+            channel = grpc.aio.insecure_channel(
             target="[::]:50051",
             options=[
                 ("grpc.lb_policy_name", "pick_first"),
@@ -304,7 +395,9 @@ class ScenarioManager:
             server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
 
             print("start vehicle containers")
-            ecloud_update = self.ecloud_server.Server_StartScenario(server_request)
+            ecloud_update = asyncio.get_event_loop().run_until_complete(self.server_start_scenario(self.ecloud_server, server_request))
+
+            logger.debug(f"unpacking ecloud_update...")
 
             # unpack the update - which will contain a repeated list of updates from the indivudal containers
             for vehicle_update in ecloud_update.vehicle_update:
@@ -709,7 +802,7 @@ class ScenarioManager:
 
     # END Core OpenCDA
 
-    # --------------------------------------------------------------------------------------------------------------------------------------
+    # -------------------------------------------------------
 
     # BEGIN eCloud
     def create_distributed_vehicle_manager(self, application,
@@ -887,12 +980,12 @@ class ScenarioManager:
                 sim_state_update.all_waypoint_buffers.extend([waypoint_buffer_proto])
         sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
 
-        ecloud_response = self.ecloud_server.Server_DoTick(sim_state_update)
+        ecloud_response = asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, sim_state_update))
 
         # unpack ecloud response
-        for update in ecloud_response.vehicle_update:
-            if update.vehicle_state == ecloud.VehicleState.TICK_DONE:
-                self.sim_state_completions.append(update.vehicle_index)
+        #for update in ecloud_response.vehicle_update:
+        #    if update.vehicle_state == ecloud.VehicleState.TICK_DONE:
+        #        self.sim_state_completions.append(update.vehicle_index)
 
         if message_type == ecloud.Command.TICK:
             self.waypoint_buffer_overrides.clear()
@@ -938,7 +1031,7 @@ class ScenarioManager:
         sim_state_update.command = ecloud.Command.END
         sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
         
-        self.ecloud_server.Server_EndScenario(sim_state_update)
+        asyncio.get_event_loop().run_until_complete(self.server_end_scenario(self.ecloud_server, sim_state_update))
 
         logger.debug(f"pushed END")
 

@@ -5,7 +5,7 @@ package ecloud;
 message Empty {}
 
 message Ping {
-  int32 vehicle_index = 1;
+  int32 tick_id = 1; // use as bool for server
 }
 
 enum State {
@@ -144,7 +144,11 @@ message EcloudResponse {
 service Ecloud {
   rpc Client_SendUpdate (VehicleUpdate) returns (SimulationState);
   rpc Client_RegisterVehicle (VehicleUpdate) returns (SimulationState);
+  rpc Client_Ping (Empty) returns (Ping);
+  // SERVER
   rpc Server_DoTick(SimulationState) returns (EcloudResponse);
   rpc Server_StartScenario(SimulationState) returns (EcloudResponse);
   rpc Server_EndScenario(Empty) returns (Empty);
+  rpc Server_Ping(Empty) returns (Ping);
+  rpc Server_GetVehicleUpdates(Empty) returns (EcloudResponse);
 }

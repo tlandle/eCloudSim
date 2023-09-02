@@ -23,6 +23,8 @@
 
 //#include <glog/logging.h>
 
+#define SLEEP_TIME_S 0.000000001
+
 ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
 
 using grpc::CallbackServerContext;
@@ -80,83 +82,61 @@ public:
         pendingReplies_.clear();
     }
 
+    ServerUnaryReactor* Client_Ping(CallbackServerContext* context,
+                               const Empty* empty,
+                               Ping* ping) override {
+        ping->set_tick_id(tickId_);
+
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
+    ServerUnaryReactor* Server_Ping(CallbackServerContext* context,
+                               const Empty* empty,
+                               Ping* ping) override {
+        ping->set_tick_id(( numRepliedVehicles_ + numCompletedVehicles_ ) == numCars_ ? 1 : 0);
+
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
+    ServerUnaryReactor* Server_GetVehicleUpdates(CallbackServerContext* context,
+                               const Empty* empty,
+                               EcloudResponse* reply) override {
+
+        for ( int i = 0; i < pendingReplies_.size(); i++ )
+        {
+            VehicleUpdate *update = reply->add_vehicle_update();
+            update->ParseFromString(pendingReplies_[i]);
+        }
+
+        numRepliedVehicles_ = 0;
+        
+        repliedVehicles_.clear();
+        pendingReplies_.clear();
+
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
     ServerUnaryReactor* Client_SendUpdate(CallbackServerContext* context,
                                const VehicleUpdate* request,
                                SimulationState* reply) override {
         //std::string prefix("Hello ");
         //reply->set_message(prefix + request->name());
 
-        /*        
-        # need to case handle based on response type... but we don't necessarily *need* this for acks (for now...)
-        if request.vehicle_state == VehicleState::OK:
-            pass
-
-        elif request.vehicle_state == VehicleState::TICK_OK:
-
-            logger.debug(f"received TICK_OK from vehicle {request.vehicle_index}")
-            with ScenarioManager.lock:
-                # make sure to add the tick_id to the root list when we do the tick
-                # TODO: should we assert that we've not already received this response?
-                if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
-                    ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
-
-        elif request.vehicle_state == VehicleState::DEBUG_INFO_UPDATE:
-
-            # TODO: we're just treating this a regular broadcast for now.
-            # - do we need per-vehicle
-            # - is it worth making something distinct from a tick?
-
-            logger.debug(f"received DEBUG_INFO_UPDATE from vehicle {request.vehicle_index}")
-            with ScenarioManager.lock:
-                # make sure to add the tick_id to the root list when we do the tick
-                # TODO: should we assert that we've not already received this response?
-                if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
-                    ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
-
-                vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
-                vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
-                vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
-                vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)
-                #logger.debug(vehicle_manager_proxy.debug_helper.perception_time_list)
-                #logger.debug(vehicle_manager_proxy.debug_helper.localization_time_list)
-
-
-        elif request.vehicle_state == VehicleState::TICK_DONE:
-
-            logger.debug(f"received TICK_DONE from vehicle {request.vehicle_index}")
-            with ScenarioManager.lock:
-                # make sure to add the tick_id to the root list when we do the tick
-                # TODO: should we assert that we've not already received this response?
-                if request.vehicle_index not in ScenarioManager.sim_state_completions:
-                    ScenarioManager.sim_state_completions.append(request.vehicle_index)
-
-                    vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
-                    vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
-                    vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
-                    vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)
-
-        elif request.vehicle_state == VehicleState::ERROR:
-
-            pass
-            # TODO handle graceful termination
-
-        if len(ScenarioManager.sim_state_responses[request.tick_id]) == ScenarioManager.vehicle_count or \
-            ( ( len(ScenarioManager.sim_state_responses[request.tick_id]) + len(ScenarioManager.sim_state_completions) ) == ScenarioManager.vehicle_count ):
-            logger.debug(f"TICK_COMPLETE for {request.tick_id}")
-            ScenarioManager.tick_complete.set()
-
-        return Empty()
-        */
-
-        mu_.Lock();
         if ( request->vehicle_state() == VehicleState::TICK_DONE )
-            repliedVehicles_.push_back(request->vehicle_index());
-        else if ( request->vehicle_state() == VehicleState::TICK_OK )
-            repliedVehicles_.push_back(request->vehicle_index());
-        std::string msg;
-        request->SerializeToString(&msg);
-        pendingReplies_.push_back(msg);
-        mu_.Unlock();
+        {   
+            mu_.Lock();
+            completedVehicles_.push_back(request->vehicle_index());
+            std::string msg;
+            request->SerializeToString(&msg);
+            pendingReplies_.push_back(msg);
+            mu_.Unlock();
+        }
 
         // std::cout << "LOG(DEBUG) " << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id() << std::endl;
 
@@ -164,11 +144,6 @@ public:
             numCompletedVehicles_++;
         else if ( request->vehicle_state() == VehicleState::TICK_OK )
             numRepliedVehicles_++;
-
-        while ( tickId_ == request->tick_id() )
-        {
-            ; // spin
-        }
 
         std::hash<std::string> hasher;
         std::string message_id;
@@ -193,7 +168,7 @@ public:
 
         if ( request->vehicle_state() == VehicleState::REGISTERING )
         {
-            // std::cout << "LOG(DEBUG)" << "got a registration update" << std::endl;
+            //std::cout << "LOG(DEBUG) " << "got a registration update" << std::endl;
 
             reply->set_state(State::NEW);
             reply->set_tick_id(0);
@@ -207,22 +182,22 @@ public:
             reply->SerializeToString(&message_id);
             reply->set_message_id(std::to_string(hasher(message_id)));
             
-            // std::cout << "LOG(DEBUG)" << "RegisterVehicle - REGISTERING - message id: " << reply->message_id() << std::endl;
+            std::cout << "LOG(DEBUG) " << "RegisterVehicle - REGISTERING - vehicle id: " << reply->vehicle_index() << std::endl;
             
             numRegisteredVehicles_++;
         }
         else if ( request->vehicle_state() == VehicleState::CARLA_UPDATE )
         {
-            // std::cout << "LOG(DEBUG)" << "got a carla update" << std::endl;
+            // std::cout << "LOG(DEBUG) " << "got a carla update" << std::endl;
             
             reply->set_state(State::START); // # do we need a new state? like "registering"?
             reply->set_tick_id(0);
             reply->set_vehicle_index(request->vehicle_index());
             
-            // std::cout << "LOG(DEBUG)" << "Request vehicle_index: " << request->vehicle_index() << " | actor_id: " << request->actor_id() << " | vid: " << request->vid() << std::endl;
+            std::cout << "LOG(DEBUG) " << "RegisterVehicle - CARLA_UPDATE - vehicle_index: " << request->vehicle_index() << " | actor_id: " << request->actor_id() << " | vid: " << request->vid() << std::endl;
             
             mu_.Lock();
-            repliedVehicles_.push_back(request->vehicle_index());
+            //repliedVehicles_.push_back(request->vehicle_index());
             std::string msg;
             request->SerializeToString(&msg);
             pendingReplies_.push_back(msg);
@@ -232,14 +207,9 @@ public:
             std::string message_id;
             reply->SerializeToString(&message_id);
             reply->set_message_id(std::to_string(hasher(message_id)));
-            // std::cout << "LOG(DEBUG)" << "RegisterVehicle - CARLA_UPDATE - message id: " << reply->message_id() << std::endl;
+            // std::cout << "LOG(DEBUG) " << "RegisterVehicle - CARLA_UPDATE - message id: " << reply->message_id() << std::endl;
 
             numRepliedVehicles_++;
-
-            while ( tickId_ == 0 )
-            {
-                ; // spin
-            }
         }
         else
         {
@@ -263,18 +233,7 @@ public:
         pendingReplies_.clear();
         tickId_ = request->tick_id();
 
-        // std::cout << "LOG(DEBUG) Server_DoTick: " << tickId_ << std::endl;
-
-        while ( ( numRepliedVehicles_ + numCompletedVehicles_ ) < numCars_ )
-        {
-            ; // spin
-        }
-
-        for ( int i = 0; i < pendingReplies_.size(); i++ )
-        {
-            VehicleUpdate *update = reply->add_vehicle_update();
-            update->ParseFromString(pendingReplies_[i]);
-        }
+        std::cout << "LOG(DEBUG) Server_DoTick: " << tickId_ << std::endl;
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -293,21 +252,6 @@ public:
         application_ = request->application();
         version_ = request->version();
         numCars_ = request->vehicle_index(); // bit of a hack to use vindex as count
-
-        numRepliedVehicles_ = 0;
-        repliedVehicles_.clear();
-        pendingReplies_.clear();
-
-        while ( numRepliedVehicles_ < numCars_ )
-        {
-            ; // spin
-        }
-
-        for ( int i = 0; i < pendingReplies_.size(); i++ )
-        {
-            VehicleUpdate *update = reply->add_vehicle_update();
-            update->ParseFromString(pendingReplies_[i]);
-        }
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -376,7 +320,7 @@ void RunServer(uint16_t port) {
         10 * 1000 /*10 sec*/);
     // Finally assemble the server.
     std::unique_ptr<Server> server(builder.BuildAndStart());
-    // std::cout << "LOG(INFO)" << "Server listening on " << server_address << std::endl;
+    std::cout << "LOG(INFO) " << "Server listening on " << server_address << std::endl;
 
     // Wait for the server to shutdown. Note that some other thread must be
     // responsible for shutting down the server for this call to ever return.

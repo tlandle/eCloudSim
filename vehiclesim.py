@@ -12,6 +12,7 @@ from atexit import register
 from curses import A_DIM
 import sys
 import json
+import asyncio
 
 import carla
 
@@ -39,22 +40,6 @@ import grpc
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
 #end gRPC
-
-TIMEOUT_S = 60
-TIMEOUT_MS = TIMEOUT_S * 1000
-
-state = ecloud.State.UNDEFINED #do we need a global state?
-vehicle_index = None
-tick_id = 0
-
-# sim params
-test_scenario = None #= message["params"]["scenario"]
-application = None #= message["params"]["application"]
-version = None #= message["params"]["version"]
-
-# carla params
-actor_id = None
-vid = None
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -87,17 +72,18 @@ def serialize_debug_info(vehicle_update, vehicle_manager):
     client_debug_helper.serialize_debug_info(client_debug_helper_msg)
     vehicle_update.client_debug_helper.CopyFrom(client_debug_helper_msg)
 
-def send_registration_to_ecloud_server(stub_):
+async def send_registration_to_ecloud_server(stub_):
     request = ecloud.VehicleUpdate()
     request.vehicle_state = ecloud.VehicleState.REGISTERING
-    response = stub_.Client_RegisterVehicle(request)
+    
+    response = await stub_.Client_RegisterVehicle(request)
 
-    logger.debug(f"Vehicle ID {response.vehicle_index} received...")
+    logger.debug(f"vehicle ID {response.vehicle_index} received...")
     assert response.state == ecloud.State.NEW
     
     return response
 
-def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid):
+async def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid):
     message = {"vehicle_index": vehicle_index, "actor_id": actor_id, "vid": vid}
     logger.debug(f"Vehicle: Sending Carla rpc {message}")
 
@@ -108,7 +94,16 @@ def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid):
     update.vid = vid
     update.actor_id = actor_id
     
-    response = stub_.Client_RegisterVehicle(update)
+    response = await stub_.Client_RegisterVehicle(update)
+
+    logger.debug(f"send_carla_data_to_opencda: response received")
+
+    return response
+
+async def send_vehicle_update(stub_, vehicle_update_):
+    response = await stub_.Client_SendUpdate(vehicle_update_)
+
+    logger.debug(f"send_vehicle_update: response received")
 
     return response
 
@@ -130,10 +125,12 @@ def arg_parse():
     opt = parser.parse_args()
     return opt
 
-def main():
+async def main():
     # default params which can be over-written from the simulation controller
     application = ["single"]
     version = "0.9.12"
+    tick_id = 0
+    state = ecloud.State.UNDEFINED #do we need a global state?
 
     opt = arg_parse()
     if opt.verbose:
@@ -144,17 +141,16 @@ def main():
 
     logging.basicConfig()
 
-    channel = grpc.insecure_channel(
+    channel = grpc.aio.insecure_channel(
         target=f"{CARLA_IP}:50051",
         options=[
             ("grpc.lb_policy_name", "pick_first"),
             ("grpc.enable_retries", 0),
-            ("grpc.keepalive_timeout_ms", TIMEOUT_MS),
+            ("grpc.keepalive_timeout_ms", 10000),
         ],
     )
     ecloud_server = ecloud_rpc.EcloudStub(channel)
-
-    ecloud_update = send_registration_to_ecloud_server(ecloud_server)
+    ecloud_update = await send_registration_to_ecloud_server(ecloud_server)
     vehicle_index = ecloud_update.vehicle_index
     state = ecloud_update.state
     assert( vehicle_index != None )
@@ -186,7 +182,13 @@ def main():
     actor_id = vehicle_manager.vehicle.id
     vid = vehicle_manager.vid
 
-    ecloud_update = send_carla_data_to_opencda(ecloud_server, vehicle_index, actor_id, vid)
+    ecloud_update = await send_carla_data_to_opencda(ecloud_server, vehicle_index, actor_id, vid)
+
+    while 1:
+            ping = await ecloud_server.Client_Ping(ecloud.Empty())
+            if ping.tick_id != tick_id:
+                tick_id = ping.tick_id
+                break
 
     if not edge_sets_destination:
         cav_config = scenario_yaml['scenario']['single_cav_list'][vehicle_index]
@@ -200,8 +202,6 @@ def main():
                 clean=True)
 
     while state != ecloud.State.ENDED:   
-
-        tick_id = ecloud_update.tick_id
 
         vehicle_update = ecloud.VehicleUpdate()
         if ecloud_update.command != ecloud.Command.TICK: # don't print tick message since there are too many
@@ -270,9 +270,9 @@ def main():
                 for waypoints in waypoints_buffer_printer:
                     logger.warning("waypoint_proto: waypoints transform for Vehicle: %s", waypoints[0].transform)
 
-            waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-            for waypoints in waypoints_buffer_printer:
-                logger.warning("final: waypoints transform for Vehicle: %s", waypoints[0].transform)
+            #waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+            #for waypoints in waypoints_buffer_printer:
+            #    logger.warning("final: waypoints transform for Vehicle: %s", waypoints[0].transform)
 
             should_run_step = False
             if ( has_not_cleared_buffer and waypoint_proto == None ) or ( ( not has_not_cleared_buffer ) and waypoint_proto != None ):
@@ -310,8 +310,15 @@ def main():
             break
         
         # block waiting for a response
-        ecloud_update = ecloud_server.Client_SendUpdate(vehicle_update)
-        logger.debug(f"received tick: {ecloud_update.tick_id}")
+        ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
+
+        while 1:
+            ping = await ecloud_server.Client_Ping(ecloud.Empty())
+            if ping.tick_id != tick_id:
+                tick_id = ping.tick_id
+                break
+
+        logger.debug(f"received tick: {tick_id}")
 
     # end while    
     
@@ -323,6 +330,6 @@ def main():
 
 if __name__ == '__main__':
     try:
-        main()
+        asyncio.get_event_loop().run_until_complete(main())
     except KeyboardInterrupt:
         logger.info(' - Exited by user.')
