@@ -31,8 +31,8 @@ from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.application.edge.transform_utils import *
 
 import grpc
-import sim_api_pb2 as sim_state
-import sim_api_pb2_grpc as rpc
+import ecloud_pb2 as sim_state
+import ecloud_pb2_grpc as rpc
 
 class EdgeManager(object):
     """

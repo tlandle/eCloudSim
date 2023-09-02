@@ -44,8 +44,8 @@ from opencda.core.application.edge.edge_debug_helper import \
     EdgeDebugHelper
 
 import grpc
-import sim_api_pb2 as sim_state
-import sim_api_pb2_grpc as rpc
+import ecloud_pb2 as sim_state
+import ecloud_pb2_grpc as rpc
 
 class EdgeManager(object):
     """

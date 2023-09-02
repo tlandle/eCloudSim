@@ -4,8 +4,8 @@ import sys
 
 from google.protobuf.json_format import MessageToJson
 import grpc
-import sim_api_pb2 as sim_state
-import sim_api_pb2_grpc as rpc
+import ecloud_pb2 as sim_state
+import ecloud_pb2_grpc as rpc
 
 import carla
 

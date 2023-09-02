@@ -28,15 +28,12 @@ import threading
 import time
 from typing import Iterable
 from queue import Queue
-import heapq
 
 from google.protobuf.json_format import MessageToJson
 import grpc
 
-# sys.path.append('../../protos/')
-
-import sim_api_pb2 as sim_state
-import sim_api_pb2_grpc as rpc
+import ecloud_pb2 as ecloud
+import ecloud_pb2_grpc as ecloud_rpc
 #end gRPC
 
 import carla
@@ -72,6 +69,9 @@ elif cloud_config["log_level"] == "warning":
     logger.setLevel(logging.WARNING)
 elif cloud_config["log_level"] == "info":
     logger.setLevel(logging.INFO)
+
+TIMEOUT_S = 60
+TIMEOUT_MS = TIMEOUT_S * 1000
 
 def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
     """
@@ -142,12 +142,6 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
 
     return blueprints
 
-# eCLOUD BEGIN
-
-message_stack = []
-
-# eCLOUD END
-
 class ScenarioManager:
     """
     The manager that controls simulation construction, backgound traffic
@@ -185,204 +179,24 @@ class ScenarioManager:
         CAV World that contains the information of all CAVs.
 
     carla_map : carla.map
-        Car;a HD Map.
+        Carla HD Map.
 
     """
 
-    # eCLOUD BEGIN
-
-    connections_received = 0
     tick_id = 0 # current tick counter
     sim_state_responses = [[]] # list of responses per tick - e.g. sim_state_responses[tick_id = 1] = [veh_id = 1, veh_id = 2]
     sim_state_completions = [] # list of veh_ids that are complete
 
     waypoint_buffer_overrides = []
 
-    tick_complete = threading.Event()
-    set_sim_active = threading.Event()
-    set_sim_started = threading.Event()
-    lock = threading.Lock()
-
+    vehicle_managers = {}
     vehicles = {} # vehicle_index -> tuple (actor_id, vid)
     vehicle_count = 0
 
     carla_version = None
     application = ['single']
     scenario = None
-
-    pushed_message = threading.Event()
-    popped_message = threading.Event()
-
-    message_stack = []
-
-    server_run = True
-    server = None
-
-    vehicle_managers = {}
-    vehicle_index = 0
-
-    class OpenCDA(rpc.OpenCDAServicer):
-
-        def __init__(self, q, message_stack):
-            self._id_counter = 0
-            self._q = q
-            self._message_stack = message_stack
-            random.seed(time.time())
-
-        def SimulationStateStream(self, request, context):
-            last_tick_id = 0
-            has_printed = False
-
-            logger.debug(f"request vehicle_index {request.vehicle_index}")
-
-            stack_index = 0
-            count = 0
-            big_count = 0
-            logger.debug("before while stack_index: " + str(stack_index))
-            while ScenarioManager.server_run:
-                #print("eCloud debug: listening for new messages in queue")
-                #ScenarioManager.pushed_message.wait(timeout=None)
-                if not self._q.empty():
-                    sim_state_update = self._q.get()
-                    logger.debug("Popped sim_state_update:\n" + str(sim_state_update))
-                    if type(sim_state_update) == type(sim_state.SimulationState()):
-                        logger.debug("SimulationStateStream message_stack - message id: " + str(sim_state_update.message_id) + " | command: " + str(sim_state_update.command) + " | tick: " + str(sim_state_update.tick_id))
-                        with ScenarioManager.lock:
-                            found = False
-                            for message in ScenarioManager.message_stack:
-                                state = sim_state.SimulationState()
-                                state.ParseFromString(message)
-                                if state.message_id == sim_state_update.message_id:
-                                    found = True
-                            if not found:
-                                #print("new message:")
-                                #print(sim_state_update.SerializeToString())
-                                logger.debug("appended new message to stack")
-                                ScenarioManager.message_stack.append(sim_state_update.SerializeToString())
-
-                    ScenarioManager.pushed_message.clear()
-                    ScenarioManager.popped_message.set()
-
-                #print("message_stack has " + str(len(self._message_stack)) + " messages...")
-                #print("stack_index" + str(stack_index))
-                while stack_index < len(ScenarioManager.message_stack):
-                    m = ScenarioManager.message_stack[stack_index]
-                    message = sim_state.SimulationState()
-                    message.ParseFromString(m)
-                    logger.debug("in while stack_index: " + str(stack_index))
-                    logger.debug("SimulationStateStream yield - message id: " + str(message.message_id) + " | command: " + str(message.command) + " | tick: " + str(message.tick_id))
-
-                    stack_index += 1
-
-                    yield message
-
-                count += 1
-                time.sleep(0.1)
-                if count % 1000 == 0:
-                    count = 0
-                    big_count += 1
-                    logger.debug("looping " + str(big_count) + "...")
-
-            logger.debug(f"SimulationStateStream complete")
-
-        def SendUpdate(self, request: sim_state.VehicleUpdate, context):
-
-            # need to case handle based on response type... but we don't necessarily *need* this for acks (for now...)
-            if request.vehicle_state == sim_state.VehicleState.OK:
-                pass
-
-            elif request.vehicle_state == sim_state.VehicleState.TICK_OK:
-
-                logger.debug(f"received TICK_OK from vehicle {request.vehicle_index}")
-                with ScenarioManager.lock:
-                    # make sure to add the tick_id to the root list when we do the tick
-                    # TODO: should we assert that we've not already received this response?
-                    if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
-                        ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
-
-            elif request.vehicle_state == sim_state.VehicleState.DEBUG_INFO_UPDATE:
-
-                # TODO: we're just treating this a regular broadcast for now.
-                # - do we need per-vehicle
-                # - is it worth making something distinct from a tick?
-
-                logger.debug(f"received DEBUG_INFO_UPDATE from vehicle {request.vehicle_index}")
-                with ScenarioManager.lock:
-                    # make sure to add the tick_id to the root list when we do the tick
-                    # TODO: should we assert that we've not already received this response?
-                    if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
-                        ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
-
-                    vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
-                    vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
-                    vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
-                    vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)
-                    #logger.debug(vehicle_manager_proxy.debug_helper.perception_time_list)
-                    #logger.debug(vehicle_manager_proxy.debug_helper.localization_time_list)
-
-
-            elif request.vehicle_state == sim_state.VehicleState.TICK_DONE:
-
-                logger.debug(f"received TICK_DONE from vehicle {request.vehicle_index}")
-                with ScenarioManager.lock:
-                    # make sure to add the tick_id to the root list when we do the tick
-                    # TODO: should we assert that we've not already received this response?
-                    if request.vehicle_index not in ScenarioManager.sim_state_completions:
-                        ScenarioManager.sim_state_completions.append(request.vehicle_index)
-
-                        vehicle_manager_proxy = ScenarioManager.vehicle_managers[ request.vehicle_index ]
-                        vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( request.loc_debug_helper )
-                        vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( request.planer_debug_helper )
-                        vehicle_manager_proxy.debug_helper.deserialize_debug_info(request.client_debug_helper)
-
-            elif request.vehicle_state == sim_state.VehicleState.ERROR:
-
-                pass
-                # TODO handle graceful termination
-
-            if len(ScenarioManager.sim_state_responses[request.tick_id]) == ScenarioManager.vehicle_count or \
-               ( ( len(ScenarioManager.sim_state_responses[request.tick_id]) + len(ScenarioManager.sim_state_completions) ) == ScenarioManager.vehicle_count ):
-                logger.debug(f"TICK_COMPLETE for {request.tick_id}")
-                ScenarioManager.tick_complete.set()
-
-            return sim_state.Empty()
-
-
-        def RegisterVehicle(self, request: sim_state.VehicleUpdate, context):
-            #register the vehicle
-            if request.vehicle_state == sim_state.VehicleState.REGISTERING:
-                logger.debug("got a registration update")
-                response = sim_state.SimulationState()
-                response.state = sim_state.State.NEW
-                response.tick_id = 0
-                response.vehicle_index = ScenarioManager.connections_received
-                response.message_id = str(hashlib.sha256(response.SerializeToString()).hexdigest())
-                logger.debug("RegisterVehicle - REGISTERING - message id: " + str(response.message_id))
-                with ScenarioManager.lock:
-                    ScenarioManager.connections_received += 1
-                return response
-
-            if request.vehicle_state == sim_state.VehicleState.CARLA_UPDATE:
-                logger.debug("got a carla update")
-                response = sim_state.SimulationState()
-                response.state = sim_state.State.START # do we need a new state? like "registering"?
-                response.tick_id = 0
-                response.vehicle_index = request.vehicle_index
-                logger.debug(f"Request vehicle_index: " + str(request.vehicle_index) + " | actor_id: " + str(request.actor_id) + " | vid: " + str(request.vid))
-                ScenarioManager.vehicles[f"vehicle_{request.vehicle_index}"] = ( request.actor_id, request.vid )
-                response.message_id = str(hashlib.sha256(response.SerializeToString()).hexdigest())
-                logger.debug("RegisterVehicle - CARLA_UPDATE - message id: " + str(response.message_id))
-                return response
-
-    def serve(self, q: Queue(), message_stack, address: str) -> None:
-        ScenarioManager.server = grpc.server(ThreadPoolExecutor(max_workers=512))
-        rpc.add_OpenCDAServicer_to_server(self.OpenCDA(q, message_stack), ScenarioManager.server)
-        ScenarioManager.server.add_insecure_port(address)
-        ScenarioManager.server.start()
-        logger.info(f"Server serving at {address}")
-        ScenarioManager.server.wait_for_termination()
-
-    # eCLOUD END
+    ecloud_server = None
 
     def __init__(self, scenario_params,
                  apply_ml,
@@ -391,6 +205,7 @@ class ScenarioManager:
                  town=None,
                  cav_world=None,
                  config_file=None):
+                 
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.config_file = config_file
@@ -456,52 +271,50 @@ class ScenarioManager:
             if apply_ml == True:
                 assert( False, "ML should only be run on the distributed clients")
 
-            # gRPC hello block begin
-            self.message_queue = Queue()
-            self.message_stack = []
-            self.server_thread = threading.Thread(target=self.serve, args=(self.message_queue, self.message_stack, "[::]:50051",))
-            self.server_thread.start()
+            channel = grpc.insecure_channel(
+            target="[::]:50051",
+            options=[
+                ("grpc.lb_policy_name", "pick_first"),
+                ("grpc.enable_retries", 0),
+                ("grpc.keepalive_timeout_ms", TIMEOUT_MS),
+                ],
+            )
+            self.ecloud_server = ecloud_rpc.EcloudStub(channel)
 
             if 'single_cav_list' in scenario_params['scenario']:
-                ScenarioManager.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
+                self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
             elif 'edge_list' in scenario_params['scenario']:
                 # TODO: support multiple edges...
-                ScenarioManager.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['members'])
+                self.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['members'])
             else:
                 assert(False, "no known vehicle indexing format found")
 
-            print("start vehicle containers")
-
-            while ScenarioManager.connections_received < ScenarioManager.vehicle_count:
-                #time.sleep(1)
-                logger.info(f"received {ScenarioManager.connections_received} registrations. sim_api sleeping...")
-                #should we wait for a threading event instead?
-
-            print("vehicles registered, running simulation...")
             self.debug_helper.update_sim_start_timestamp(time.time())
 
-            ScenarioManager.scenario = json.dumps(scenario_params) #self.config_file
-            ScenarioManager.carla_version = self.carla_version
+            self.scenario = json.dumps(scenario_params) #self.config_file
+            self.carla_version = self.carla_version
 
-            # signal server to put ACTIVE on the wire
-            #ScenarioManager.set_sim_started.set()
+            server_request = ecloud.SimulationState()
+            server_request.test_scenario = self.scenario
+            server_request.application = self.application[0]
+            server_request.version = self.carla_version
+            server_request.message_id = str(hashlib.sha256(server_request.SerializeToString()).hexdigest())
+            server_request.state = ecloud.State.START
+            server_request.tick_id = self.tick_id
+            server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
 
-            sim_state_update = sim_state.SimulationState()
-            sim_state_update.test_scenario = ScenarioManager.scenario
-            sim_state_update.application = ScenarioManager.application[0]
-            sim_state_update.version = ScenarioManager.carla_version
-            sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
+            print("start vehicle containers")
+            ecloud_update = self.ecloud_server.Server_StartScenario(server_request)
 
-            sim_state_update.state = sim_state.State.START
-            sim_state_update.tick_id = ScenarioManager.tick_id
-            self.message_queue.put(sim_state_update)
+            # unpack the update - which will contain a repeated list of updates from the indivudal containers
+            for vehicle_update in ecloud_update.vehicle_update:
+                logger.debug(f"vehicle {vehicle_update.vehicle_index} | actor_id: {vehicle_update.actor_id} & vid: {vehicle_update.vid}")
+                vehicle_tuple = ( vehicle_update.actor_id, vehicle_update.vid )
+                self.vehicles[f"vehicle_{vehicle_update.vehicle_index}"] = vehicle_tuple
+
+            self.world.tick()
 
             logger.debug("eCloud debug: pushed START")
-
-            ScenarioManager.pushed_message.set()
-
-            ScenarioManager.popped_message.wait(timeout=None)
-            ScenarioManager.popped_message.clear()
 
         # eCLOUD END
 
@@ -532,6 +345,7 @@ class ScenarioManager:
         )
         return weather
 
+    # BEGIN Core OpenCDA
     def create_vehicle_manager(self, application,
                                map_helper=None,
                                data_dump=False):
@@ -604,135 +418,6 @@ class ScenarioManager:
 
             single_cav_list.append(vehicle_manager)
 
-        return single_cav_list
-
-    def create_distributed_vehicle_manager(self, application,
-                               map_helper=None,
-                               data_dump=False):
-        """
-        Create a list of single CAVs.
-
-        Parameters
-        ----------
-        application : list
-            The application purpose, a list, eg. ['single'], ['platoon'].
-
-        map_helper : function
-            A function to help spawn vehicle on a specific position in
-            a specific map.
-
-        data_dump : bool
-            Whether to dump sensor data.
-
-        Returns
-        -------
-        single_cav_list : list
-            A list contains all single CAVs' vehicle manager.
-        """
-        logger.info('Creating single CAVs.')
-        single_cav_list = []
-
-        logger.debug("main thread setting simulation active")
-        #ScenarioManager.set_sim_active.set()
-
-        config_yaml = load_yaml(self.config_file)
-        for i, cav_config in enumerate(
-                self.scenario_params['scenario']['single_cav_list']):
-            logger.debug(f"Creating VehiceManagerProxy for vehicle {i}")
-
-            # create vehicle manager for each cav
-            vehicle_manager = VehicleManagerProxy(
-                self.vehicle_index, config_yaml, application,
-                self.carla_map, self.cav_world,
-                current_time=self.scenario_params['current_time'],
-                data_dumping=data_dump, carla_version=self.carla_version)
-            logger.debug("finished creating VehiceManagerProxy")
-
-            # send gRPC with START info
-            ScenarioManager.application = application
-
-            # update the vehicle manager
-            # keep a tuple of actor_id and vid in a list based on vehicle_index
-            actor_id = None
-            vid = None
-
-            while len(ScenarioManager.vehicles) < ScenarioManager.vehicle_count:
-                #time.sleep(1)
-                logger.info("waiting for Carla data: number of vehicles: %d" %(len(ScenarioManager.vehicles)))
-
-            actor_id = ScenarioManager.vehicles[f"vehicle_{i}"][0]
-            vid = ScenarioManager.vehicles[f"vehicle_{i}"][1]
-
-            logger.debug("starting vehicle | actor_id: " + str(actor_id) + " | vid: " + str(vid))
-
-            vehicle_manager.start_vehicle(actor_id, vid)
-
-            self.world.tick()
-            logger.debug("ticked world")
-
-            vehicle_manager.v2x_manager.set_platoon(None)
-            logger.debug("set platoon on vehicle manager")
-
-            destination = carla.Location(x=cav_config['destination'][0],
-                                         y=cav_config['destination'][1],
-                                         z=cav_config['destination'][2])
-            logger.debug("get location of destination")
-
-            #vehicle_manager.update_info()
-
-            # gRPC update_info
-            sim_state_update = sim_state.SimulationState()
-            sim_state_update.state = sim_state.State.ACTIVE
-            sim_state_update.tick_id = ScenarioManager.tick_id
-            sim_state_update.command = sim_state.Command.UPDATE_INFO
-            sim_state_update.vehicle_index = i
-            sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
-            self.message_queue.put(sim_state_update)
-            ScenarioManager.pushed_message.set()
-            # end gRPC update_info
-
-            logger.debug(f"update info complete for vehicle_index {i}")
-
-            # vehicle_manager.set_destination(
-            #     vehicle_manager.vehicle.get_location(),
-            #     destination,
-            #     clean=True)
-
-            # gRPC set_destination
-            ScenarioManager.popped_message.wait(timeout=None)
-            ScenarioManager.popped_message.clear()
-            sim_state_update = sim_state.SimulationState()
-            sim_state_update.state = sim_state.State.ACTIVE
-            sim_state_update.tick_id = ScenarioManager.tick_id
-            sim_state_update.vehicle_index = i
-
-            start_location = vehicle_manager.vehicle.get_location()
-            message = {
-                    "params": {
-                    "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
-                    "end": {"x": destination.x, "y": destination.y, "z": destination.z},
-                    "clean": True, "reset": True
-                    }
-            }
-            sim_state_update.params_json = json.dumps(message).encode('utf-8')
-
-            sim_state_update.command = sim_state.Command.SET_DESTINATION
-            sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
-            self.message_queue.put(sim_state_update)
-            ScenarioManager.pushed_message.set()
-            # end gRPC set_destination
-
-            logger.debug(f"set destination complete for vehicle_index {i}")
-
-            single_cav_list.append(vehicle_manager)
-            ScenarioManager.vehicle_managers[self.vehicle_index] = vehicle_manager
-            self.vehicle_index = self.vehicle_index + 1
-
-
-            ScenarioManager.popped_message.wait(timeout=None)
-            ScenarioManager.popped_message.clear()
-
-        logger.debug("finished creating vehicle managers and returning cav list")
         return single_cav_list
 
     def create_platoon_manager(self, map_helper=None, data_dump=False):
@@ -811,157 +496,7 @@ class ScenarioManager:
             platoon_list.append(platoon_manager)
 
         return platoon_list
-
-
-    def create_edge_manager(self, application,
-                            map_helper=None,
-                            data_dump=False,
-                            world_dt=0.03,
-                            edge_dt=0.20,
-                            search_dt=2.00):
-        """
-        Create a list of edges.
-
-        Parameters
-        ----------
-        map_helper : function
-            A function to help spawn vehicle on a specific position in a
-            specific map.
-        Returns
-        -------
-        single_cav_list : list
-            A list contains all single CAVs' vehicle manager.
-        """
-
-        # TODO: needs to support multiple edges.
-        # Probably a more significant refactor,
-        # since I think each edge wants its own gRPC server
-
-        logger.info('Creating edge CAVs.')
-        edge_list = []
-
-        config_yaml = load_yaml(self.config_file)
-        # create edges
-        for e, edge in enumerate(
-                self.scenario_params['scenario']['edge_list']):
-            edge_manager = EdgeManager(edge, self.cav_world, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt)
-            for i, cav in enumerate(edge['members']):
-
-                logger.debug(f"Creating VehiceManagerProxy for vehicle {i}")
-
-                # create vehicle manager for each cav
-                vehicle_manager = VehicleManagerProxy(
-                    self.vehicle_index, config_yaml, application,
-                    self.carla_map, self.cav_world,
-                    current_time=self.scenario_params['current_time'],
-                    data_dumping=data_dump, carla_version=self.carla_version)
-                logger.debug("finished creating VehiceManagerProxy")
-
-                # vehicle_manager = VehicleManager(
-                #     i, self.config_file, application,
-                #     self.carla_map, self.cav_world,
-                #     current_time=self.scenario_params['current_time'],
-                #     data_dumping=data_dump)
-                # logger.debug("finished creating VehiceManager")
-
-                # send gRPC with START info
-                ScenarioManager.application = application
-
-                # update the vehicle manager
-                # keep a tuple of actor_id and vid in a list based on vehicle_index
-                actor_id = None
-                vid = None
-
-                while len(ScenarioManager.vehicles) < ScenarioManager.vehicle_count:
-                    #time.sleep(1)
-                    logger.info("waiting for Carla data")
-
-                actor_id = ScenarioManager.vehicles[f"vehicle_{i}"][0]
-                vid = ScenarioManager.vehicles[f"vehicle_{i}"][1]
-
-                logger.debug(f"starting vehicle {i} | actor_id: {actor_id} | vid: {vid}")
-
-                vehicle_manager.start_vehicle(actor_id, vid)
-
-                self.world.tick()
-                logger.debug("ticked world")
-
-                vehicle_manager.v2x_manager.set_platoon(None)
-                logger.debug("set platoon on vehicle manager")
-
-                destination = carla.Location(x=edge['destination'][0],
-                                             y=edge['destination'][1],
-                                             z=edge['destination'][2])
-                logger.debug("get location of destination")
-
-                #vehicle_manager.update_info()
-
-                # gRPC update_info
-                sim_state_update = sim_state.SimulationState()
-                sim_state_update.state = sim_state.State.ACTIVE
-                sim_state_update.tick_id = ScenarioManager.tick_id
-                sim_state_update.command = sim_state.Command.UPDATE_INFO
-                sim_state_update.vehicle_index = i
-                sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
-                self.message_queue.put(sim_state_update)
-                ScenarioManager.pushed_message.set()
-                # end gRPC update_info
-
-                logger.debug(f"update info complete for vehicle_index {i}")
-
-                # vehicle_manager.set_destination(
-                #     vehicle_manager.vehicle.get_location(),
-                #     destination,
-                #     clean=True)
-
-                # gRPC set_destination
-                ScenarioManager.popped_message.wait(timeout=None)
-                ScenarioManager.popped_message.clear()
-                sim_state_update = sim_state.SimulationState()
-                sim_state_update.state = sim_state.State.ACTIVE
-                sim_state_update.tick_id = ScenarioManager.tick_id
-                sim_state_update.vehicle_index = self.vehicle_index
-
-                start_location = vehicle_manager.vehicle.get_location()
-                message = {
-                        "params": {
-                        "start": {"x": start_location.x, "y": start_location.y, "z": start_location.z},
-                        "end": {"x": destination.x, "y": destination.y, "z": destination.z},
-                        "clean": True, "reset": True
-                        }
-                }
-                sim_state_update.params_json = json.dumps(message).encode('utf-8')
-                logger.debug(f"location for vehicle_{i} - is - x: {start_location.x}, y: {start_location.y}")
-
-                sim_state_update.command = sim_state.Command.SET_DESTINATION
-                sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
-                self.message_queue.put(sim_state_update)
-                ScenarioManager.pushed_message.set()
-                # end gRPC set_destination
-
-                logger.debug(f"set destination complete for vehicle_index {i}")
-
-                # add the vehicle manager to platoon
-                edge_manager.add_member(vehicle_manager)
-                ScenarioManager.vehicle_managers[self.vehicle_index] = vehicle_manager
-                self.vehicle_index = self.vehicle_index + 1
-
-                ScenarioManager.popped_message.wait(timeout=None)
-                ScenarioManager.popped_message.clear()
-
-            self.world.tick()
-            destination = carla.Location(x=edge['destination'][0],
-                                         y=edge['destination'][1],
-                                         z=edge['destination'][2])
-
-            edge_manager.set_destination(destination)
-
-            edge_manager.start_edge()
-
-            edge_list.append(edge_manager)
-
-        return edge_list
-
+    
     def spawn_vehicles_by_list(self, tm, traffic_config, bg_list):
         """
         Spawn the traffic vehicles by the given list.
@@ -1163,21 +698,156 @@ class ScenarioManager:
 
         logger.info('CARLA traffic flow generated.')
         return tm, bg_list
-
-    def tick(self):
+    
+    def close(self):
         """
-        Tick the server; just a pass-through to broadcast_tick to preserve backwards compatibility for now...
-
-        returns bool
+        Simulation close.
         """
-        self.world.tick()
+        # restore to origin setting
+        self.world.apply_settings(self.origin_settings)
+        logger.debug(f"world state restored...")
 
-    # eCLOUD BEGIN
+    # END Core OpenCDA
+
+    # --------------------------------------------------------------------------------------------------------------------------------------
+
+    # BEGIN eCloud
+    def create_distributed_vehicle_manager(self, application,
+                               map_helper=None,
+                               data_dump=False):
+        """
+        Create a list of single CAVs.
+
+        Parameters
+        ----------
+        application : list
+            The application purpose, a list, eg. ['single'], ['platoon'].
+
+        map_helper : function
+            A function to help spawn vehicle on a specific position in
+            a specific map.
+
+        data_dump : bool
+            Whether to dump sensor data.
+
+        Returns
+        -------
+        single_cav_list : list
+            A list contains all single CAVs' vehicle manager.
+        """
+        logger.info('Creating single CAVs.')
+        single_cav_list = []
+
+        config_yaml = load_yaml(self.config_file)
+        for vehicle_index, _ in enumerate(
+                self.scenario_params['scenario']['single_cav_list']):
+            logger.debug(f"Creating VehiceManagerProxy for vehicle {vehicle_index}")
+
+            # create vehicle manager for each cav
+            vehicle_manager_proxy = VehicleManagerProxy(
+                vehicle_index, config_yaml, application,
+                self.carla_map, self.cav_world,
+                current_time=self.scenario_params['current_time'],
+                data_dumping=data_dump, carla_version=self.carla_version)
+            logger.debug("finished creating VehiceManagerProxy")
+
+            # send gRPC with START info
+            self.application = application
+
+            # update the vehicle manager
+            # keep a tuple of actor_id and vid in a list based on vehicle_index
+
+            actor_id = self.vehicles[f"vehicle_{vehicle_index}"][0]
+            vid = self.vehicles[f"vehicle_{vehicle_index}"][1]
+
+            logger.debug(f"starting vehicle {vehicle_index} | actor_id: {actor_id} | vid: {vid}")
+
+            vehicle_manager_proxy.start_vehicle(actor_id, vid)
+
+            vehicle_manager_proxy.v2x_manager.set_platoon(None)
+            logger.debug("set platoon on vehicle manager")
+
+            single_cav_list.append(vehicle_manager_proxy)
+            self.vehicle_managers[vehicle_index] = vehicle_manager_proxy
+
+        logger.debug("finished creating vehicle managers and returning cav list")
+        return single_cav_list
+
+    def create_edge_manager(self, application,
+                            map_helper=None,
+                            data_dump=False,
+                            world_dt=0.03,
+                            edge_dt=0.20,
+                            search_dt=2.00):
+        """
+        Create a list of edges.
+
+        Parameters
+        ----------
+        map_helper : function
+            A function to help spawn vehicle on a specific position in a
+            specific map.
+        Returns
+        -------
+        single_cav_list : list
+            A list contains all single CAVs' vehicle manager.
+        """
+
+        # TODO: needs to support multiple edges.
+        # Probably a more significant refactor,
+        # since I think each edge wants its own gRPC server
+
+        logger.info('Creating edge CAVs.')
+        edge_list = []
+
+        config_yaml = load_yaml(self.config_file)
+        # create edges
+        for e, edge in enumerate(
+                self.scenario_params['scenario']['edge_list']):
+            edge_manager = EdgeManager(edge, self.cav_world, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt)
+            for vehicle_index, cav in enumerate(edge['members']):
+
+                logger.debug(f"Creating VehiceManagerProxy for vehicle {vehicle_index}")
+
+                # create vehicle manager for each cav
+                vehicle_manager = VehicleManagerProxy(
+                    vehicle_index, config_yaml, application,
+                    self.carla_map, self.cav_world,
+                    current_time=self.scenario_params['current_time'],
+                    data_dumping=data_dump, carla_version=self.carla_version)
+                logger.debug("finished creating VehiceManagerProxy")
+
+                # send gRPC with START info
+                self.application = application
+
+                # update the vehicle manager
+                # keep a tuple of actor_id and vid in a list based on vehicle_index
+                actor_id = self.vehicles[f"vehicle_{vehicle_index}"][0]
+                vid = self.vehicles[f"vehicle_{vehicle_index}"][1]
+
+                logger.debug(f"starting vehicle {vehicle_index} | actor_id: {actor_id} | vid: {vid}")
+
+                vehicle_manager.start_vehicle(actor_id, vid)
+                vehicle_manager.v2x_manager.set_platoon(None)
+
+                # add the vehicle manager to platoon
+                edge_manager.add_member(vehicle_manager)
+                self.vehicle_managers[vehicle_index] = vehicle_manager
+
+            self.world.tick()
+            destination = carla.Location(x=edge['destination'][0],
+                                         y=edge['destination'][1],
+                                         z=edge['destination'][2])
+
+            edge_manager.set_destination(destination)
+            edge_manager.start_edge()
+            edge_list.append(edge_manager)
+
+        return edge_list
+
     def tick_world(self):
         """
         Tick the server; just a pass-through to broadcast_tick to preserve backwards compatibility for now...
-
-        returns bool
         """
         pre_world_tick_time = time.time()
         self.world.tick()
@@ -1185,9 +855,15 @@ class ScenarioManager:
         logger.debug("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
         self.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
 
+    def tick(self):
+        """
+        Tick the server; just a pass-through to broadcast_tick to preserve backwards compatibility for now...
+        """
+        self.tick_world()
+
     # just use tick logic here; need something smarter if we want per-vehicle data
     # could also just switch to a "broadcast message "
-    def broadcast_message(self, message_type = sim_state.Command.TICK):
+    def broadcast_message(self, message_type = ecloud.Command.TICK):
         """
         Request all clients send debug data - broadcasts a message to all vehicles
 
@@ -1195,43 +871,36 @@ class ScenarioManager:
 
         returns bool
         """
-
         #TODO change tick_id to msg_id
         pre_client_tick_time = time.time()
-        ScenarioManager.tick_id = ScenarioManager.tick_id + 1
-        with ScenarioManager.lock:
-            ScenarioManager.sim_state_responses.append(ScenarioManager.tick_id)
-            ScenarioManager.sim_state_responses[ScenarioManager.tick_id] = []
+        self.tick_id = self.tick_id + 1
+        self.sim_state_responses.append(self.tick_id)
+        self.sim_state_responses[self.tick_id] = []
 
-        sim_state_update = sim_state.SimulationState()
-        sim_state_update.state = sim_state.State.ACTIVE
-        sim_state_update.tick_id = ScenarioManager.tick_id
+        sim_state_update = ecloud.SimulationState()
+        sim_state_update.state = ecloud.State.ACTIVE
+        sim_state_update.tick_id = self.tick_id
         sim_state_update.command = message_type
-        if message_type == sim_state.Command.TICK:
-            for waypoint_buffer_proto in ScenarioManager.waypoint_buffer_overrides:
+        if message_type == ecloud.Command.TICK:
+            for waypoint_buffer_proto in self.waypoint_buffer_overrides:
                 #logger.debug(waypoint_buffer_proto.SerializeToString())
                 sim_state_update.all_waypoint_buffers.extend([waypoint_buffer_proto])
         sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
-        self.message_queue.put(sim_state_update)
-        ScenarioManager.pushed_message.set()
 
-        logger.debug(f"queued tick (broadcast message) {ScenarioManager.tick_id}")
+        ecloud_response = self.ecloud_server.Server_DoTick(sim_state_update)
 
-        ScenarioManager.popped_message.wait(timeout=None)
-        ScenarioManager.popped_message.clear()
+        # unpack ecloud response
+        for update in ecloud_response.vehicle_update:
+            if update.vehicle_state == ecloud.VehicleState.TICK_DONE:
+                self.sim_state_completions.append(update.vehicle_index)
 
-        logger.debug(f"pushed tick (broadcast message) {ScenarioManager.tick_id}")
-
-        ScenarioManager.tick_complete.wait(timeout=None)
-        ScenarioManager.tick_complete.clear()
-
-        if message_type == sim_state.Command.TICK:
-            ScenarioManager.waypoint_buffer_overrides.clear()
+        if message_type == ecloud.Command.TICK:
+            self.waypoint_buffer_overrides.clear()
 
         post_client_tick_time = time.time()
         self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
-        if len(ScenarioManager.sim_state_completions) == ScenarioManager.vehicle_count:
+        if len(self.sim_state_completions) == self.vehicle_count:
             return False # TODO - make a better flag
         else:
             return True
@@ -1242,7 +911,7 @@ class ScenarioManager:
 
         returns bool
         """
-        return self.broadcast_message(sim_state.Command.TICK)
+        return self.broadcast_message(ecloud.Command.TICK)
 
 
     def add_waypoint_buffer_to_tick(self, waypoint_buffer): #, vehicle_index=None, vid=None, actor_id=None):
@@ -1253,10 +922,10 @@ class ScenarioManager:
 
         returns bool
         """
-        assert( len(ScenarioManager.waypoint_buffer_overrides) == 0 )
+        assert( len(self.waypoint_buffer_overrides) == 0 )
 
         # TODO: clone?
-        ScenarioManager.waypoint_buffer_overrides = waypoint_buffer
+        self.waypoint_buffer_overrides = waypoint_buffer
 
         return True
 
@@ -1264,17 +933,12 @@ class ScenarioManager:
         """
         broadcast end to all vehicles
         """
-        sim_state_update = sim_state.SimulationState()
-        sim_state_update.state = sim_state.State.ENDED
-        sim_state_update.command = sim_state.Command.END
+        sim_state_update = ecloud.SimulationState()
+        sim_state_update.state = ecloud.State.ENDED
+        sim_state_update.command = ecloud.Command.END
         sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
-        self.message_queue.put(sim_state_update)
-        ScenarioManager.pushed_message.set()
-
-        logger.debug(f"queued END")
-
-        ScenarioManager.popped_message.wait(timeout=None)
-        ScenarioManager.popped_message.clear()
+        
+        self.ecloud_server.Server_EndScenario(sim_state_update)
 
         logger.debug(f"pushed END")
 
@@ -1282,42 +946,9 @@ class ScenarioManager:
             time.sleep(1)
             logger.debug("scenario ending in %d", 5 - i)
 
-    # eCLOUD END
-
-    def destroyActors(self):
-        """
-        Destroy all actors in the world.
-        """
-        if self.run_distributed:
-            logger.info("waiting for container shutdown...")
-            for i in range(0, 5):
-                #time.sleep(1)
-                logger.debug("destroying actors in %d", 5 - i)
-
-        actor_list = self.world.get_actors()
-        for actor in actor_list:
-            logger.debug(f"destroying actor %s", actor)
-            actor.destroy()
-
-    def close(self):
-        """
-        Simulation close.
-        """
-
-        if self.run_distributed:
-            ScenarioManager.server_run = False
-            ScenarioManager.server.stop(grace=5)
-            logger.debug(f"telling server_thread to STOP")
-            self.server_thread.join()
-            logger.debug(f"server_thread joined")
-
-        # restore to origin setting
-        self.world.apply_settings(self.origin_settings)
-        logger.debug(f"world state restored...")
-
     def do_pickling(self, column_key, flat_list, file_path):
         data_df = pd.DataFrame(flat_list, columns = [f'{column_key}_ms'])
-        data_df['num_cars'] = ScenarioManager.vehicle_count
+        data_df['num_cars'] = self.vehicle_count
         data_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
         data_df = data_df[['num_cars', f'{column_key}_ms', 'run_timestamp']]
 
@@ -1440,7 +1071,7 @@ class ScenarioManager:
 
             picklefile = open(sim_time_df_path, 'wb+')
             sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records \
-                ([{"num_cars": ScenarioManager.vehicle_count, \
+                ([{"num_cars": self.vehicle_count, \
                     "time_s": total_sim_time, \
                     "run_timestamp": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
                     ignore_index=True)
@@ -1461,3 +1092,5 @@ class ScenarioManager:
             # open_plt.draw_algorithm_time_profile_single_plot(algorithm_time_list)
 
             return figure, perform_txt
+    
+    # END eCloud

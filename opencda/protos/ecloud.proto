@@ -19,9 +19,7 @@ enum State {
 enum Command {
   TICK = 0;
   END = 1;
-  SET_DESTINATION = 2;
-  UPDATE_INFO = 3;
-  REQUEST_DEBUG_INFO = 4;
+  REQUEST_DEBUG_INFO = 2;
 }
 
 enum VehicleState {
@@ -140,7 +138,7 @@ message VehicleUpdate {
 
 message EcloudResponse {
     int32 tick_id = 1;
-    repeated VehicleUpdate vehicle_updates = 2;
+    repeated VehicleUpdate vehicle_update = 2;
 }
 
 service Ecloud {

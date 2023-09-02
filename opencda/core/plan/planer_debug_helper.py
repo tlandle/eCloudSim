@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 import opencda.core.plan.drive_profile_plotting as open_plt
 
-import sim_api_pb2 as sim_state
+import ecloud_pb2 as sim_state
 
 class PlanDebugHelper(object):
     """

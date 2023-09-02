@@ -29,7 +29,7 @@ from opencda.scenario_testing.evaluations.evaluate_manager import \
 # ONLY *required* for 2 Lane highway scenarios
 # import opencda.scenario_testing.utils.customized_map_api as map_api
 
-import sim_api_pb2 as sim_state
+import ecloud_pb2 as sim_state
 
 # Consts
 LOG_NAME = "ecloud_4lane.log" # data drive from file name?
