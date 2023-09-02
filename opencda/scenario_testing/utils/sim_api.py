@@ -21,6 +21,8 @@ import copy
 import hashlib
 import os
 import asyncio
+import subprocess
+import signal
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor, thread
@@ -257,6 +259,8 @@ class ScenarioManager:
                  cav_world=None,
                  config_file=None):
                  
+        self.ecloud_server_process = subprocess.Popen(['./ecloud'])
+
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.config_file = config_file
@@ -803,6 +807,8 @@ class ScenarioManager:
                 data_dumping=data_dump, carla_version=self.carla_version)
             logger.debug("finished creating VehiceManagerProxy")
 
+            self.world.tick()
+
             # send gRPC with START info
             self.application = application
 
@@ -992,6 +998,8 @@ class ScenarioManager:
         for i in range(0, 5):
             time.sleep(1)
             logger.debug("scenario ending in %d", 5 - i)
+
+        os.kill(self.ecloud_server_process.pid, signal.SIGTERM)
 
     def do_pickling(self, column_key, flat_list, file_path):
         data_df = pd.DataFrame(flat_list, columns = [f'{column_key}_ms'])

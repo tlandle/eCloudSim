@@ -216,7 +216,7 @@ async def main():
         if ecloud_update.command == ecloud.Command.REQUEST_DEBUG_INFO:
             nparr = np.array(tick_time)
             mean = np.mean(nparr)
-            logger.error(f"tick average time: {mean}ms")
+            logger.info(f"tick average time: {mean}ms")
             vehicle_update.tick_id = tick_id
             vehicle_update.vehicle_index = vehicle_index
             vehicle_update.vehicle_state = ecloud.VehicleState.DEBUG_INFO_UPDATE            
@@ -277,7 +277,7 @@ async def main():
 
                 waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
                 for waypoints in waypoints_buffer_printer:
-                    logger.warning("waypoint_proto: waypoints transform for Vehicle: %s", waypoints[0].transform)
+                    logger.debug("waypoint_proto: waypoints transform for Vehicle: %s", waypoints[0].transform)
 
             #waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
             #for waypoints in waypoints_buffer_printer:
