@@ -80,14 +80,14 @@ async def send_registration_to_ecloud_server(stub_):
     
     response = await stub_.Client_RegisterVehicle(request)
 
-    logger.debug(f"vehicle ID {response.vehicle_index} received...")
+    logger.info(f"vehicle ID {response.vehicle_index} received...")
     assert response.state == ecloud.State.NEW
     
     return response
 
 async def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid):
     message = {"vehicle_index": vehicle_index, "actor_id": actor_id, "vid": vid}
-    logger.debug(f"Vehicle: Sending Carla rpc {message}")
+    logger.info(f"Vehicle: Sending Carla rpc {message}")
 
     # send actor ID and vid to API
     update = ecloud.VehicleUpdate()
@@ -98,14 +98,14 @@ async def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid):
     
     response = await stub_.Client_RegisterVehicle(update)
 
-    logger.debug(f"send_carla_data_to_opencda: response received")
+    logger.info(f"send_carla_data_to_opencda: response received")
 
     return response
 
 async def send_vehicle_update(stub_, vehicle_update_):
     response = await stub_.Client_SendUpdate(vehicle_update_)
 
-    #logger.debug(f"send_vehicle_update: response received")
+    #logger.info(f"send_vehicle_update: response received")
 
     return response
 
@@ -141,7 +141,7 @@ async def main():
         logger.setLevel(logging.DEBUG)
     elif opt.quiet:
         logger.setLevel(logging.WARNING)
-    logger.debug(f"OpenCDA Version: {version}")
+    logger.info(f"OpenCDA Version: {version}")
 
     logging.basicConfig()
 
@@ -163,14 +163,14 @@ async def main():
     application = ecloud_update.application
     version = ecloud_update.version
 
-    logger.debug(f"main - test_scenario: {test_scenario}")
+    #logger.debug(f"main - test_scenario: {test_scenario}") # VERY verbose
     logger.debug(f"main - application: {application}")
     logger.debug(f"main - version: {version}")
 
     # create CAV world
     cav_world = CavWorld(opt.apply_ml)
 
-    logger.debug(f"eCloud debug: creating VehicleManager vehicle_index: {vehicle_index}")
+    logger.info(f"eCloud debug: creating VehicleManager vehicle_index: {vehicle_index}")
 
     scenario_yaml = json.loads(test_scenario) #load_yaml(test_scenario)
     vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, carla_version=version)
@@ -208,11 +208,15 @@ async def main():
         ecloud_server = ecloud_rpc.EcloudStub(channel)
 
     while 1:
-            ping = await ecloud_server.Client_Ping(ecloud.Empty())
+            ping = ecloud.Ping()
+            ping.tick_id = tick_id
+            pong = await ecloud_server.Client_Ping(ping)
             await asyncio.sleep(SLEEP_TIME) # we don't want to spam the server here
-            if ping.tick_id != tick_id:
-                tick_id = ping.tick_id
+            if pong.tick_id != tick_id:
+                tick_id = pong.tick_id
                 break
+
+            SLEEP_TIME = SLEEP_TIME * 0.5 if SLEEP_TIME >= 0.015 else SLEEP_TIME
 
     if not edge_sets_destination:
         cav_config = scenario_yaml['scenario']['single_cav_list'][vehicle_index]
@@ -227,6 +231,7 @@ async def main():
 
     tick_time = []
     ORIGINAL_SLEEP = SLEEP_TIME
+    logger.info("beginning scenario tick flow")
     while state != ecloud.State.ENDED:   
         
         vehicle_update = ecloud.VehicleUpdate()
@@ -248,6 +253,7 @@ async def main():
             start_time = time.time()
             # update info runs BEFORE waypoint injection
             vehicle_manager.update_info()
+            logger.debug("update_info complete")
 
             # find waypoint buffer for our vehicle
             waypoint_proto = None
@@ -310,6 +316,7 @@ async def main():
 
             if should_run_step:
                 control = vehicle_manager.run_step(target_speed=target_speed)
+                logger.debug("run_step complete")
 
             vehicle_update = ecloud.VehicleUpdate()
             vehicle_update.tick_id = tick_id
@@ -322,6 +329,7 @@ async def main():
 
                 else:
                     vehicle_manager.apply_control(control)
+                    logger.debug("apply_control complete")
                     vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
                     #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
             
@@ -332,6 +340,7 @@ async def main():
             step_time_total = (end_time - start_time)*1000
             tick_time.append(step_time_total)
             vehicle_update.step_time_ms = step_time_total
+            logger.debug(f"tick complete in {step_time_total}ms")
             #cur_location = vehicle_manager.vehicle.get_location()
             #logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")   
 
@@ -351,7 +360,7 @@ async def main():
                 ping = ecloud.Ping()
                 ping.tick_id = tick_id
                 pong = await ecloud_server.Client_Ping(ping)
-                logger.info(f"received ping.tick_id {pong.tick_id} | have tick_id {tick_id}")
+                #logger.debug(f"received ping.tick_id {pong.tick_id} | have tick_id {tick_id}")
                 if pong.tick_id != tick_id:
                     tick_id = pong.tick_id
 

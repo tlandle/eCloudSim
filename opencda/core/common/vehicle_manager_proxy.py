@@ -38,6 +38,14 @@ RESULT_END = 2 # Step resulted in the vehicle simulation ending
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
 
+class ActorProxy(object):
+    def __init__(self,
+                 id = 0):
+        self.id = id
+
+    def is_proxy(self):
+        return True
+
 class VehicleManagerProxy(object):
     """
     TODO: update
@@ -66,8 +74,10 @@ class VehicleManagerProxy(object):
         self.data_dumping = data_dumping
         self.application = application
         self.current_time = current_time
+        self.vehicle_index = vehicle_index
 
-        self.initialize_process(config_yaml)
+        if self.vehicle_index == 0: # spectator vehicle
+            self.initialize_process(config_yaml)
 
         # an unique uuid for this vehicle
 #        self.vid = str(uuid.uuid1())
@@ -83,7 +93,10 @@ class VehicleManagerProxy(object):
 
         # print("eCloud debug | actor_id: " + str(actor_id))
 
-        vehicle = self.world.get_actor(actor_id)
+        if self.vehicle_index == 0: # spectator vehicle
+            vehicle = self.world.get_actor(actor_id)
+        else:
+            vehicle = ActorProxy(self.vehicle_index)
         self.vehicle = vehicle
 
         # retrieve the configure for different modules
@@ -109,7 +122,7 @@ class VehicleManagerProxy(object):
         if 'platooning' in self.application:
             platoon_config = self.cav_config['platoon']
             self.agent = PlatooningBehaviorAgent(
-                self.vehicle,
+                self.vehicle, # TODO: fix
                 self,
                 self.v2x_manager,
                 behavior_config,
@@ -166,6 +179,7 @@ class VehicleManagerProxy(object):
         Destroy the actor vehicle
         """
         if self.is_process_running("CarlaUE4"):
+            return
             self.perception_manager.destroy()
             self.localizer.destroy()
             self.vehicle.destroy()

@@ -48,55 +48,56 @@ class CameraSensor:
 
     """
     def __init__(self, vehicle, position='front'):
-        world = vehicle.get_world()
-        blueprint = world.get_blueprint_library().find('sensor.camera.rgb')
-        blueprint.set_attribute('fov', '100')
+        if hasattr(vehicle, 'get_world'):
+            world = vehicle.get_world()
+            blueprint = world.get_blueprint_library().find('sensor.camera.rgb')
+            blueprint.set_attribute('fov', '100')
 
-        if position == 'front':
-            spawn_point = carla.Transform(
-                carla.Location(
-                    x=2.5, y=0.0, z=1.0), carla.Rotation(
-                    pitch=0, roll=0, yaw=0))
-        elif position == 'right':
-            spawn_point = carla.Transform(
-                carla.Location(
-                    x=0.0, y=0.3, z=1.8), carla.Rotation(
-                    pitch=0, roll=0, yaw=100))
-        elif position == 'left':
-            spawn_point = carla.Transform(
-                carla.Location(
-                    x=0.0,
-                    y=-0.3,
-                    z=1.8),
-                carla.Rotation(
-                    pitch=0,
-                    roll=0,
-                    yaw=-100))
-        else:
-            spawn_point = carla.Transform(
-                carla.Location(
-                    x=-2.0,
-                    y=0.0,
-                    z=1.5),
-                carla.Rotation(
-                    pitch=0,
-                    roll=0,
-                    yaw=180))
+            if position == 'front':
+                spawn_point = carla.Transform(
+                    carla.Location(
+                        x=2.5, y=0.0, z=1.0), carla.Rotation(
+                        pitch=0, roll=0, yaw=0))
+            elif position == 'right':
+                spawn_point = carla.Transform(
+                    carla.Location(
+                        x=0.0, y=0.3, z=1.8), carla.Rotation(
+                        pitch=0, roll=0, yaw=100))
+            elif position == 'left':
+                spawn_point = carla.Transform(
+                    carla.Location(
+                        x=0.0,
+                        y=-0.3,
+                        z=1.8),
+                    carla.Rotation(
+                        pitch=0,
+                        roll=0,
+                        yaw=-100))
+            else:
+                spawn_point = carla.Transform(
+                    carla.Location(
+                        x=-2.0,
+                        y=0.0,
+                        z=1.5),
+                    carla.Rotation(
+                        pitch=0,
+                        roll=0,
+                        yaw=180))
 
-        self.sensor = world.spawn_actor(
-            blueprint, spawn_point, attach_to=vehicle)
+            self.sensor = world.spawn_actor(
+                blueprint, spawn_point, attach_to=vehicle)
 
-        self.image = None
-        self.timstamp = None
-        self.frame = 0
-        weak_self = weakref.ref(self)
-        self.sensor.listen(
-            lambda event: CameraSensor._on_rgb_image_event(
-                weak_self, event))
+            self.image = None
+            self.timstamp = None
+            self.frame = 0
+            weak_self = weakref.ref(self)
+            self.sensor.listen(
+                lambda event: CameraSensor._on_rgb_image_event(
+                    weak_self, event))
 
-        # camera attributes
-        self.image_width = int(self.sensor.attributes['image_size_x'])
-        self.image_height = int(self.sensor.attributes['image_size_y'])
+            # camera attributes
+            self.image_width = int(self.sensor.attributes['image_size_x'])
+            self.image_height = int(self.sensor.attributes['image_size_y'])
 
         self.debug_helper = ClientDebugHelper(0)
 
@@ -139,49 +140,50 @@ class LidarSensor:
     """
 
     def __init__(self, vehicle, config_yaml):
-        world = vehicle.get_world()
-        blueprint = world.get_blueprint_library().find('sensor.lidar.ray_cast')
+        if hasattr(vehicle, 'get_world'):
+            world = vehicle.get_world()
+            blueprint = world.get_blueprint_library().find('sensor.lidar.ray_cast')
 
-        # set attribute based on the configuration
-        blueprint.set_attribute('upper_fov', str(config_yaml['upper_fov']))
-        blueprint.set_attribute('lower_fov', str(config_yaml['lower_fov']))
-        blueprint.set_attribute('channels', str(config_yaml['channels']))
-        blueprint.set_attribute('range', str(config_yaml['range']))
-        blueprint.set_attribute(
-            'points_per_second', str(
-                config_yaml['points_per_second']))
-        blueprint.set_attribute(
-            'rotation_frequency', str(
-                config_yaml['rotation_frequency']))
-        blueprint.set_attribute(
-            'dropoff_general_rate', str(
-                config_yaml['dropoff_general_rate']))
-        blueprint.set_attribute(
-            'dropoff_intensity_limit', str(
-                config_yaml['dropoff_intensity_limit']))
-        blueprint.set_attribute(
-            'dropoff_zero_intensity', str(
-                config_yaml['dropoff_zero_intensity']))
-        blueprint.set_attribute(
-            'noise_stddev', str(
-                config_yaml['noise_stddev']))
+            # set attribute based on the configuration
+            blueprint.set_attribute('upper_fov', str(config_yaml['upper_fov']))
+            blueprint.set_attribute('lower_fov', str(config_yaml['lower_fov']))
+            blueprint.set_attribute('channels', str(config_yaml['channels']))
+            blueprint.set_attribute('range', str(config_yaml['range']))
+            blueprint.set_attribute(
+                'points_per_second', str(
+                    config_yaml['points_per_second']))
+            blueprint.set_attribute(
+                'rotation_frequency', str(
+                    config_yaml['rotation_frequency']))
+            blueprint.set_attribute(
+                'dropoff_general_rate', str(
+                    config_yaml['dropoff_general_rate']))
+            blueprint.set_attribute(
+                'dropoff_intensity_limit', str(
+                    config_yaml['dropoff_intensity_limit']))
+            blueprint.set_attribute(
+                'dropoff_zero_intensity', str(
+                    config_yaml['dropoff_zero_intensity']))
+            blueprint.set_attribute(
+                'noise_stddev', str(
+                    config_yaml['noise_stddev']))
 
-        # spawn sensor on vehicle
-        spawn_point = carla.Transform(carla.Location(x=-0.5, z=1.9))
-        self.sensor = world.spawn_actor(
-            blueprint, spawn_point, attach_to=vehicle)
+            # spawn sensor on vehicle
+            spawn_point = carla.Transform(carla.Location(x=-0.5, z=1.9))
+            self.sensor = world.spawn_actor(
+                blueprint, spawn_point, attach_to=vehicle)
 
-        # lidar data
-        self.data = None
-        self.timestamp = None
-        self.frame = 0
-        # open3d point cloud object
-        self.o3d_pointcloud = o3d.geometry.PointCloud()
+            # lidar data
+            self.data = None
+            self.timestamp = None
+            self.frame = 0
+            # open3d point cloud object
+            self.o3d_pointcloud = o3d.geometry.PointCloud()
 
-        weak_self = weakref.ref(self)
-        self.sensor.listen(
-            lambda event: LidarSensor._on_data_event(
-                weak_self, event))
+            weak_self = weakref.ref(self)
+            self.sensor.listen(
+                lambda event: LidarSensor._on_data_event(
+                    weak_self, event))
         
         self.debug_helper = ClientDebugHelper(0)
 
@@ -226,42 +228,44 @@ class SemanticLidarSensor:
 
     """
     def __init__(self, vehicle, config_yaml):
-        world = vehicle.get_world()
-        blueprint =\
-            world.get_blueprint_library().\
-                find('sensor.lidar.ray_cast_semantic')
 
-        # set attribute based on the configuration
-        blueprint.set_attribute('upper_fov', str(config_yaml['upper_fov']))
-        blueprint.set_attribute('lower_fov', str(config_yaml['lower_fov']))
-        blueprint.set_attribute('channels', str(config_yaml['channels']))
-        blueprint.set_attribute('range', str(config_yaml['range']))
-        blueprint.set_attribute(
-            'points_per_second', str(
-                config_yaml['points_per_second']))
-        blueprint.set_attribute(
-            'rotation_frequency', str(
-                config_yaml['rotation_frequency']))
+        if hasattr(vehicle, 'get_world'):
+            world = vehicle.get_world()
+            blueprint =\
+                world.get_blueprint_library().\
+                    find('sensor.lidar.ray_cast_semantic')
 
-        # spawn sensor on vehicle
-        spawn_point = carla.Transform(carla.Location(x=-0.5, z=1.9))
-        self.sensor = world.spawn_actor(
-            blueprint, spawn_point, attach_to=vehicle)
+            # set attribute based on the configuration
+            blueprint.set_attribute('upper_fov', str(config_yaml['upper_fov']))
+            blueprint.set_attribute('lower_fov', str(config_yaml['lower_fov']))
+            blueprint.set_attribute('channels', str(config_yaml['channels']))
+            blueprint.set_attribute('range', str(config_yaml['range']))
+            blueprint.set_attribute(
+                'points_per_second', str(
+                    config_yaml['points_per_second']))
+            blueprint.set_attribute(
+                'rotation_frequency', str(
+                    config_yaml['rotation_frequency']))
 
-        # lidar data
-        self.points = None
-        self.obj_idx = None
-        self.obj_tag = None
+            # spawn sensor on vehicle
+            spawn_point = carla.Transform(carla.Location(x=-0.5, z=1.9))
+            self.sensor = world.spawn_actor(
+                blueprint, spawn_point, attach_to=vehicle)
 
-        self.timestamp = None
-        self.frame = 0
-        # open3d point cloud object
-        self.o3d_pointcloud = o3d.geometry.PointCloud()
+            # lidar data
+            self.points = None
+            self.obj_idx = None
+            self.obj_tag = None
 
-        weak_self = weakref.ref(self)
-        self.sensor.listen(
-            lambda event: SemanticLidarSensor._on_data_event(
-                weak_self, event))
+            self.timestamp = None
+            self.frame = 0
+            # open3d point cloud object
+            self.o3d_pointcloud = o3d.geometry.PointCloud()
+
+            weak_self = weakref.ref(self)
+            self.sensor.listen(
+                lambda event: SemanticLidarSensor._on_data_event(
+                    weak_self, event))
         
         self.debug_helper = ClientDebugHelper(0)
 
@@ -332,7 +336,7 @@ class PerceptionManager:
 
         if self.activate and data_dump:
             sys.exit("When you dump data, please deactivate the "
-                     "detection function for precise label.")
+                    "detection function for precise label.")
 
         if self.activate and not ml_manager:
             sys.exit(
