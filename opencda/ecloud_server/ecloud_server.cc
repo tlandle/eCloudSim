@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <csignal>
 #include <unistd.h>
+#include <chrono>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
@@ -23,9 +24,9 @@
 
 //#include <glog/logging.h>
 
-ABSL_FLAG(uint16_t, vehicle_port, 50051, "Server port for the service");
 ABSL_FLAG(uint16_t, sim_port, 50052, "Server port for the service");
-ABSL_FLAG(uint16_t, vehicle_heavy_port, 50053, "Server port for the service");
+ABSL_FLAG(uint16_t, vehicle_one_port, 50051, "Server port for the service");
+ABSL_FLAG(uint16_t, vehicle_two_port, 50053, "Server port for the service");
 
 using grpc::CallbackServerContext;
 using grpc::Server;
@@ -63,21 +64,22 @@ static void _sig_handler(int signo)
     }
 }
 
-static std::atomic<int8_t> numRegisteredVehicles_;
-static std::atomic<int8_t> numCompletedVehicles_;
-static std::atomic<int8_t> numRepliedVehicles_;
-static std::atomic<int16_t> tickId_;
+volatile std::atomic<int8_t> numRegisteredVehicles_;
+volatile std::atomic<int8_t> numCompletedVehicles_;
+volatile std::atomic<int8_t> numRepliedVehicles_;
 
-static int8_t numCars_;
-static std::string configYaml_;
-static std::string application_;
-static std::string version_;
+volatile int16_t tickId_;
 
-static State simState_;
-static Command command_;
+int8_t numCars_;
+std::string configYaml_;
+std::string application_;
+std::string version_;
 
-static absl::Mutex mu_;
-static std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // serialized protobuf
+State simState_;
+Command command_;
+
+absl::Mutex mu_;
+std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // serialized protobuf
 
 // Logic and data behind the server's behavior.
 class EcloudServiceImpl final : public Ecloud::CallbackService {
@@ -97,10 +99,20 @@ public:
     }
 
     ServerUnaryReactor* Client_Ping(CallbackServerContext* context,
-                               const Empty* empty,
-                               Ping* ping) override {
-        ping->set_tick_id(tickId_);
-        ping->set_command(command_);
+                               const Ping* ping,
+                               Ping* pong) override {
+        bool new_ = false;                                               
+        pong->set_tick_id(tickId_);
+        pong->set_command(command_);
+        if ( tickId_ != ping->tick_id() )
+            new_ = true;
+
+        if ( pong->tick_id() % 5 == 0 && new_ )
+        {
+            const auto now = std::chrono::system_clock::now();
+            std::cout << "LOG(DEBUG) " << "sent new tick " << pong->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
+                now.time_since_epoch()).count() << std::endl;
+        }
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -112,8 +124,12 @@ public:
                                Ping* ping) override {
         ping->set_tick_id(( numRepliedVehicles_ + numCompletedVehicles_ ) == numCars_ ? 1 : 0);
 
-        //if (ping->tick_id() == 1)
-            // std::cout << "LOG(DEBUG) " << "Server_Ping - TICK_COMPLETE - tick id: " << tickId_ << std::endl;
+        if (ping->tick_id() == 1)
+        {
+            const auto now = std::chrono::system_clock::now();
+            std::cout << "LOG(DEBUG) " << "tick " << tickId_ << " complete at " << std::chrono::duration_cast<std::chrono::milliseconds>(
+                now.time_since_epoch()).count() << std::endl;    
+        }
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -149,6 +165,13 @@ public:
             pendingReplies_.push_back(msg);
             mu_.Unlock();
         }
+
+        if ( tickId_ % 5 == 0 )
+        {
+            const auto now = std::chrono::system_clock::now();
+            std::cout << "LOG(DEBUG) " << "received OK from vehicle " << request->vehicle_index() << " taking " << request->step_time_ms() << "ms for tick " << tickId_ << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
+                now.time_since_epoch()).count() << std::endl;
+        }    
 
         // std::cout << "LOG(DEBUG) " << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id() << std::endl;
 
@@ -230,8 +253,13 @@ public:
         simState_ = State::ACTIVE;
 
         numRepliedVehicles_ = 0;
-        tickId_ = request->tick_id();
+        assert(tickId_ == request->tick_id() - 1);
+        tickId_++;
         command_ = request->command();
+        
+        const auto now = std::chrono::system_clock::now();
+        std::cout << "LOG(DEBUG) " << "received new tick " << tickId_ << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
+            now.time_since_epoch()).count() << std::endl;
 
         // std::cout << "LOG(DEBUG) Server_DoTick: " << tickId_ << std::endl;
 
@@ -322,12 +350,13 @@ int main(int argc, char** argv) {
     //FLAGS_minloglevel = debug_level;
     //google::InitGoogleLogging(argv[0]);
 
-    std::thread vehicle_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_port));
-    std::thread vehicle_heavy_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_heavy_port));
+    std::thread vehicle_one_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_one_port));
+    std::thread vehicle_two_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_two_port));
     std::thread sim_server = std::thread(&RunServer,absl::GetFlag(FLAGS_sim_port));
 
-    vehicle_server.join();
+    vehicle_one_server.join();
+    vehicle_two_server.join();
     sim_server.join();
-    vehicle_heavy_server.join();
+
     return 0;
 }

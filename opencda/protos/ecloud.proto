@@ -132,7 +132,7 @@ message VehicleUpdate {
   LocDebugHelper loc_debug_helper = 6;
   PlanerDebugHelper planer_debug_helper = 7;
   ClientDebugHelper client_debug_helper = 8;
-  string message_id = 9; // use as a UID for message indentification when Server needs an ack
+  float step_time_ms = 9;
 }
 
 message EcloudResponse {
@@ -143,7 +143,7 @@ message EcloudResponse {
 service Ecloud {
   rpc Client_SendUpdate (VehicleUpdate) returns (SimulationState);
   rpc Client_RegisterVehicle (VehicleUpdate) returns (SimulationState);
-  rpc Client_Ping (Empty) returns (Ping);
+  rpc Client_Ping (Ping) returns (Ping);
   // SERVER
   rpc Server_DoTick(SimulationState) returns (EcloudResponse);
   rpc Server_StartScenario(SimulationState) returns (EcloudResponse);

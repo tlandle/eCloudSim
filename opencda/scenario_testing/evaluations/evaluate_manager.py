@@ -6,10 +6,10 @@ Evaluation manager.
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import subprocess
 import os
 from datetime import datetime
 from opencda.scenario_testing.evaluations.utils import lprint
-
 
 class EvaluationManager(object):
     """
@@ -68,7 +68,6 @@ class EvaluationManager(object):
 
         self.simulation_eval(log_file)
         print('Simulation Evaluation Done.')
-
 
     def kinematics_eval(self, log_file):
         """

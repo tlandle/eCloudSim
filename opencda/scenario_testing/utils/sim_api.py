@@ -267,7 +267,8 @@ class ScenarioManager:
                  cav_world=None,
                  config_file=None):
                  
-        self.ecloud_server_process = subprocess.Popen(['./ecloud'])
+        server_log_level = 1 if logger.getEffectiveLevel() <= logging.INFO else 0
+        self.ecloud_server_process = subprocess.Popen(['./ecloud',f'--log_level={server_log_level}'])
 
         self.scenario_params = scenario_params
         self.carla_version = carla_version
@@ -768,6 +769,10 @@ class ScenarioManager:
         Simulation close.
         """
         # restore to origin setting
+        if self.run_distributed:
+            subprocess.Popen(['pkill','-9','CarlaUE4'])
+            sys.exit(0)
+
         self.world.apply_settings(self.origin_settings)
         logger.debug(f"world state restored...")
 
