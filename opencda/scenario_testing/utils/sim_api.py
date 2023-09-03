@@ -187,9 +187,6 @@ class ScenarioManager:
     """
 
     tick_id = 0 # current tick counter
-    sim_state_responses = [[]] # list of responses per tick - e.g. sim_state_responses[tick_id = 1] = [veh_id = 1, veh_id = 2]
-    sim_state_completions = [] # list of veh_ids that are complete
-
     waypoint_buffer_overrides = []
 
     vehicle_managers = {}
@@ -201,6 +198,9 @@ class ScenarioManager:
     scenario = None
     ecloud_server = None
 
+    SHORT_SLEEP = 0.005
+    TEN_MS = 0.01
+
     async def server_unpack_debug_data(self, stub_):
         ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
         for vehicle_update in ecloud_update.vehicle_update:
@@ -211,30 +211,38 @@ class ScenarioManager:
 
     async def server_do_tick(self, stub_, update_):
         response = await stub_.Server_DoTick(update_)
-    
+        start_time = time.time()
+        count = 1
         while 1:
+            time.sleep(ScenarioManager.SHORT_SLEEP)
             ping = await stub_.Server_Ping(ecloud.Empty())
             if ping.tick_id == 1:
+                end_time = time.time()
+                logger.info(f"polled {count} times over a total of {(end_time - start_time)*1000}ms")
                 break
 
             if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
                 await self.server_unpack_debug_data(stub_)
 
+            count += 1
+
         return response
     
     async def server_start_scenario(self, stub_, update_):
         await stub_.Server_StartScenario(update_)
-    
+        start_time = time.time()
         logger.info(f"pushed scenario start")
 
-        count = 0
+        count = 1
         while 1:
             ping = await stub_.Server_Ping(ecloud.Empty())
-            time.sleep(0.1)
+            time.sleep(ScenarioManager.TEN_MS)
             logger.debug(f"waiting for registration to complete")
             if count % 10 == 0:
                 logger.info(f"waiting for registration to complete")
             if ping.tick_id == 1:
+                end_time = time.time()
+                logger.info(f"polled {count} times over a total of {(end_time - start_time)*1000}ms")
                 break
             count += 1
 
@@ -327,7 +335,7 @@ class ScenarioManager:
                 assert( False, "ML should only be run on the distributed clients")
 
             channel = grpc.aio.insecure_channel(
-            target="[::]:50051",
+            target="[::]:50052",
             options=[
                 ("grpc.lb_policy_name", "pick_first"),
                 ("grpc.enable_retries", 0),
@@ -807,8 +815,6 @@ class ScenarioManager:
                 data_dumping=data_dump, carla_version=self.carla_version)
             logger.debug("finished creating VehiceManagerProxy")
 
-            self.world.tick()
-
             # send gRPC with START info
             self.application = application
 
@@ -828,6 +834,7 @@ class ScenarioManager:
             single_cav_list.append(vehicle_manager_proxy)
             self.vehicle_managers[vehicle_index] = vehicle_manager_proxy
 
+        self.world.tick()
         logger.debug("finished creating vehicle managers and returning cav list")
         return single_cav_list
 
@@ -932,8 +939,6 @@ class ScenarioManager:
         #TODO change tick_id to msg_id
         pre_client_tick_time = time.time()
         self.tick_id = self.tick_id + 1
-        self.sim_state_responses.append(self.tick_id)
-        self.sim_state_responses[self.tick_id] = []
 
         sim_state_update = ecloud.SimulationState()
         sim_state_update.state = ecloud.State.ACTIVE
@@ -954,10 +959,7 @@ class ScenarioManager:
         if self.tick_id > 1: # discard the first tick as startup is a major outlier
             self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
-        if len(self.sim_state_completions) == self.vehicle_count:
-            return False # TODO - make a better flag
-        else:
-            return True
+        return True
 
     def broadcast_tick(self):
         """

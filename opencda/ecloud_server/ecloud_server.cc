@@ -23,9 +23,9 @@
 
 //#include <glog/logging.h>
 
-#define SLEEP_TIME_S 0.000000001
-
-ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
+ABSL_FLAG(uint16_t, vehicle_port, 50051, "Server port for the service");
+ABSL_FLAG(uint16_t, sim_port, 50052, "Server port for the service");
+ABSL_FLAG(uint16_t, vehicle_heavy_port, 50053, "Server port for the service");
 
 using grpc::CallbackServerContext;
 using grpc::Server;
@@ -62,6 +62,22 @@ static void _sig_handler(int signo)
         exit(signo);
     }
 }
+
+static std::atomic<int8_t> numRegisteredVehicles_;
+static std::atomic<int8_t> numCompletedVehicles_;
+static std::atomic<int8_t> numRepliedVehicles_;
+static std::atomic<int16_t> tickId_;
+
+static int8_t numCars_;
+static std::string configYaml_;
+static std::string application_;
+static std::string version_;
+
+static State simState_;
+static Command command_;
+
+static absl::Mutex mu_;
+static std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // serialized protobuf
 
 // Logic and data behind the server's behavior.
 class EcloudServiceImpl final : public Ecloud::CallbackService {
@@ -167,7 +183,7 @@ public:
 
         if ( request->vehicle_state() == VehicleState::REGISTERING )
         {
-            //std::cout << "LOG(DEBUG) " << "got a registration update" << std::endl;
+            //// std::cout << "LOG(DEBUG) " << "got a registration update" << std::endl;
 
             reply->set_state(State::NEW);
             reply->set_tick_id(0);
@@ -196,8 +212,6 @@ public:
             pendingReplies_.push_back(msg);
             mu_.Unlock();
             
-            // std::cout << "LOG(DEBUG) " << "RegisterVehicle - CARLA_UPDATE - message id: " << reply->message_id() << std::endl;
-
             numRepliedVehicles_++;
         }
         else
@@ -252,23 +266,6 @@ public:
         reactor->Finish(Status::OK);
         return reactor;
     }
-
-private:
-    std::atomic<int8_t> numRegisteredVehicles_;
-    std::atomic<int8_t> numCompletedVehicles_;
-    std::atomic<int8_t> numRepliedVehicles_;
-    std::atomic<int16_t> tickId_;
-
-    int8_t numCars_;
-    std::string configYaml_;
-    std::string application_;
-    std::string version_;
-
-    State simState_;
-    Command command_;
-
-    absl::Mutex mu_;
-    std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // serialized protobuf
 };
 
 void RunServer(uint16_t port) {
@@ -298,7 +295,7 @@ void RunServer(uint16_t port) {
         10 * 1000 /*10 sec*/);
     // Finally assemble the server.
     std::unique_ptr<Server> server(builder.BuildAndStart());
-    // std::cout << "LOG(INFO) " << "Server listening on " << server_address << std::endl;
+    std::cout << "LOG(INFO) " << "Server listening on " << server_address << std::endl;
 
     // Wait for the server to shutdown. Note that some other thread must be
     // responsible for shutting down the server for this call to ever return.
@@ -325,6 +322,12 @@ int main(int argc, char** argv) {
     //FLAGS_minloglevel = debug_level;
     //google::InitGoogleLogging(argv[0]);
 
-    RunServer(absl::GetFlag(FLAGS_port));
+    std::thread vehicle_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_port));
+    std::thread vehicle_heavy_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_heavy_port));
+    std::thread sim_server = std::thread(&RunServer,absl::GetFlag(FLAGS_sim_port));
+
+    vehicle_server.join();
+    sim_server.join();
+    vehicle_heavy_server.join();
     return 0;
 }

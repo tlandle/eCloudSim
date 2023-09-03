@@ -134,6 +134,7 @@ async def main():
     tick_id = 0
     state = ecloud.State.UNDEFINED #do we need a global state?
     reported_done = False
+    SLEEP_TIME = .005
 
     opt = arg_parse()
     if opt.verbose:
@@ -174,6 +175,12 @@ async def main():
     scenario_yaml = json.loads(test_scenario) #load_yaml(test_scenario)
     vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, carla_version=version)
 
+    vehicle_count = None
+    if 'single_cav_list' in scenario_yaml['scenario']:
+        vehicle_count = len(scenario_yaml['scenario']['single_cav_list'])
+        SLEEP_TIME = SLEEP_TIME * vehicle_count
+        logger.info(f"SLEEP_TIME: {SLEEP_TIME}")
+
     target_speed = None
     edge_sets_destination = False
     if 'edge_list' in scenario_yaml['scenario']:
@@ -187,9 +194,22 @@ async def main():
 
     ecloud_update = await send_carla_data_to_opencda(ecloud_server, vehicle_index, actor_id, vid)
 
+    if vehicle_count is not None and vehicle_index >= (vehicle_count//2):
+        logger.info("connecting to secondary server...")
+        await channel.close()
+        channel = grpc.aio.insecure_channel(
+            target=f"{CARLA_IP}:50053",
+            options=[
+                ("grpc.lb_policy_name", "pick_first"),
+                ("grpc.enable_retries", 0),
+                ("grpc.keepalive_timeout_ms", 10000),
+            ],
+        )
+        ecloud_server = ecloud_rpc.EcloudStub(channel)
+
     while 1:
             ping = await ecloud_server.Client_Ping(ecloud.Empty())
-            time.sleep(0.1) # we don't want to spam the server here
+            time.sleep(SLEEP_TIME) # we don't want to spam the server here
             if ping.tick_id != tick_id:
                 tick_id = ping.tick_id
                 break
@@ -206,8 +226,9 @@ async def main():
                 clean=True)
 
     tick_time = []
+    ORIGINAL_SLEEP = SLEEP_TIME
     while state != ecloud.State.ENDED:   
-
+        
         vehicle_update = ecloud.VehicleUpdate()
         if ecloud_update.command != ecloud.Command.TICK: # don't print tick message since there are too many
             logger.info(f"Vehicle: received cmd {ecloud_update.command}")
@@ -320,8 +341,11 @@ async def main():
         # block waiting for a response
         if not reported_done:
             ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
-
+            done_time = time.time()
+            count = 1
             while vehicle_update.vehicle_state != ecloud.VehicleState.TICK_DONE and vehicle_update.vehicle_state != ecloud.VehicleState.DEBUG_INFO_UPDATE: # poll
+                start_time = time.time()
+                time.sleep(SLEEP_TIME)
                 ping = await ecloud_server.Client_Ping(ecloud.Empty())
                 if ping.tick_id != tick_id:
                     tick_id = ping.tick_id
@@ -329,7 +353,14 @@ async def main():
                     if ping.command == ecloud.Command.REQUEST_DEBUG_INFO:
                         ecloud_update.command = ecloud.Command.REQUEST_DEBUG_INFO
 
+                    end_time = time.time()
+                    logger.info(f"polled {count} times over {(end_time - done_time)*1000}ms with final poll taking {(end_time - start_time)*1000}ms")
                     break
+
+                count += 1
+                SLEEP_TIME = SLEEP_TIME * 0.5 if SLEEP_TIME >= 0.015 else SLEEP_TIME
+
+            SLEEP_TIME = ORIGINAL_SLEEP
 
             #logger.debug(f"received tick: {tick_id}")
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
