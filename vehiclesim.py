@@ -209,7 +209,7 @@ async def main():
 
     while 1:
             ping = await ecloud_server.Client_Ping(ecloud.Empty())
-            time.sleep(SLEEP_TIME) # we don't want to spam the server here
+            await asyncio.sleep(SLEEP_TIME) # we don't want to spam the server here
             if ping.tick_id != tick_id:
                 tick_id = ping.tick_id
                 break
@@ -329,7 +329,9 @@ async def main():
                 vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK # TODO: make a WP error status
 
             end_time = time.time()
-            tick_time.append((end_time - start_time)*1000)
+            step_time_total = (end_time - start_time)*1000
+            tick_time.append(step_time_total)
+            vehicle_update.step_time_ms = step_time_total
             #cur_location = vehicle_manager.vehicle.get_location()
             #logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")   
 
@@ -345,12 +347,15 @@ async def main():
             count = 1
             while vehicle_update.vehicle_state != ecloud.VehicleState.TICK_DONE and vehicle_update.vehicle_state != ecloud.VehicleState.DEBUG_INFO_UPDATE: # poll
                 start_time = time.time()
-                time.sleep(SLEEP_TIME)
-                ping = await ecloud_server.Client_Ping(ecloud.Empty())
-                if ping.tick_id != tick_id:
-                    tick_id = ping.tick_id
+                await asyncio.sleep(SLEEP_TIME)
+                ping = ecloud.Ping()
+                ping.tick_id = tick_id
+                pong = await ecloud_server.Client_Ping(ping)
+                logger.info(f"received ping.tick_id {pong.tick_id} | have tick_id {tick_id}")
+                if pong.tick_id != tick_id:
+                    tick_id = pong.tick_id
 
-                    if ping.command == ecloud.Command.REQUEST_DEBUG_INFO:
+                    if pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
                         ecloud_update.command = ecloud.Command.REQUEST_DEBUG_INFO
 
                     end_time = time.time()
