@@ -29,6 +29,7 @@ import time
 from typing import Iterable
 from queue import Queue
 import heapq
+from google.protobuf.timestamp_pb2 import Timestamp
 
 from google.protobuf.json_format import MessageToJson
 import grpc
@@ -221,6 +222,7 @@ class ScenarioManager:
     vehicle_managers = {}
     vehicle_index = 0
 
+    debug_helper = SimDebugHelper(0)
     class OpenCDA(rpc.OpenCDAServicer):
 
         def __init__(self, q, message_stack):
@@ -292,13 +294,23 @@ class ScenarioManager:
                 pass
 
             elif request.vehicle_state == sim_state.VehicleState.TICK_OK:
-
-                logger.debug(f"received TICK_OK from vehicle {request.vehicle_index}")
-                with ScenarioManager.lock:
-                    # make sure to add the tick_id to the root list when we do the tick
-                    # TODO: should we assert that we've not already received this response?
-                    if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
-                        ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
+                try:
+                  logger.debug(f"received TICK_OK from vehicle {request.vehicle_index}")
+                  client_time = (request.tstamp2.ToNanoseconds() - request.tstamp1.ToNanoseconds()) / 1000000
+                  logger.debug(f"timestamps: {request.tstamp1.ToDatetime().time()} {request.tstamp2.ToDatetime().time()} Total client time: {client_time}")
+                  network_time = ((time.time_ns() - request.tstamp3.ToNanoseconds())/1000000) - client_time
+                  logger.debug(f'Network Time: {network_time}')
+                  ScenarioManager.debug_helper.update_network_time_timestamp(request.vehicle_index, network_time)
+                  logger.debug(f"Updated network")
+                  ScenarioManager.debug_helper.update_individual_client_step_time(request.vehicle_index, (time.time_ns() - request.tstamp3.ToNanoseconds())*1000000)
+                  logger.debug(f"Updated network time for vehicle {request.vehicle_index}")
+                  with ScenarioManager.lock:
+                      # make sure to add the tick_id to the root list when we do the tick
+                      # TODO: should we assert that we've not already received this response?
+                      if request.vehicle_index not in ScenarioManager.sim_state_responses[request.tick_id]:
+                          ScenarioManager.sim_state_responses[request.tick_id].append(request.vehicle_index)
+                except Exception as e:
+                  logger.error(f'Error: {e}')
 
             elif request.vehicle_state == sim_state.VehicleState.DEBUG_INFO_UPDATE:
 
@@ -398,8 +410,7 @@ class ScenarioManager:
         self.run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else False
 
         simulation_config = scenario_params['world']
-
-        self.debug_helper = SimDebugHelper(0)
+        
         cav_world.update_scenario_manager(self)
 
         random.seed(time.time())
@@ -478,7 +489,7 @@ class ScenarioManager:
                 #should we wait for a threading event instead?
 
             print("vehicles registered, running simulation...")
-            self.debug_helper.update_sim_start_timestamp(time.time())
+            ScenarioManager.debug_helper.update_sim_start_timestamp(time.time())
 
             ScenarioManager.scenario = json.dumps(scenario_params) #self.config_file
             ScenarioManager.carla_version = self.carla_version
@@ -657,7 +668,7 @@ class ScenarioManager:
             vid = None
 
             while len(ScenarioManager.vehicles) < ScenarioManager.vehicle_count:
-                #time.sleep(1)
+                time.sleep(.5)
                 logger.info("waiting for Carla data: number of vehicles: %d" %(len(ScenarioManager.vehicles)))
 
             actor_id = ScenarioManager.vehicles[f"vehicle_{i}"][0]
@@ -873,7 +884,7 @@ class ScenarioManager:
                 vid = None
 
                 while len(ScenarioManager.vehicles) < ScenarioManager.vehicle_count:
-                    #time.sleep(1)
+                    time.sleep(.5)
                     logger.info("waiting for Carla data")
 
                 actor_id = ScenarioManager.vehicles[f"vehicle_{i}"][0]
@@ -1183,7 +1194,7 @@ class ScenarioManager:
         self.world.tick()
         post_world_tick_time = time.time()
         logger.debug("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
-        self.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
+        ScenarioManager.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
 
     # just use tick logic here; need something smarter if we want per-vehicle data
     # could also just switch to a "broadcast message "
@@ -1211,6 +1222,9 @@ class ScenarioManager:
             for waypoint_buffer_proto in ScenarioManager.waypoint_buffer_overrides:
                 #logger.debug(waypoint_buffer_proto.SerializeToString())
                 sim_state_update.all_waypoint_buffers.extend([waypoint_buffer_proto])
+        logger.debug(f"Getting timestamp")
+        sim_state_update.tstamp.GetCurrentTime()
+        logger.debug(f"Added Timestamp") 
         sim_state_update.message_id = str(hashlib.sha256(sim_state_update.SerializeToString()).hexdigest())
         self.message_queue.put(sim_state_update)
         ScenarioManager.pushed_message.set()
@@ -1229,7 +1243,7 @@ class ScenarioManager:
             ScenarioManager.waypoint_buffer_overrides.clear()
 
         post_client_tick_time = time.time()
-        self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
+        ScenarioManager.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
         if len(ScenarioManager.sim_state_completions) == ScenarioManager.vehicle_count:
             return False # TODO - make a better flag
@@ -1357,6 +1371,20 @@ class ScenarioManager:
             data_key = f"agent_step_list_{idx}"
             self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
+    def evaluate_network_data(self, cumulative_stats_folder_path):
+        all_network_data_lists(sum(ScenarioManager.debug_helper.network_time_dict.values()))
+
+        logger.debug(all_agent_data_lists)
+
+        for idx, all_agent_sub_list in enumerate(all_agent_data_lists):
+            all_client_data_list_flat = np.array(all_agent_sub_list)
+            if all_client_data_list_flat.any():
+                all_client_data_list_flat = np.hstack(all_client_data_list_flat)
+            else:
+                all_client_data_list_flat = all_client_data_list_flat.flatten()
+            data_key = f"agent_step_list_{idx}"
+            self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
+
     def evaluate_client_data(self, client_data_key, cumulative_stats_folder_path):
         all_client_data_list = []
         for _, vehicle_manager_proxy in self.vehicle_managers.items():
@@ -1405,7 +1433,7 @@ class ScenarioManager:
                 self.evaluate_client_data(list_name, cumulative_stats_folder_path)
 
             # ___________Client Step time__________________________________
-            client_tick_time_list = self.debug_helper.client_tick_time_list
+            client_tick_time_list = ScenarioManager.debug_helper.client_tick_time_list
             client_tick_time_list_flat = np.concatenate(client_tick_time_list)
             if client_tick_time_list_flat.any():
                 client_tick_time_list_flat = np.hstack(client_tick_time_list_flat)
@@ -1415,7 +1443,7 @@ class ScenarioManager:
             self.do_pickling(client_step_time_key, client_tick_time_list_flat, cumulative_stats_folder_path)
 
             # ___________World Step time_________________________________
-            world_tick_time_list = self.debug_helper.world_tick_time_list
+            world_tick_time_list = ScenarioManager.debug_helper.world_tick_time_list
             world_tick_time_list_flat = np.concatenate(world_tick_time_list)
             if world_tick_time_list_flat.any():
                 world_tick_time_list_flat = np.hstack(world_tick_time_list_flat)
@@ -1425,7 +1453,7 @@ class ScenarioManager:
             self.do_pickling(world_step_time_key, world_tick_time_list_flat, cumulative_stats_folder_path)
 
             # ___________Total simulation time ___________________
-            sim_start_time = self.debug_helper.sim_start_timestamp
+            sim_start_time = ScenarioManager.debug_helper.sim_start_timestamp
             sim_end_time = time.time()
             total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
             perform_txt += f"Total Simulation Time: {total_sim_time}"
