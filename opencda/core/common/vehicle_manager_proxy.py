@@ -179,7 +179,6 @@ class VehicleManagerProxy(object):
         Destroy the actor vehicle
         """
         if self.is_process_running("CarlaUE4"):
-            return
             self.perception_manager.destroy()
             self.localizer.destroy()
             self.vehicle.destroy()

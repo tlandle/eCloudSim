@@ -770,12 +770,19 @@ class ScenarioManager:
         logger.info('CARLA traffic flow generated.')
         return tm, bg_list
     
-    def close(self):
+    def close(self, spectator=None):
         """
         Simulation close.
         """
         # restore to origin setting
         if self.run_distributed:
+            if spectator != None:
+                logger.info("destroying specator CAV")
+                try:
+                    spectator.destroy()
+                except:
+                    logger.error("failed to destroy single CAV")
+                    
             subprocess.Popen(['pkill','-9','CarlaUE4'])
             sys.exit(0)
 
