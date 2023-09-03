@@ -176,30 +176,32 @@ class LocalizationManager(object):
     def __init__(self, vehicle, config_yaml, carla_map):
 
         self.vehicle = vehicle
-        self.activate = config_yaml['activate']
-        self.map = carla_map
-        self.geo_ref = self.map.transform_to_geolocation(
-            carla.Location(x=0, y=0, z=0))
 
-        # speed and transform and current timestamp
-        self._ego_pos = None
-        self._speed = 0
+        if hasattr(vehicle, 'get_world'):
+            self.activate = config_yaml['activate']
+            self.map = carla_map
+            self.geo_ref = self.map.transform_to_geolocation(
+                carla.Location(x=0, y=0, z=0))
 
-        # history track
-        self._ego_pos_history = deque(maxlen=100)
-        self._timestamp_history = deque(maxlen=100)
+            # speed and transform and current timestamp
+            self._ego_pos = None
+            self._speed = 0
 
-        self.gnss = GnssSensor(vehicle, config_yaml['gnss'])
-        self.imu = ImuSensor(vehicle)
+            # history track
+            self._ego_pos_history = deque(maxlen=100)
+            self._timestamp_history = deque(maxlen=100)
 
-        # heading direction noise
-        self.heading_noise_std = \
-            config_yaml['gnss']['heading_direction_stddev']
-        self.speed_noise_std = config_yaml['gnss']['speed_stddev']
+            self.gnss = GnssSensor(vehicle, config_yaml['gnss'])
+            self.imu = ImuSensor(vehicle)
 
-        self.dt = config_yaml['dt']
-        # Kalman Filter
-        self.kf = KalmanFilter(self.dt)
+            # heading direction noise
+            self.heading_noise_std = \
+                config_yaml['gnss']['heading_direction_stddev']
+            self.speed_noise_std = config_yaml['gnss']['speed_stddev']
+
+            self.dt = config_yaml['dt']
+            # Kalman Filter
+            self.kf = KalmanFilter(self.dt)
 
         # DebugHelper
         self.debug_helper = LocDebugHelper(

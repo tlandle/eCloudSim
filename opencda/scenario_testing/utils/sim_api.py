@@ -199,7 +199,6 @@ class ScenarioManager:
     ecloud_server = None
 
     SHORT_SLEEP = 0.005
-    TEN_MS = 0.01
 
     async def server_unpack_debug_data(self, stub_):
         ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
@@ -214,7 +213,7 @@ class ScenarioManager:
         start_time = time.time()
         count = 1
         while 1:
-            time.sleep(ScenarioManager.SHORT_SLEEP)
+            await asyncio.sleep(ScenarioManager.SHORT_SLEEP)
             ping = await stub_.Server_Ping(ecloud.Empty())
             if ping.tick_id == 1:
                 end_time = time.time()
@@ -234,15 +233,22 @@ class ScenarioManager:
         logger.info(f"pushed scenario start")
 
         count = 1
+        registered_vehicles = 0
         while 1:
             ping = await stub_.Server_Ping(ecloud.Empty())
-            time.sleep(ScenarioManager.TEN_MS)
-            logger.debug(f"waiting for registration to complete")
-            if count % 10 == 0:
+            await asyncio.sleep(ScenarioManager.SHORT_SLEEP)
+            if count % 20 == 0:
                 logger.info(f"waiting for registration to complete")
-            if ping.tick_id == 1:
+
+            if ping.tick_id > registered_vehicles:
+                registered_vehicles = ping.tick_id
+                logger.info(f"{registered_vehicles} have been registered - ticking world")
+                self.tick_world()
+
+            if ping.tick_id == self.vehicle_count:
                 end_time = time.time()
                 logger.info(f"polled {count} times over a total of {(end_time - start_time)*1000}ms")
+                self.tick_world()
                 break
             count += 1
 
@@ -267,7 +273,7 @@ class ScenarioManager:
                  cav_world=None,
                  config_file=None):
                  
-        server_log_level = 1 if logger.getEffectiveLevel() <= logging.INFO else 0
+        server_log_level = 1 if logger.getEffectiveLevel() == logging.DEBUG else 0
         self.ecloud_server_process = subprocess.Popen(['./ecloud',f'--log_level={server_log_level}'])
 
         self.scenario_params = scenario_params
@@ -764,12 +770,19 @@ class ScenarioManager:
         logger.info('CARLA traffic flow generated.')
         return tm, bg_list
     
-    def close(self):
+    def close(self, spectator=None):
         """
         Simulation close.
         """
         # restore to origin setting
         if self.run_distributed:
+            if spectator != None:
+                logger.info("destroying specator CAV")
+                try:
+                    spectator.destroy()
+                except:
+                    logger.error("failed to destroy single CAV")
+                    
             subprocess.Popen(['pkill','-9','CarlaUE4'])
             sys.exit(0)
 
@@ -820,6 +833,8 @@ class ScenarioManager:
                 data_dumping=data_dump, carla_version=self.carla_version)
             logger.debug("finished creating VehiceManagerProxy")
 
+            # self.tick_world()
+
             # send gRPC with START info
             self.application = application
 
@@ -839,8 +854,8 @@ class ScenarioManager:
             single_cav_list.append(vehicle_manager_proxy)
             self.vehicle_managers[vehicle_index] = vehicle_manager_proxy
 
-        self.world.tick()
-        logger.debug("finished creating vehicle managers and returning cav list")
+        self.tick_world()
+        logger.info("Finished creating vehicle managers and returning cav list")
         return single_cav_list
 
     def create_edge_manager(self, application,
@@ -887,6 +902,8 @@ class ScenarioManager:
                     data_dumping=data_dump, carla_version=self.carla_version)
                 logger.debug("finished creating VehiceManagerProxy")
 
+                # self.tick_world()
+
                 # send gRPC with START info
                 self.application = application
 
@@ -904,7 +921,7 @@ class ScenarioManager:
                 edge_manager.add_member(vehicle_manager)
                 self.vehicle_managers[vehicle_index] = vehicle_manager
 
-            self.world.tick()
+            self.tick_world()
             destination = carla.Location(x=edge['destination'][0],
                                          y=edge['destination'][1],
                                          z=edge['destination'][2])
@@ -1039,7 +1056,7 @@ class ScenarioManager:
             for idx, sub_list in enumerate(agent_data_list):
                 all_agent_data_lists[idx].append(sub_list)
 
-        logger.debug(all_agent_data_lists)
+        #logger.debug(all_agent_data_lists)
 
         for idx, all_agent_sub_list in enumerate(all_agent_data_lists):
             all_client_data_list_flat = np.array(all_agent_sub_list)
@@ -1056,7 +1073,7 @@ class ScenarioManager:
             client_data_list = vehicle_manager_proxy.debug_helper.get_debug_data()[client_data_key]
             all_client_data_list.append(client_data_list)
 
-        logger.debug(all_client_data_list)
+        #logger.debug(all_client_data_list)
 
         all_client_data_list_flat = np.array(all_client_data_list)
         if all_client_data_list_flat.any():

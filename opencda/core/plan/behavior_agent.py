@@ -163,6 +163,9 @@ class BehaviorAgent(object):
         objects : dict
             Objects detection results from perception module.
         """
+        if hasattr(self.vehicle, 'is_proxy'):
+            return
+
         # update localization information
         self._ego_speed = ego_speed
         self._ego_pos = ego_pos
