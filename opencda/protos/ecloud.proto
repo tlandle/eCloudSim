@@ -1,4 +1,5 @@
 syntax = "proto3";
+import "google/protobuf/timestamp.proto";
 
 package ecloud;
 
@@ -44,6 +45,7 @@ message SimulationState {
   string version = 6;
   Command command = 7;
   repeated WaypointBuffer all_waypoint_buffers = 8;
+  google.protobuf.Timestamp tstamp = 9;
 }
 
 message WaypointBuffer {
@@ -132,7 +134,9 @@ message VehicleUpdate {
   LocDebugHelper loc_debug_helper = 6;
   PlanerDebugHelper planer_debug_helper = 7;
   ClientDebugHelper client_debug_helper = 8;
-  float step_time_ms = 9;
+  google.protobuf.Timestamp tstamp1 = 9;
+  google.protobuf.Timestamp tstamp2 = 10; 
+  google.protobuf.Timestamp tstamp3 = 11;
 }
 
 message EcloudResponse {

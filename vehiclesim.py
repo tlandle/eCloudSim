@@ -36,7 +36,7 @@ from queue import Queue
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from google.protobuf.json_format import MessageToJson
 import grpc
-
+from google.protobuf.timestamp_pb2 import Timestamp
 # sys.path.append('../../protos/')
 
 import ecloud_pb2 as ecloud
@@ -250,7 +250,8 @@ async def main():
   
         # HANDLE TICK
         elif ecloud_update.command == ecloud.Command.TICK:
-            start_time = time.time()
+            recv_timestamp = Timestamp()
+            recv_timestamp.GetCurrentTime()
             # update info runs BEFORE waypoint injection
             vehicle_manager.update_info()
             logger.debug("update_info complete")
@@ -321,6 +322,8 @@ async def main():
             vehicle_update = ecloud.VehicleUpdate()
             vehicle_update.tick_id = tick_id
             vehicle_update.vehicle_index = vehicle_index
+            vehicle_update.tstamp1.CopyFrom(recv_timestamp)
+            vehicle_update.tstamp3.CopyFrom(sim_state_update.tstamp)
             
             if should_run_step:
                 if control is None or vehicle_manager.is_close_to_scenario_destination():
@@ -331,16 +334,13 @@ async def main():
                     vehicle_manager.apply_control(control)
                     logger.debug("apply_control complete")
                     vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
+                    vehicle_update.tstamp2.GetCurrentTime()
                     #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
             
             else:
                 vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK # TODO: make a WP error status
 
-            end_time = time.time()
-            step_time_total = (end_time - start_time)*1000
-            tick_time.append(step_time_total)
-            vehicle_update.step_time_ms = step_time_total
-            logger.debug(f"tick complete in {step_time_total}ms")
+            
             #cur_location = vehicle_manager.vehicle.get_location()
             #logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")   
 

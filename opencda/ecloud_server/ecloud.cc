@@ -108,9 +108,10 @@ public:
     ServerUnaryReactor* Client_Ping(CallbackServerContext* context,
                                const Ping* ping,
                                Ping* pong) override {
-        bool new_ = false;                                               
+        bool new_ = false;                                              
         pong->set_tick_id(tickId_);
         pong->set_command(command_);
+        pong->set_time
         if ( tickId_ != ping->tick_id() )
             new_ = true;
 

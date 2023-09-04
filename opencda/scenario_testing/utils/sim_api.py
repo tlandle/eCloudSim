@@ -31,6 +31,8 @@ import threading
 import time
 from typing import Iterable
 from queue import Queue
+import heapq
+from google.protobuf.timestamp_pb2 import Timestamp
 
 from google.protobuf.json_format import MessageToJson
 import grpc
@@ -198,6 +200,8 @@ class ScenarioManager:
     scenario = None
     ecloud_server = None
 
+    debug_helper = SimDebugHelper(0)
+
     SHORT_SLEEP = 0.005
 
     async def server_unpack_debug_data(self, stub_):
@@ -265,6 +269,8 @@ class ScenarioManager:
     
         return response
 
+    debug_helper = SimDebugHelper(0)
+    
     def __init__(self, scenario_params,
                  apply_ml,
                  carla_version,
@@ -283,8 +289,7 @@ class ScenarioManager:
         self.run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else False
 
         simulation_config = scenario_params['world']
-
-        self.debug_helper = SimDebugHelper(0)
+        
         cav_world.update_scenario_manager(self)
 
         random.seed(time.time())
@@ -359,7 +364,7 @@ class ScenarioManager:
             else:
                 assert(False, "no known vehicle indexing format found")
 
-            self.debug_helper.update_sim_start_timestamp(time.time())
+            ScenarioManager.debug_helper.update_sim_start_timestamp(time.time())
 
             self.scenario = json.dumps(scenario_params) #self.config_file
             self.carla_version = self.carla_version
@@ -567,7 +572,8 @@ class ScenarioManager:
             platoon_list.append(platoon_manager)
 
         return platoon_list
-    
+
+
     def spawn_vehicles_by_list(self, tm, traffic_config, bg_list):
         """
         Spawn the traffic vehicles by the given list.
@@ -939,8 +945,8 @@ class ScenarioManager:
         pre_world_tick_time = time.time()
         self.world.tick()
         post_world_tick_time = time.time()
-        logger.info("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
-        self.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
+        logger.debug("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
+        ScenarioManager.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
 
     def tick(self):
         """
@@ -971,6 +977,10 @@ class ScenarioManager:
                 #logger.debug(waypoint_buffer_proto.SerializeToString())
                 sim_state_update.all_waypoint_buffers.extend([waypoint_buffer_proto])
 
+        logger.debug(f"Getting timestamp")
+        sim_state_update.tstamp.GetCurrentTime()
+        logger.debug(f"Added Timestamp") 
+
         asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, sim_state_update))
 
         if message_type == ecloud.Command.TICK:
@@ -979,7 +989,7 @@ class ScenarioManager:
         post_client_tick_time = time.time()
         logger.info("Client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
         if self.tick_id > 1: # discard the first tick as startup is a major outlier
-            self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
+            ScenarioManager.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
         return True
 
@@ -1067,6 +1077,20 @@ class ScenarioManager:
             data_key = f"agent_step_list_{idx}"
             self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
+    def evaluate_network_data(self, cumulative_stats_folder_path):
+        all_network_data_lists(sum(ScenarioManager.debug_helper.network_time_dict.values()))
+
+        logger.debug(all_agent_data_lists)
+
+        for idx, all_agent_sub_list in enumerate(all_agent_data_lists):
+            all_client_data_list_flat = np.array(all_agent_sub_list)
+            if all_client_data_list_flat.any():
+                all_client_data_list_flat = np.hstack(all_client_data_list_flat)
+            else:
+                all_client_data_list_flat = all_client_data_list_flat.flatten()
+            data_key = f"agent_step_list_{idx}"
+            self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
+
     def evaluate_client_data(self, client_data_key, cumulative_stats_folder_path):
         all_client_data_list = []
         for _, vehicle_manager_proxy in self.vehicle_managers.items():
@@ -1115,7 +1139,7 @@ class ScenarioManager:
                 self.evaluate_client_data(list_name, cumulative_stats_folder_path)
 
             # ___________Client Step time__________________________________
-            client_tick_time_list = self.debug_helper.client_tick_time_list
+            client_tick_time_list = ScenarioManager.debug_helper.client_tick_time_list
             client_tick_time_list_flat = np.concatenate(client_tick_time_list)
             if client_tick_time_list_flat.any():
                 client_tick_time_list_flat = np.hstack(client_tick_time_list_flat)
@@ -1125,7 +1149,7 @@ class ScenarioManager:
             self.do_pickling(client_step_time_key, client_tick_time_list_flat, cumulative_stats_folder_path)
 
             # ___________World Step time_________________________________
-            world_tick_time_list = self.debug_helper.world_tick_time_list
+            world_tick_time_list = ScenarioManager.debug_helper.world_tick_time_list
             world_tick_time_list_flat = np.concatenate(world_tick_time_list)
             if world_tick_time_list_flat.any():
                 world_tick_time_list_flat = np.hstack(world_tick_time_list_flat)
@@ -1135,7 +1159,7 @@ class ScenarioManager:
             self.do_pickling(world_step_time_key, world_tick_time_list_flat, cumulative_stats_folder_path)
 
             # ___________Total simulation time ___________________
-            sim_start_time = self.debug_helper.sim_start_timestamp
+            sim_start_time = ScenarioManager.debug_helper.sim_start_timestamp
             sim_end_time = time.time()
             total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
             perform_txt += f"Total Simulation Time: {total_sim_time}"
