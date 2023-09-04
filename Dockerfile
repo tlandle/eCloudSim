@@ -40,6 +40,8 @@ EXPOSE 5555/tcp
 
 # gRPC
 EXPOSE 50051/tcp
+EXPOSE 50052/tcp
+EXPOSE 50053/tcp
 
 # Carla
 EXPOSE 2000/tcp
