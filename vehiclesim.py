@@ -383,16 +383,13 @@ async def main():
                 reported_done = True
         
         else: # done
-            logger.info("arrived at destination. exiting.")
-            sys.exit(0)
+            break
 
     # end while    
     
-    # vehicle_manager.destroy() # let the scenario manager destroy...
-    #_socket.close()
+    vehicle_manager.destroy()  
     logger.info("scenario complete. exiting.")
     sys.exit(0)
-    logger.info("this should not print...")
 
 if __name__ == '__main__':
     try:
