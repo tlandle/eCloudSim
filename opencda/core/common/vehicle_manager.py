@@ -10,6 +10,7 @@ import uuid
 import opencda.logging_ecloud
 import logging
 import time
+import random
 
 import carla
 import numpy as np
@@ -144,35 +145,40 @@ class VehicleManager(object):
                 logger.debug(cav_config)
             else:
                 assert(False, "no known vehicle indexing format found")
-            if 'spawn_special' not in cav_config:
-                init_transform = carla.Transform(
-                    carla.Location(
-                        x=267.7194,
-                        y=151.51,
-                        z=0.3),
-                    carla.Rotation(
-                        pitch=0,
-                        yaw=0,
-                        roll=0))
+            
+            spawned = False
+            while not spawned:
+                try:
+                    if 'spawn_explicit' in cav_config:
+                        self.spawn_transform = carla.Transform(
+                        carla.Location(
+                            x=cav_config['spawn_position'][0],
+                            y=cav_config['spawn_position'][1],
+                            z=cav_config['spawn_position'][2]),
+                        carla.Rotation(
+                            pitch=cav_config['spawn_position'][5],
+                            yaw=cav_config['spawn_position'][4],
+                            roll=cav_config['spawn_position'][3]))    
+                    elif 'spawn_special' not in cav_config:
+                        spawn_points = self.world.get_map().get_spawn_points()
+                        self.spawn_transform = spawn_points[random.randint(0, len(spawn_points))]
+                        self.spawn_location = carla.Location(
+                                x=self.spawn_transform.location.x,
+                                y=self.spawn_transform.location.y,
+                                z=self.spawn_transform.location.z)
+                    elif config_file != None:
+                        assert( False, "['spawn_special'] not supported in eCloud currently")
 
-                spawn_transform = carla.Transform(
-                    carla.Location(
-                        x=cav_config['spawn_position'][0],
-                        y=cav_config['spawn_position'][1],
-                        z=cav_config['spawn_position'][2]),
-                    carla.Rotation(
-                        pitch=cav_config['spawn_position'][5],
-                        yaw=cav_config['spawn_position'][4],
-                        roll=cav_config['spawn_position'][3]))
-            elif config_file != None:
-                assert( False, "['spawn_special'] not supported in Edge currently")
+                    self.cav_destination = {}
+                    self.cav_destination['x'] = cav_config['destination'][0]
+                    self.cav_destination['y'] = cav_config['destination'][1]
 
-            self.cav_destination = {}
-            self.cav_destination['x'] = cav_config['destination'][0]
-            self.cav_destination['y'] = cav_config['destination'][1]
-
-            cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-            self.vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
+                    cav_vehicle_bp.set_attribute('color', '0, 0, 255')
+                    self.vehicle = self.world.spawn_actor(cav_vehicle_bp, self.spawn_transform)
+                    spawned = True
+                except Exception as e:
+                    logger.debug("spawn collision. retrying")
+                    continue
             # teleport vehicle to desired spawn point
             # self.vehicle.set_transform(spawn_transform)
             # self.world.tick()

@@ -178,7 +178,8 @@ async def main():
     vehicle_count = None
     if 'single_cav_list' in scenario_yaml['scenario']:
         vehicle_count = len(scenario_yaml['scenario']['single_cav_list'])
-        SLEEP_TIME = SLEEP_TIME * vehicle_count
+        SLEEP_TIME = SLEEP_TIME * vehicle_count if SLEEP_TIME * vehicle_count <= 0.1 else 0.1
+        ORIGINAL_SLEEP = SLEEP_TIME
         logger.info(f"SLEEP_TIME: {SLEEP_TIME}")
 
     target_speed = None
@@ -215,8 +216,10 @@ async def main():
             if pong.tick_id != tick_id:
                 tick_id = pong.tick_id
                 break
+            else:
+                logger.debug(f"vehicle {vehicle_index} got pong.tick_id {tick_id}")
 
-            SLEEP_TIME = SLEEP_TIME * 0.5 if SLEEP_TIME >= 0.015 else SLEEP_TIME
+            SLEEP_TIME = SLEEP_TIME * 0.5 if SLEEP_TIME >= 0.1 else SLEEP_TIME
 
     if not edge_sets_destination:
         cav_config = scenario_yaml['scenario']['single_cav_list'][vehicle_index]
@@ -230,8 +233,7 @@ async def main():
                 clean=True)
 
     tick_time = []
-    ORIGINAL_SLEEP = SLEEP_TIME
-    logger.info("beginning scenario tick flow")
+    logger.info(f"vehicle {vehicle_index} beginning scenario tick flow")
     while state != ecloud.State.ENDED:   
         
         vehicle_update = ecloud.VehicleUpdate()
@@ -340,7 +342,7 @@ async def main():
             step_time_total = (end_time - start_time)*1000
             tick_time.append(step_time_total)
             vehicle_update.step_time_ms = step_time_total
-            logger.debug(f"tick complete in {step_time_total}ms")
+            logger.debug(f"tick {tick_id} complete in {step_time_total}ms")
             #cur_location = vehicle_manager.vehicle.get_location()
             #logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")   
 

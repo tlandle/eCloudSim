@@ -68,8 +68,7 @@ static void _sig_handler(int signo)
 volatile std::atomic<int16_t> numRegisteredVehicles_;
 volatile std::atomic<int16_t> numCompletedVehicles_;
 volatile std::atomic<int16_t> numRepliedVehicles_;
-
-volatile int32_t tickId_;
+volatile std::atomic<int32_t> tickId_;
 
 bool init_;
 int8_t logLevel_;
@@ -90,10 +89,11 @@ public:
     explicit EcloudServiceImpl() {
         if ( !init_ )
         {
-            numCompletedVehicles_ = 0;
-            numRepliedVehicles_ = 0;
-            numRegisteredVehicles_ = 0;
-            tickId_ = 0;
+            numCompletedVehicles_.store(0);
+            numRepliedVehicles_.store(0);
+            numRegisteredVehicles_.store(0);
+            tickId_.store(0);
+
             simState_ = State::UNDEFINED;
             command_ = Command::TICK;
             
@@ -107,12 +107,13 @@ public:
 
     ServerUnaryReactor* Client_Ping(CallbackServerContext* context,
                                const Ping* ping,
-                               Ping* pong) override {
-        bool new_ = false;                                               
-        pong->set_tick_id(tickId_);
-        pong->set_command(command_);
-        if ( tickId_ != ping->tick_id() )
-            new_ = true;
+                               Ping* pong) override {                                           
+        const int32_t tick_ = tickId_.load();
+        const Command comm_ = command_;
+        const bool new_ = tickId_ != ping->tick_id() ? true : false;
+
+        pong->set_tick_id(tick_);
+        pong->set_command(comm_);
 
         if ( logLevel_ > 0 && ( pong->tick_id() - 1 ) % 5 == 0 && new_ )
         {
@@ -223,8 +224,8 @@ public:
     ServerUnaryReactor* Client_RegisterVehicle(CallbackServerContext* context,
                                const VehicleUpdate* request,
                                SimulationState* reply) override {
-        // TODO: remove once done debugging
-        //assert( configYaml_ != " " );
+        
+        assert( configYaml_ != "" );
 
         if ( request->vehicle_state() == VehicleState::REGISTERING )
         {
@@ -282,10 +283,9 @@ public:
         if (logLevel_ > 0)
         {
             const auto now = std::chrono::system_clock::now();
-            std::cout << "LOG(DEBUG) " << "received new tick " << tickId_ << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::cout << "LOG(DEBUG) " << "received new tick " << request->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
                 now.time_since_epoch()).count() << std::endl;
         }
-        // std::cout << "LOG(DEBUG) Server_DoTick: " << tickId_ << std::endl;
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
