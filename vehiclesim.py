@@ -163,7 +163,7 @@ async def main():
     application = ecloud_update.application
     version = ecloud_update.version
 
-    #logger.debug(f"main - test_scenario: {test_scenario}") # VERY verbose
+    logger.debug(f"main - test_scenario: {test_scenario}") # VERY verbose
     logger.debug(f"main - application: {application}")
     logger.debug(f"main - version: {version}")
 
