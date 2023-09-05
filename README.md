@@ -93,7 +93,7 @@ ln -s <source> <destination>
 
 ## ToDo List
 
-- `ecloud` section in YAML
+- `ecloud` sections in YAML
 
 - Back Off Config to YAML for Sleep Timing
 
@@ -110,3 +110,49 @@ ln -s <source> <destination>
 - YAML to allow randomized destination
 
 - YAML to specify num cars (with randomized locations & destination - or single destination)
+
+Top Level
+
+```yaml
+# eCloud perception
+define: &perception_is_active false
+...
+# eCloud
+ecloud:
+  perception_active: *perception_is_active
+  distributed: true # set to false or comment out to run "standard" OpenCDA sequential sims
+  num_servers: 2 # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 )
+  server_ping_time_s: 0.005 # 5ms
+  client_ping_base_s: 0.01 # multiplied by num vehicles
+  client_ping_multiply_by_num_cars: true # 0.01 * num_cars = initial sleep before ping in s
+  client_ping_spawn_max_s: 0.5 # how long at most to wait before pinging after spawn
+  client_ping_spawn_min_s: 0.01 # minimum sleep to wait between pings after spawn
+  client_ping_spawn_backoff: 0.5 # how much to drop sleep each successive ping
+  client_ping_tick_max_s: 0.1 # how long at most to wait before pinging after tick complete
+  client_ping_tick_min_s: 0.01 # minimum sleep to wait between pings after spawn
+  client_ping_tick_backoff: 0.5 # how much to drop sleep each successive ping
+```
+
+Scenario
+
+```yaml
+# define scenario.
+scenario:
+  ecloud: 
+    num_cars: 128
+    spawn_type: random # random || explicit
+    destination_type: explicit # random || explicit
+    done_behavior: destroy # destroy || control
+  single_cav_list: 
+    - <<: *vehicle_base
+      destination: [606.87, 145.39, 0]
+      behavior: # overrides
+        <<: *base_behavior
+        max_speed: 100 # maximum speed, km/h
+        tailgate_speed: 111
+        overtake_allowed: false
+        local_planner:
+          <<: *base_local_planner
+          debug_trajectory: true
+          debug: true
+```
