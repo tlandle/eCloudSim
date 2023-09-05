@@ -113,14 +113,8 @@ def run_scenario(opt, config_yaml):
         if opt.record:
             scenario_manager.client.stop_recorder()
 
-        scenario_manager.close()
-
-        for v in single_cav_list:
-            print("destroying single CAV")
-            try:
-                v.destroy()
-            except:
-                print("failed to destroy single CAV")    
+        scenario_manager.close(single_cav_list[0])
+  
         for v in bg_veh_list:
             print("destroying background vehicle")
             try:
