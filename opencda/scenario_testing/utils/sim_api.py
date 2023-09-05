@@ -275,16 +275,16 @@ class ScenarioManager:
                  
         server_log_level = 1 if logger.getEffectiveLevel() == logging.DEBUG else 0
         try:
-            ecloud_pid = subprocess.check_output(['pgrep','ecloud'])
+            ecloud_pid = subprocess.check_output(['pgrep','ecloud_server'])
         except subprocess.CalledProcessError as e:
             if e.returncode > 1:
                 raise
             ecloud_pid = None
         if ecloud_pid != None:
             logger.info(f'killing exiting ecloud gRPC server process')
-            subprocess.run(['pkill','-9','ecloud'])
+            subprocess.run(['pkill','-9','ecloud_server'])
 
-        self.ecloud_server_process = subprocess.Popen(['./ecloud',f'--log_level={server_log_level}'])
+        self.ecloud_server_process = subprocess.Popen(['./ecloud_server',f'--log_level={server_log_level}'])
 
         self.scenario_params = scenario_params
         self.carla_version = carla_version
