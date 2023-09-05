@@ -51,10 +51,11 @@ class EcloudConfig(object):
            "done_behavior" : self.DESTROY,
         }
 
-        '''
-        # make getter? 
+        ''' 
         ecloud_config = EcloudConfig()
         for k, _ in ecloud_config.ecloud_scenario.items():
             if k in YAML:
                 ecloud_config.ecloud_scenario[k] = YAML[k]
         '''
+
+        # TODO: define getter functions plus a generic config getter

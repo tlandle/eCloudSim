@@ -26,6 +26,8 @@ from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 
+from opencda.core.common.ecloud_config import EcloudConfig, eLocationType, eDoneBehavior
+
 # gRPC
 from concurrent.futures import ThreadPoolExecutor
 import coloredlogs, logging
@@ -135,9 +137,12 @@ async def main():
     state = ecloud.State.UNDEFINED #do we need a global state?
     reported_done = False
 
+    # TODO: config override
     SPAWN_SLEEP_TIME = 0.05
     TICK_SLEEP_TIME = 0.01
     WORLD_TIME_SLEEP_FACTOR = 0.9
+    NUM_SERVERS = 2
+    done_behavior = eDoneBehavior.CONTROL
 
     opt = arg_parse()
     if opt.verbose:
@@ -191,11 +196,12 @@ async def main():
 
     ecloud_update = await send_carla_data_to_opencda(ecloud_server, vehicle_index, actor_id, vid)
 
-    if vehicle_index % 2 == 0:
+    server_port = vehicle_index % NUM_SERVERS
+    if server_port != 0:
         logger.info("connecting to secondary server...")
         await channel.close()
         channel = grpc.aio.insecure_channel(
-            target=f"{CARLA_IP}:{int(opt.port) + 1}",
+            target=f"{CARLA_IP}:{int(opt.port) + server_port}",
             options=[
                 ("grpc.lb_policy_name", "pick_first"),
                 ("grpc.enable_retries", 0),
@@ -309,6 +315,8 @@ async def main():
                 should_run_step = True
 
             if should_run_step:
+                if reported_done:
+                   target_speed = 0 
                 control = vehicle_manager.run_step(target_speed=target_speed)
                 logger.debug("run_step complete")
 
@@ -319,7 +327,11 @@ async def main():
             if should_run_step:
                 if control is None or vehicle_manager.is_close_to_scenario_destination():
                     vehicle_update.vehicle_state = ecloud.VehicleState.TICK_DONE
-                    serialize_debug_info(vehicle_update, vehicle_manager)
+                    if not reported_done:
+                        serialize_debug_info(vehicle_update, vehicle_manager)
+
+                    if control is not None and done_behavior == eDoneBehavior.CONTROL:
+                        vehicle_manager.apply_control(control)
 
                 else:
                     vehicle_manager.apply_control(control)
@@ -344,8 +356,9 @@ async def main():
             break
         
         # block waiting for a response
-        if not reported_done:
-            ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
+        if not reported_done or done_behavior == eDoneBehavior.CONTROL:
+            if not reported_done:
+                ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
             await asyncio.sleep(WORLD_TIME_SLEEP_FACTOR * ecloud_update.last_world_tick_time_ms / 1000)
             done_time = time.time()
             count = 1
@@ -369,7 +382,13 @@ async def main():
 
             #logger.debug(f"received tick: {tick_id}")
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
-                reported_done = True
+                if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and ecloud_update.command == ecloud.Command.REQUEST_DEBUG_INFO:
+                    # we were asked for debug data and provided it, so NOW we exit
+                    # TODO: this is better handled by done
+                    break
+                else:
+                    reported_done = True
+                
         
         else: # done
             break
