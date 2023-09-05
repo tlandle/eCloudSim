@@ -794,6 +794,7 @@ class BehaviorAgent(object):
         end_time = time.time()
         self.debug_helper.update_agent_step_list(0, end_time-start_time)        
 
+        start_time = time.time()
         # 1. Traffic light management
         if self.traffic_light_manager(ego_vehicle_wp) != 0:
             # TODO - eCLOUD: (we have no traffic lights in sims yet)
