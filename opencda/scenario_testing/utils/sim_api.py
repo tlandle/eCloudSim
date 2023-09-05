@@ -198,12 +198,13 @@ class ScenarioManager:
     scenario = None
     ecloud_server = None
 
-    SHORT_SLEEP = 0.005
+    SERVER_PING_SLEEP = 0.005
+    last_world_tick_time_ms = 50
 
     async def server_unpack_debug_data(self, stub_):
         ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
         for vehicle_update in ecloud_update.vehicle_update:
-            vehicle_manager_proxy = ScenarioManager.vehicle_managers[ vehicle_update.vehicle_index ]
+            vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
             vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( vehicle_update.loc_debug_helper )
             vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( vehicle_update.planer_debug_helper )
             vehicle_manager_proxy.debug_helper.deserialize_debug_info(vehicle_update.client_debug_helper)
@@ -213,7 +214,7 @@ class ScenarioManager:
         start_time = time.time()
         count = 1
         while 1:
-            await asyncio.sleep(ScenarioManager.SHORT_SLEEP)
+            await asyncio.sleep(self.SERVER_PING_SLEEP)
             ping = await stub_.Server_Ping(ecloud.Empty())
             if ping.tick_id == 1:
                 end_time = time.time()
@@ -236,7 +237,7 @@ class ScenarioManager:
         registered_vehicles = 0
         while 1:
             ping = await stub_.Server_Ping(ecloud.Empty())
-            await asyncio.sleep(ScenarioManager.SHORT_SLEEP)
+            await asyncio.sleep(self.SERVER_PING_SLEEP)
             if count % 20 == 0:
                 logger.info(f"waiting for registration to complete")
 
@@ -352,7 +353,7 @@ class ScenarioManager:
                 assert( False, "ML should only be run on the distributed clients")
 
             channel = grpc.aio.insecure_channel(
-            target="[::]:50052",
+            target="[::]:50051",
             options=[
                 ("grpc.lb_policy_name", "pick_first"),
                 ("grpc.enable_retries", 0),
@@ -393,7 +394,7 @@ class ScenarioManager:
                 vehicle_tuple = ( vehicle_update.actor_id, vehicle_update.vid )
                 self.vehicles[f"vehicle_{vehicle_update.vehicle_index}"] = vehicle_tuple
 
-            self.world.tick()
+            self.tick_world()
 
             logger.debug("eCloud debug: pushed START")
 
@@ -950,6 +951,7 @@ class ScenarioManager:
         self.world.tick()
         post_world_tick_time = time.time()
         logger.info("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
+        self.last_world_tick_time_ms = int((post_world_tick_time - pre_world_tick_time)*1000)
         self.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
 
     def tick(self):
@@ -975,6 +977,7 @@ class ScenarioManager:
         sim_state_update = ecloud.SimulationState()
         sim_state_update.state = ecloud.State.ACTIVE
         sim_state_update.tick_id = self.tick_id
+        sim_state_update.last_world_tick_time_ms = self.last_world_tick_time_ms
         sim_state_update.command = message_type
         if message_type == ecloud.Command.TICK:
             for waypoint_buffer_proto in self.waypoint_buffer_overrides:

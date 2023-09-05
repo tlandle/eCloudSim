@@ -54,6 +54,8 @@ using ecloud::AgentDebugHelper;
 using ecloud::PlanerDebugHelper;
 using ecloud::ClientDebugHelper;
 
+#define WORLD_TICK_DEFAULT_MS 50
+
 static void _sig_handler(int signo) 
 {
     if (signo == SIGTERM || signo == SIGINT) 
@@ -69,6 +71,7 @@ volatile std::atomic<int16_t> numRegisteredVehicles_;
 volatile std::atomic<int16_t> numCompletedVehicles_;
 volatile std::atomic<int16_t> numRepliedVehicles_;
 volatile std::atomic<int32_t> tickId_;
+volatile std::atomic<int32_t> lastWorldTickTimeMS_;
 
 bool init_;
 int8_t logLevel_;
@@ -93,6 +96,7 @@ public:
             numRepliedVehicles_.store(0);
             numRegisteredVehicles_.store(0);
             tickId_.store(0);
+            lastWorldTickTimeMS_.store(WORLD_TICK_DEFAULT_MS);
 
             simState_ = State::UNDEFINED;
             command_ = Command::TICK;
@@ -214,7 +218,8 @@ public:
         }
 
         // std::cout << "LOG(DEBUG) " << "Client_SendUpdate - replying tick id: " << tickId_ << std::endl;
-        reply->set_tick_id(tickId_);
+        reply->set_tick_id(tickId_.load());
+        reply->set_last_world_tick_time_ms(lastWorldTickTimeMS_.load());
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -278,6 +283,7 @@ public:
         numRepliedVehicles_ = 0;
         assert(tickId_ == request->tick_id() - 1);
         tickId_++;
+        lastWorldTickTimeMS_.store(request->last_world_tick_time_ms());
         command_ = request->command();
         
         if (logLevel_ > 0)

@@ -17,13 +17,10 @@ class EcloudConfig(object):
             "perception_active" : False,
             "distributed" : True, # set to false or comment out to run "standard" OpenCDA sequential sims
             "num_servers": 2, # % num_cars to choose which port to connect to. 2nd - nth server port : p = 50053 + ( n - 1 )
-            "server_ping_time_s" : 0.005, # 5ms
+            "server_ping_time_s" : 0.005, # 5ms - how often the server pings checking completion
             "client_ping_base_s" : 0.01, # multiplied by num vehicles
-            "client_ping_multiply_by_num_cars" : True, # 0.01 * num_cars = initial sleep before ping in s
-            "client_ping_spawn_max_s" : 0.5, # how long at most to wait before pinging after spawn
-            "client_ping_spawn_min_s" : 0.01, # minimum sleep to wait between pings after spawn
-            "client_ping_spawn_backoff" : 0.5, # how much to drop sleep each successive ping
-            "client_ping_tick_max_s" : 0.1, # how long at most to wait before pinging after tick complete
+            "client_world_time_factor" : 0.9, # what percentage of last world time to wait initially
+            "client_ping_spawn_s" : 0.01, # minimum sleep to wait between pings after spawn
             "client_ping_tick_min_s" : 0.01, # minimum sleep to wait between pings after spawn
             "client_ping_tick_backoff" : 0.5, # how much to drop sleep each successive ping
         }
@@ -49,7 +46,7 @@ class EcloudConfig(object):
 
         self.ecloud_scenario = {
            "num_cars" : 0,
-           "spawn_type" : self.RANDOM, 
+           "spawn_type" : self.EXPLICIT, 
            "destination_type" : self.EXPLICIT,
            "done_behavior" : self.DESTROY,
         }

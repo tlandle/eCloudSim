@@ -97,6 +97,8 @@ ln -s <source> <destination>
 
 - Back Off Config to YAML for Sleep Timing
 
+    - Base initial wait off last world_tick_time; server to send
+
 - Continue To Apply Control To Keep Vehicles From Driving Off Once Complete
 
 - Test Different Backoffs
@@ -123,12 +125,8 @@ ecloud:
   distributed: true # set to false or comment out to run "standard" OpenCDA sequential sims
   num_servers: 2 # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 )
   server_ping_time_s: 0.005 # 5ms
-  client_ping_base_s: 0.01 # multiplied by num vehicles
-  client_ping_multiply_by_num_cars: true # 0.01 * num_cars = initial sleep before ping in s
-  client_ping_spawn_max_s: 0.5 # how long at most to wait before pinging after spawn
-  client_ping_spawn_min_s: 0.01 # minimum sleep to wait between pings after spawn
-  client_ping_spawn_backoff: 0.5 # how much to drop sleep each successive ping
-  client_ping_tick_max_s: 0.1 # how long at most to wait before pinging after tick complete
+  client_world_time_factor: 0.9 # what percentage of last world time to wait initially
+  client_ping_spawn_s: 0.05 # sleep to wait between pings after spawn
   client_ping_tick_min_s: 0.01 # minimum sleep to wait between pings after spawn
   client_ping_tick_backoff: 0.5 # how much to drop sleep each successive ping
 ```
