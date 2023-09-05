@@ -31,7 +31,7 @@ from queue import Queue
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from google.protobuf.json_format import MessageToJson
 import grpc
-
+from google.protobuf.timestamp_pb2 import Timestamp
 # sys.path.append('../../protos/')
 
 import sim_api_pb2 as sim_state
@@ -450,6 +450,8 @@ def main():
 
         # HANDLE TICK
         elif sim_state_update.command == sim_state.Command.TICK:
+            recv_timestamp = Timestamp()
+            recv_timestamp.GetCurrentTime()
             # update info runs BEFORE waypoint injection
             vehicle_manager.update_info()
 
@@ -518,6 +520,8 @@ def main():
             response = sim_state.VehicleUpdate()
             response.tick_id = tick_id
             response.vehicle_index = vehicle_index
+            response.tstamp1.CopyFrom(recv_timestamp)
+            response.tstamp3.CopyFrom(sim_state_update.tstamp)
             
             if should_run_step:
                 if control is None or vehicle_manager.is_close_to_scenario_destination():
@@ -550,11 +554,12 @@ def main():
 
             cur_location = vehicle_manager.vehicle.get_location()
             logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")
-
+            response.tstamp2.GetCurrentTime()
             pushed_message.clear()    
             popped_message.set()
 
             q.put(response)
+                        
             pushed_response.set()
             popped_response.wait()
             popped_response.clear()       

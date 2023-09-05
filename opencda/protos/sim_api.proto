@@ -1,4 +1,5 @@
 syntax = "proto3";
+import "google/protobuf/timestamp.proto";
 
 package grpc;
 
@@ -49,6 +50,7 @@ message SimulationState {
   string params_json = 8;
   string message_id = 9; // use as a UID for message indentification when Server needs an ack
   repeated WaypointBuffer all_waypoint_buffers = 10;
+  google.protobuf.Timestamp tstamp = 11;
 }
 
 message WaypointBuffer {
@@ -138,6 +140,9 @@ message VehicleUpdate {
   PlanerDebugHelper planer_debug_helper = 7;
   ClientDebugHelper client_debug_helper = 8;
   string message_id = 9; // use as a UID for message indentification when Server needs an ack
+  google.protobuf.Timestamp tstamp1 = 10;
+  google.protobuf.Timestamp tstamp2 = 11; 
+  google.protobuf.Timestamp tstamp3 = 12;
 }
 
 service OpenCDA {
