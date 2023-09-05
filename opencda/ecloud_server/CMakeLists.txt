@@ -62,6 +62,8 @@ foreach(_target
   add_executable(${_target} "${_target}.cc")
   target_link_libraries(${_target}
     ecloud_grpc_proto
+    absl::flags
+    absl::flags_parse
     ${_REFLECTION}
     ${_GRPC_GRPCPP}
     ${_PROTOBUF_LIBPROTOBUF})
