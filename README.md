@@ -93,6 +93,18 @@ ln -s <source> <destination>
 
 ## ToDo List
 
+- Edge WP push fixup
+
+  - sim API pushes WP buffer for all vehicles
+
+  - gRPC server sends down WP buffer for specific vehicle
+
+- random seeding in config
+
+- if start is random, destination should also be random
+
+  - hardcode minimum distance; TODO configurable, but this likely doesn't add much
+
 - `ecloud` sections in YAML
 
 - Back Off Config to YAML for Sleep Timing
