@@ -2,13 +2,6 @@ syntax = "proto3";
 
 package ecloud;
 
-message Empty {}
-
-message Ping {
-  int32 tick_id = 1; // use as bool for server
-  Command command = 2;
-}
-
 enum State {
   UNDEFINED = 0;
   NEW = 1;
@@ -35,6 +28,13 @@ enum VehicleState {
   DEBUG_INFO_UPDATE = 8;
 }
 
+message Empty {}
+
+message Ping {
+  int32 tick_id = 1; // use as bool for server
+  Command command = 2;
+}
+
 message SimulationState {
   State state = 1;
   int32 tick_id = 2;
@@ -44,7 +44,14 @@ message SimulationState {
   string version = 6;
   Command command = 7;
   int32 last_world_tick_time_ms = 8;
-  repeated WaypointBuffer all_waypoint_buffers = 9;
+}
+
+message WaypointRequest {
+  int32 vehicle_index = 1;
+}
+
+message EdgeWaypoints {
+  repeated WaypointBuffer all_waypoint_buffers = 1;
 }
 
 message WaypointBuffer {
@@ -145,10 +152,12 @@ service Ecloud {
   rpc Client_SendUpdate (VehicleUpdate) returns (SimulationState);
   rpc Client_RegisterVehicle (VehicleUpdate) returns (SimulationState);
   rpc Client_Ping (Ping) returns (Ping);
+  rpc Client_GetWaypoints(WaypointRequest) returns (WaypointBuffer);
   // SERVER
   rpc Server_DoTick(SimulationState) returns (EcloudResponse);
   rpc Server_StartScenario(SimulationState) returns (EcloudResponse);
   rpc Server_EndScenario(Empty) returns (Empty);
   rpc Server_Ping(Empty) returns (Ping);
   rpc Server_GetVehicleUpdates(Empty) returns (EcloudResponse);
+  rpc Server_PushEdgeWaypoints(EdgeWaypoints) returns (Empty);
 }

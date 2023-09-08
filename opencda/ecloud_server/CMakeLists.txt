@@ -64,6 +64,7 @@ foreach(_target
     ecloud_grpc_proto
     absl::flags
     absl::flags_parse
+    absl::log
     ${_REFLECTION}
     ${_GRPC_GRPCPP}
     ${_PROTOBUF_LIBPROTOBUF})
