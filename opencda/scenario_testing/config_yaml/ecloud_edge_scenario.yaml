@@ -112,9 +112,10 @@ edge_base: &edge_base
   stage_duration: 10 # how long should the leader keeps in the current velocity stag
   target_speed: 55 # kph
   num_lanes: 4
-  edge_dt: 0.200
+  edge_dt: 0.200 # use this and base dt to figure out how often to request updates of WP
   search_dt: 2.00
   edge_sets_destination: true # otherwise, edge sets WP
+
 # define the background traffic control by carla
 carla_traffic_manager:
   sync_mode: true # has to be same as the world setting
@@ -137,7 +138,7 @@ scenario:
       members:
         - <<: *vehicle_base
           spawn_position: [-39.52, -22.79, 0.3, 0, 180, 0]
-          destination: [-147.759079, -22.39, 0]
+          destination: [-147.759079, -22.39, 0] # should not be required, because uses edge destination
           sensing:
             <<: *base_sensing
             perception:

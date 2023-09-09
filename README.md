@@ -150,8 +150,7 @@ Scenario
 scenario:
   ecloud: 
     num_cars: 128
-    spawn_type: random # random || explicit
-    destination_type: explicit # random || explicit
+    location_type: random # random || explicit - applies to Spawn & 
     done_behavior: destroy # destroy || control
   single_cav_list: 
     - <<: *vehicle_base
@@ -165,4 +164,21 @@ scenario:
           <<: *base_local_planner
           debug_trajectory: true
           debug: true
+```
+
+```yaml
+ #define the platoon basic characteristics
+edge_base: &edge_base
+  max_capacity: 10
+  inter_gap: 0.6 # desired time gap
+  open_gap: 1.2 # open gap
+  warm_up_speed: 55 # required speed before cooperative merging
+  change_leader_speed: true # whether to assign leader multiple speed to follow
+  leader_speeds_profile: [ 85, 95 ] # different speed for leader to follow
+  stage_duration: 10 # how long should the leader keeps in the current velocity stag
+  target_speed: 55 # kph
+  num_lanes: 4
+  edge_dt: 0.200 # use this and base dt to figure out how often to request updates of WP
+  search_dt: 2.00
+  edge_sets_destination: true # otherwise, edge sets WP
 ```
