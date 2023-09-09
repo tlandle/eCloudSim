@@ -8,6 +8,7 @@ message Empty {}
 message Ping {
   int32 tick_id = 1; // use as bool for server
   Command command = 2;
+  google.protobuf.Timestamp sm_start_tstamp = 3;
 }
 
 enum State {
@@ -45,7 +46,7 @@ message SimulationState {
   string version = 6;
   Command command = 7;
   repeated WaypointBuffer all_waypoint_buffers = 8;
-  google.protobuf.Timestamp tstamp = 9;
+  google.protobuf.Timestamp sm_start_tstamp = 9;
 }
 
 message WaypointBuffer {
@@ -134,9 +135,9 @@ message VehicleUpdate {
   LocDebugHelper loc_debug_helper = 6;
   PlanerDebugHelper planer_debug_helper = 7;
   ClientDebugHelper client_debug_helper = 8;
-  google.protobuf.Timestamp tstamp1 = 9;
-  google.protobuf.Timestamp tstamp2 = 10; 
-  google.protobuf.Timestamp tstamp3 = 11;
+  google.protobuf.Timestamp sm_start_tstamp = 9;
+  google.protobuf.Timestamp client_start_tstamp = 10; 
+  google.protobuf.Timestamp client_end_tstamp = 11;
 }
 
 message EcloudResponse {
