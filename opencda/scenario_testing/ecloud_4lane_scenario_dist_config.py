@@ -16,6 +16,7 @@ DO NOT USE for 2-Lane Free
 
 # Core
 import os
+import time
 
 # 3rd Party
 import carla
@@ -101,10 +102,15 @@ def run_scenario(opt, config_yaml):
             
             else:    
                 # non-dist will break automatically; don't need to set flag
+                pre_client_tick_time = time.time()
                 for i, single_cav in enumerate(single_cav_list):
                     single_cav.update_info()
                     control = single_cav.run_step()
                     single_cav.vehicle.apply_control(control)
+                post_client_tick_time = time.time()
+                print("Client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
+                if step > 0: # discard the first tick as startup is a major outlier
+                    scenario_manager.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
             # same for dist / non-dist - only required for specate
             transform = single_cav_list[0].vehicle.get_transform()
