@@ -26,6 +26,8 @@ from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 
+from opencda.core.common.ecloud_config import EcloudConfig, eLocationType, eDoneBehavior
+
 # gRPC
 from concurrent.futures import ThreadPoolExecutor
 import coloredlogs, logging
@@ -117,8 +119,8 @@ def arg_parse():
                              'Set it to true only when you have installed the pytorch/sklearn package.')
     parser.add_argument('-i', "--ipaddress", type=str, default=CARLA_IP,
                         help="Specifies the ip address of the server to connect to. [Default: localhost]")
-    parser.add_argument('-p', "--port", type=int, default=5555,
-                        help="Specifies the port to connect to. [Default: 5555]")
+    parser.add_argument('-p', "--port", type=int, default=50052,
+                        help="Specifies the port to connect to. [Default: 50052]")
     parser.add_argument('-v', "--verbose", action="store_true",
                             help="Make more noise")
     parser.add_argument('-q', "--quiet", action="store_true",
@@ -134,7 +136,13 @@ async def main():
     tick_id = 0
     state = ecloud.State.UNDEFINED #do we need a global state?
     reported_done = False
-    SLEEP_TIME = .005
+
+    # TODO: config override
+    SPAWN_SLEEP_TIME = 0.05
+    TICK_SLEEP_TIME = 0.01
+    WORLD_TIME_SLEEP_FACTOR = 0.9
+    NUM_SERVERS = 2
+    done_behavior = eDoneBehavior.CONTROL
 
     opt = arg_parse()
     if opt.verbose:
@@ -146,7 +154,7 @@ async def main():
     logging.basicConfig()
 
     channel = grpc.aio.insecure_channel(
-        target=f"{CARLA_IP}:50051",
+        target=f"{CARLA_IP}:{opt.port}",
         options=[
             ("grpc.lb_policy_name", "pick_first"),
             ("grpc.enable_retries", 0),
@@ -175,12 +183,6 @@ async def main():
     scenario_yaml = json.loads(test_scenario) #load_yaml(test_scenario)
     vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, carla_version=version)
 
-    vehicle_count = None
-    if 'single_cav_list' in scenario_yaml['scenario']:
-        vehicle_count = len(scenario_yaml['scenario']['single_cav_list'])
-        SLEEP_TIME = SLEEP_TIME * vehicle_count
-        logger.info(f"SLEEP_TIME: {SLEEP_TIME}")
-
     target_speed = None
     edge_sets_destination = False
     if 'edge_list' in scenario_yaml['scenario']:
@@ -194,11 +196,12 @@ async def main():
 
     ecloud_update = await send_carla_data_to_opencda(ecloud_server, vehicle_index, actor_id, vid)
 
-    if vehicle_count is not None and vehicle_index >= (vehicle_count//2):
+    server_port = vehicle_index % NUM_SERVERS
+    if server_port != 0:
         logger.info("connecting to secondary server...")
         await channel.close()
         channel = grpc.aio.insecure_channel(
-            target=f"{CARLA_IP}:50053",
+            target=f"{CARLA_IP}:{int(opt.port) + server_port}",
             options=[
                 ("grpc.lb_policy_name", "pick_first"),
                 ("grpc.enable_retries", 0),
@@ -208,15 +211,13 @@ async def main():
         ecloud_server = ecloud_rpc.EcloudStub(channel)
 
     while 1:
+            await asyncio.sleep(SPAWN_SLEEP_TIME)
             ping = ecloud.Ping()
             ping.tick_id = tick_id
             pong = await ecloud_server.Client_Ping(ping)
-            await asyncio.sleep(SLEEP_TIME) # we don't want to spam the server here
             if pong.tick_id != tick_id:
                 tick_id = pong.tick_id
                 break
-
-            SLEEP_TIME = SLEEP_TIME * 0.5 if SLEEP_TIME >= 0.015 else SLEEP_TIME
 
     if not edge_sets_destination:
         cav_config = scenario_yaml['scenario']['single_cav_list'][vehicle_index]
@@ -230,8 +231,7 @@ async def main():
                 clean=True)
 
     tick_time = []
-    ORIGINAL_SLEEP = SLEEP_TIME
-    logger.info("beginning scenario tick flow")
+    logger.info(f"vehicle {vehicle_index} beginning scenario tick flow")
     while state != ecloud.State.ENDED:   
         
         vehicle_update = ecloud.VehicleUpdate()
@@ -316,6 +316,8 @@ async def main():
                 should_run_step = True
 
             if should_run_step:
+                if reported_done:
+                   target_speed = 0 
                 control = vehicle_manager.run_step(target_speed=target_speed)
                 logger.debug("run_step complete")
 
@@ -328,7 +330,11 @@ async def main():
             if should_run_step:
                 if control is None or vehicle_manager.is_close_to_scenario_destination():
                     vehicle_update.vehicle_state = ecloud.VehicleState.TICK_DONE
-                    serialize_debug_info(vehicle_update, vehicle_manager)
+                    if not reported_done:
+                        serialize_debug_info(vehicle_update, vehicle_manager)
+
+                    if control is not None and done_behavior == eDoneBehavior.CONTROL:
+                        vehicle_manager.apply_control(control)
 
                 else:
                     vehicle_manager.apply_control(control)
@@ -340,7 +346,6 @@ async def main():
             else:
                 vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK # TODO: make a WP error status
 
-            
             #cur_location = vehicle_manager.vehicle.get_location()
             #logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")   
 
@@ -350,17 +355,17 @@ async def main():
             break
         
         # block waiting for a response
-        if not reported_done:
-            ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
+        if not reported_done or done_behavior == eDoneBehavior.CONTROL:
+            if not reported_done:
+                ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
+            await asyncio.sleep(WORLD_TIME_SLEEP_FACTOR * ecloud_update.last_world_tick_time_ms / 1000)
             done_time = time.time()
             count = 1
-            while vehicle_update.vehicle_state != ecloud.VehicleState.TICK_DONE and vehicle_update.vehicle_state != ecloud.VehicleState.DEBUG_INFO_UPDATE: # poll
-                start_time = time.time()
-                await asyncio.sleep(SLEEP_TIME)
+            # poll the server
+            while vehicle_update.vehicle_state != ecloud.VehicleState.TICK_DONE and vehicle_update.vehicle_state != ecloud.VehicleState.DEBUG_INFO_UPDATE:
                 ping = ecloud.Ping()
                 ping.tick_id = tick_id
                 pong = await ecloud_server.Client_Ping(ping)
-                #logger.debug(f"received ping.tick_id {pong.tick_id} | have tick_id {tick_id}")
                 if pong.tick_id != tick_id:
                     tick_id = pong.tick_id
 
@@ -368,29 +373,30 @@ async def main():
                         ecloud_update.command = ecloud.Command.REQUEST_DEBUG_INFO
 
                     end_time = time.time()
-                    logger.info(f"polled {count} times over {(end_time - done_time)*1000}ms with final poll taking {(end_time - start_time)*1000}ms")
+                    logger.info(f"polled {count} times over {(end_time - done_time)*1000}ms")
                     break
 
+                await asyncio.sleep(TICK_SLEEP_TIME)
                 count += 1
-                SLEEP_TIME = SLEEP_TIME * 0.5 if SLEEP_TIME >= 0.015 else SLEEP_TIME
-
-            SLEEP_TIME = ORIGINAL_SLEEP
 
             #logger.debug(f"received tick: {tick_id}")
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
-                reported_done = True
+                if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and ecloud_update.command == ecloud.Command.REQUEST_DEBUG_INFO:
+                    # we were asked for debug data and provided it, so NOW we exit
+                    # TODO: this is better handled by done
+                    break
+                else:
+                    reported_done = True
+                
         
         else: # done
-            logger.info("arrived at destination. exiting.")
-            sys.exit(0)
+            break
 
     # end while    
     
-    # vehicle_manager.destroy() # let the scenario manager destroy...
-    #_socket.close()
+    vehicle_manager.destroy()  
     logger.info("scenario complete. exiting.")
     sys.exit(0)
-    logger.info("this should not print...")
 
 if __name__ == '__main__':
     try:

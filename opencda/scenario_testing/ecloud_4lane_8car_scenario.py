@@ -79,11 +79,8 @@ def run_scenario(opt, config_yaml):
         if opt.record:
             scenario_manager.client.stop_recorder()
 
-        scenario_manager.close()
-
+        scenario_manager.close(single_cav_list[0])
         for platoon in platoon_list:
             platoon.destroy()
-        for cav in single_cav_list:
-            cav.destroy()
         for v in bg_veh_list:
             v.destroy()

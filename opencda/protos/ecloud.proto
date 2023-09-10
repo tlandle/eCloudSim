@@ -54,6 +54,15 @@ message SimulationState {
   Command command = 7;
   repeated WaypointBuffer all_waypoint_buffers = 8;
   google.protobuf.Timestamp sm_start_tstamp = 9;
+  int32 last_world_tick_time_ms = 10;
+}
+
+message WaypointRequest {
+  int32 vehicle_index = 1;
+}
+
+message EdgeWaypoints {
+  repeated WaypointBuffer all_waypoint_buffers = 1;
 }
 
 message WaypointBuffer {
@@ -156,10 +165,12 @@ service Ecloud {
   rpc Client_SendUpdate (VehicleUpdate) returns (SimulationState);
   rpc Client_RegisterVehicle (VehicleUpdate) returns (SimulationState);
   rpc Client_Ping (Ping) returns (Ping);
+  rpc Client_GetWaypoints(WaypointRequest) returns (WaypointBuffer);
   // SERVER
   rpc Server_DoTick(SimulationState) returns (EcloudResponse);
   rpc Server_StartScenario(SimulationState) returns (EcloudResponse);
   rpc Server_EndScenario(Empty) returns (Empty);
   rpc Server_Ping(Empty) returns (Ping);
   rpc Server_GetVehicleUpdates(Empty) returns (EcloudResponse);
+  rpc Server_PushEdgeWaypoints(EdgeWaypoints) returns (Empty);
 }
