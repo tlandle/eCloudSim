@@ -39,13 +39,44 @@ RESULT_END = 2 # Step resulted in the vehicle simulation ending
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
 
+# once we have all methods, we no longer need any reference to the actual actor in ecloud
 class ActorProxy(object):
     def __init__(self,
                  id = 0):
         self.id = id
+        self.transform = carla.Transform(
+                carla.Location(
+                    x=0,
+                    y=0,
+                    z=0),
+                carla.Rotation(
+                    yaw=0,
+                    roll=0,
+                    pitch=0))
+        self.velocity = carla.Vector3D(x=0, y=0, z=0)
 
     def is_proxy(self):
         return True
+    
+    def get_transform(self):
+        return self.transform
+    
+    def set_transform(self, transform):
+        self.transform = transform
+
+    def get_location(self):
+        # need to return Carla.location
+        return self.transform.location
+    
+    def set_location(self, location):
+        self.transform.location = location
+
+    def get_velocity(self):
+        # need to return carla.Vector3D
+        return self.velocity
+
+    def set_velocity(self, velocity):
+        self.velocity = velocity
 
 class VehicleManagerProxy(object):
     """

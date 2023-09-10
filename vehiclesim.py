@@ -191,7 +191,7 @@ async def main():
 
     target_speed = None
     edge_sets_destination = False
-    is_edge = False
+    is_edge = False # TODO: added this to the actual protobuf message
     if 'edge_list' in scenario_yaml['scenario']:
         is_edge = True
         # TODO: support multiple edges... 
@@ -227,9 +227,8 @@ async def main():
                 tick_id = pong.tick_id
                 break
 
-    if not edge_sets_destination:
-        vehicle_manager.update_info()
-        vehicle_manager.set_destination(
+    vehicle_manager.update_info()
+    vehicle_manager.set_destination(
                 vehicle_manager.vehicle.get_location(),
                 vehicle_manager.destination_location,
                 clean=True)
@@ -347,6 +346,24 @@ async def main():
                     vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
                     vehicle_update.client_end_tstamp.GetCurrentTime()
                     #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
+
+                if is_edge:
+                    velocity = vehicle_manager.vehicle.get_velocity()
+                    pv = ecloud.Velocity()
+                    pv.x = velocity.x
+                    pv.y = velocity.y
+                    pv.z = velocity.z
+                    vehicle_update.velocity.CopyFrom(pv)
+
+                    transform = vehicle_manager.vehicle.get_transform()
+                    pt = ecloud.Transform()
+                    pt.location.x = transform.location.x
+                    pt.location.y = transform.location.y
+                    pt.location.z = transform.location.z
+                    pt.rotation.roll = transform.rotation.roll
+                    pt.rotation.yaw = transform.rotation.yaw
+                    pt.rotation.pitch = transform.rotation.pitch
+                    vehicle_update.transform.CopyFrom(pt)
             
             else:
                 vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK # TODO: make a WP error status

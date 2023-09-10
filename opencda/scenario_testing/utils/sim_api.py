@@ -191,7 +191,6 @@ class ScenarioManager:
     """
 
     tick_id = 0 # current tick counter
-    waypoint_buffer_overrides = []
 
     vehicle_managers = {}
     vehicles = {} # vehicle_index -> tuple (actor_id, vid)
@@ -201,6 +200,7 @@ class ScenarioManager:
     application = ['single']
     scenario = None
     ecloud_server = None
+    is_edge = False
 
     debug_helper = SimDebugHelper(0)
 
@@ -214,6 +214,32 @@ class ScenarioManager:
             vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( vehicle_update.loc_debug_helper )
             vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( vehicle_update.planer_debug_helper )
             vehicle_manager_proxy.debug_helper.deserialize_debug_info(vehicle_update.client_debug_helper)
+
+    async def server_unpack_vehicle_updates(self, stub_):
+        ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
+        for vehicle_update in ecloud_update.vehicle_update:
+            vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
+            if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ):
+                t = carla.Transform(
+                carla.Location(
+                    x=vehicle_update.transform.location.x,
+                    y=vehicle_update.transform.location.y,
+                    z=vehicle_update.transform.location.z),
+                carla.Rotation(
+                    yaw=vehicle_update.transform.rotation.yaw,
+                    roll=vehicle_update.transform.rotation.roll,
+                    pitch=vehicle_update.transform.rotation.pitch))
+                v = carla.Vector3D(
+                    x=vehicle_update.velocity.x, 
+                    y=vehicle_update.velocity.y, 
+                    z=vehicle_update.velocity.z)
+                vehicle_manager_proxy.vehicle.set_velocity(v)
+                vehicle_manager_proxy.vehicle.set_transform(t)
+
+    async def server_push_waypoints(self, stub_, wps_):
+        response = await stub_.Server_PushEdgeWaypoints(wps_)
+
+        return response
 
     async def server_do_tick(self, stub_, update_):
         response = await stub_.Server_DoTick(update_)
@@ -237,6 +263,9 @@ class ScenarioManager:
   
                 if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
                     await self.server_unpack_debug_data(stub_)
+
+                elif self.is_edge:
+                    await self.server_unpack_vehicle_updates(stub_)
                 
                 break
 
@@ -292,7 +321,7 @@ class ScenarioManager:
                  cav_world=None,
                  config_file=None):
                  
-        server_log_level = 0 if logger.getEffectiveLevel() == logging.DEBUG else 4
+        server_log_level = 0 if logger.getEffectiveLevel() == logging.DEBUG else 1 # 1: WARNING | 2: ERROR
         try:
             ecloud_pid = subprocess.check_output(['pgrep','ecloud_server'])
         except subprocess.CalledProcessError as e:
@@ -384,11 +413,15 @@ class ScenarioManager:
                 assert('edge_list' not in scenario_params['scenario']) # edge requires explicit
                 self.vehicle_count = scenario_params['scenario']['ecloud']['num_cars']
                 logger.debug(f"'ecloud' in YAML specified {self.vehicle_count} cars")
+            
             elif 'single_cav_list' in scenario_params['scenario']:
                 self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
+            
             elif 'edge_list' in scenario_params['scenario']:
                 # TODO: support multiple edges...
+                self.is_edge = True
                 self.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['members'])
+            
             else:
                 assert(False, "no known vehicle indexing format found")
 
@@ -404,6 +437,7 @@ class ScenarioManager:
             server_request.state = ecloud.State.START
             server_request.tick_id = self.tick_id
             server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
+            server_request.is_edge = self.is_edge
 
             print("start vehicle containers")
             ecloud_update = asyncio.get_event_loop().run_until_complete(self.server_start_scenario(self.ecloud_server, server_request))
@@ -1002,21 +1036,13 @@ class ScenarioManager:
         sim_state_update.tick_id = self.tick_id
         sim_state_update.last_world_tick_time_ms = self.last_world_tick_time_ms
         sim_state_update.command = message_type
-        if message_type == ecloud.Command.TICK:
-            for waypoint_buffer_proto in self.waypoint_buffer_overrides:
-                #logger.debug(waypoint_buffer_proto.SerializeToString())
-                sim_state_update.all_waypoint_buffers.extend([waypoint_buffer_proto])
-
+        
         logger.debug(f"Getting timestamp")
         sim_state_update.sm_start_tstamp.GetCurrentTime()
         logger.debug(f"Added Timestamp") 
 
-        ecloud_update = asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, sim_state_update))
+        asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, sim_state_update))
         
-
-        if message_type == ecloud.Command.TICK:
-            self.waypoint_buffer_overrides.clear()
-
         post_client_tick_time = time.time()
         logger.info("Client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
         if self.tick_id > 1: # discard the first tick as startup is a major outlier
@@ -1033,7 +1059,7 @@ class ScenarioManager:
         return self.broadcast_message(ecloud.Command.TICK)
 
 
-    def add_waypoint_buffer_to_tick(self, waypoint_buffer): #, vehicle_index=None, vid=None, actor_id=None):
+    def push_waypoint_buffer(self, waypoint_buffer): #, vehicle_index=None, vid=None, actor_id=None):
         """
         adds a waypoint buffer for a specific vehicle to the current tick message
 
@@ -1041,10 +1067,12 @@ class ScenarioManager:
 
         returns bool
         """
-        assert( len(self.waypoint_buffer_overrides) == 0 )
+        edge_wp = ecloud.EdgeWaypoints()
+        for wpb_proto in waypoint_buffer:
+            #logger.debug(waypoint_buffer_proto.SerializeToString())
+            edge_wp.all_waypoint_buffers.extend([wpb_proto])
 
-        # TODO: clone?
-        self.waypoint_buffer_overrides = waypoint_buffer
+        asyncio.get_event_loop().run_until_complete(self.server_push_waypoints(self.ecloud_server, edge_wp))    
 
         return True
 

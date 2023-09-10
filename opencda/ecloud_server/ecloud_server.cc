@@ -44,7 +44,6 @@ using grpc::ServerBuilder;
 using grpc::ServerUnaryReactor;
 using grpc::Status;
 
-
 using ecloud::Ecloud;
 using ecloud::EcloudResponse;
 using ecloud::VehicleUpdate;
@@ -86,6 +85,7 @@ bool repliedCars_[MAX_CARS];
 std::string carNames_[MAX_CARS];
 
 bool init_;
+bool isEdge_;
 int16_t numCars_;
 std::string configYaml_;
 std::string application_;
@@ -119,6 +119,7 @@ public:
             
             numCars_ = 0;
             configYaml_ = "";
+            isEdge_ = false;
 
             pendingReplies_.clear();
             init_ = true;
@@ -223,7 +224,7 @@ public:
                                const VehicleUpdate* request,
                                SimulationState* reply) override {
 
-        if ( request->vehicle_state() == VehicleState::TICK_DONE || request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
+        if ( isEdge_ || request->vehicle_state() == VehicleState::TICK_DONE || request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
         {   
             std::string msg;
             request->SerializeToString(&msg);
@@ -403,6 +404,7 @@ public:
         application_ = request->application();
         version_ = request->version();
         numCars_ = request->vehicle_index(); // bit of a hack to use vindex as count
+        isEdge_ = request->is_edge();
 
         assert( numCars_ <= MAX_CARS );
         DLOG(INFO) << "numCars_: " << numCars_;
@@ -452,7 +454,7 @@ void RunServer(uint16_t port) {
         10 * 1000 /*10 sec*/);
     // Finally assemble the server.
     std::unique_ptr<Server> server(builder.BuildAndStart());
-    LOG(INFO) << "Server listening on " << server_address;
+    std::cout << "Server listening on " << server_address << std::endl;
 
     // Wait for the server to shutdown. Note that some other thread must be
     // responsible for shutting down the server for this call to ever return.
@@ -471,13 +473,18 @@ int main(int argc, char* argv[]) {
             exit(EXIT_FAILURE);
     }
 
+    // 2 - std::cout << "ABSL: ERROR - " << static_cast<uint16_t>(absl::LogSeverityAtLeast::kError) << std::endl;
+    // 1 - std::cout << "ABSL: WARNING - " << static_cast<uint16_t>(absl::LogSeverityAtLeast::kWarning) << std::endl;
+    // 0 - std::cout << "ABSL: INFO - " << static_cast<uint16_t>(absl::LogSeverityAtLeast::kInfo) << std::endl;
+
     absl::ParseCommandLine(argc, argv);
-    absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(
-              absl::GetFlag(FLAGS_minloglevel)));
+    //absl::InitializeLog();
 
     std::thread vehicle_one_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_one_port));
     std::thread vehicle_two_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_two_port));
     std::thread sim_server = std::thread(&RunServer,absl::GetFlag(FLAGS_sim_port));
+
+    absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(absl::GetFlag(FLAGS_minloglevel)));
 
     vehicle_one_server.join();
     vehicle_two_server.join();

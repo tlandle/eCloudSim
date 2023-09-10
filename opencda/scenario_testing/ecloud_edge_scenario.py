@@ -83,7 +83,7 @@ def run_scenario(opt, config_yaml):
                     edge.update_information()
                     waypoint_buffer = edge.run_step()
 
-                scenario_manager.add_waypoint_buffer_to_tick(waypoint_buffer)
+                scenario_manager.push_waypoint_buffer(waypoint_buffer)
 
             flag = scenario_manager.broadcast_tick()
             

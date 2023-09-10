@@ -125,6 +125,7 @@ class VehicleManager(object):
 
         elif vehicle_index != None:
 
+            edge_sets_destination = False
             self.run_distributed = True
             if config_file != None:
                 self.scenario_params = load_yaml(config_file)
@@ -152,6 +153,8 @@ class VehicleManager(object):
                 # TODO: support multiple edges... 
                 cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
                 logger.debug(cav_config)
+                edge_sets_destination = self.scenario_params['scenario']['edge_list'][0]['edge_sets_destination'] \
+                    if 'edge_sets_destination' in self.scenario_params['scenario']['edge_list'][0] else False
 
             else:
                 assert(False, "no known vehicle indexing format found")
@@ -171,9 +174,14 @@ class VehicleManager(object):
                             roll=cav_config['spawn_position'][3]))  
 
                         self.destination = {}
-                        self.destination['x'] = cav_config['destination'][0]
-                        self.destination['y'] = cav_config['destination'][1]
-                        self.destination['z'] = cav_config['destination'][2]
+                        if edge_sets_destination:
+                            self.destination['x'] = self.scenario_params['scenario']['edge_list'][0]['destination'][0]
+                            self.destination['y'] = self.scenario_params['scenario']['edge_list'][0]['destination'][1]
+                            self.destination['z'] = self.scenario_params['scenario']['edge_list'][0]['destination'][2]
+                        else:    
+                            self.destination['x'] = cav_config['destination'][0]
+                            self.destination['y'] = cav_config['destination'][1]
+                            self.destination['z'] = cav_config['destination'][2]
 
                         self.destination_location = carla.Location(
                                 x=self.destination['x'],
@@ -196,32 +204,36 @@ class VehicleManager(object):
 
                     logger.debug(f"spawned @ {self.spawn_transform}")
 
-                    dist = 0
-                    min_dist = MIN_DESTINATION_DISTANCE_M
-                    count = 0
-                    while dist < min_dist: 
-                        destination_transform = spawn_points[random.randint(0, len(spawn_points))]
-                        destination_location = carla.Location(
-                            x=destination_transform.location.x,
-                            y=destination_transform.location.y,
-                            z=destination_transform.location.z)
-                        dist = compute_distance(destination_location, self.spawn_location)
-                        count += 1
-                        if count % 10 == 0:
-                            min_dist = min_dist / 2
+                    if location_type == eLocationType.RANDOM:
+                        dist = 0
+                        min_dist = MIN_DESTINATION_DISTANCE_M
+                        count = 0
+                        while dist < min_dist: 
+                            destination_transform = spawn_points[random.randint(0, len(spawn_points))]
+                            destination_location = carla.Location(
+                                x=destination_transform.location.x,
+                                y=destination_transform.location.y,
+                                z=destination_transform.location.z)
+                            dist = compute_distance(destination_location, self.spawn_location)
+                            count += 1
+                            if count % 10 == 0:
+                                min_dist = min_dist / 2
 
-                    logger.debug(f"it took {count} tries to find a destination that's {int(dist)}m away")
-                    self.destination_location = destination_location    
-                    self.destination = {}
-                    self.destination['x'] = destination_location.x
-                    self.destination['y'] = destination_location.y
-                    self.destination['z'] = destination_location.z
+                        logger.debug(f"it took {count} tries to find a destination that's {int(dist)}m away")
+                        self.destination_location = destination_location    
+                        self.destination = {}
+                        self.destination['x'] = destination_location.x
+                        self.destination['y'] = destination_location.y
+                        self.destination['z'] = destination_location.z
 
-                    logger.debug(f"set destination to {destination_location}")
+                    logger.debug(f"set destination to {self.destination}")
 
                     spawned = True
                 
                 except Exception as e:
+                    if f'{e}'.find("collision") != -1:
+                        raise
+                    
                     continue
 
             # teleport vehicle to desired spawn point

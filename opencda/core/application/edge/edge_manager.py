@@ -44,7 +44,7 @@ from opencda.core.application.edge.edge_debug_helper import \
     EdgeDebugHelper
 
 import grpc
-import ecloud_pb2 as sim_state
+import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as rpc
 
 class EdgeManager(object):
@@ -327,12 +327,12 @@ class EdgeManager(object):
         self.spawn_x.clear() 
         self.spawn_y.clear()
         self.spawn_v.clear()
-        start_time = time.time()
-        for i in range(len(self.vehicle_manager_list)):
-            self.vehicle_manager_list[i].update_info()
-            logger.info(f"Updated location for vehicle {i} - x:{self.vehicle_manager_list[i].vehicle.get_location().x}, y:{self.vehicle_manager_list[i].vehicle.get_location().y}")
-        end_time = time.time()
-        logger.debug("Vehicle Manager Update Info Time: %s" %(end_time - start_time))
+        # start_time = time.time()
+        # # for i in range(len(self.vehicle_manager_list)):
+        # #     self.vehicle_manager_list[i].update_info()
+        # #     logger.info(f"Updated location for vehicle {i} - x:{self.vehicle_manager_list[i].vehicle.get_location().x}, y:{self.vehicle_manager_list[i].vehicle.get_location().y}")
+        # end_time = time.time()
+        # logger.debug("Vehicle Manager Update Info Time: %s" %(end_time - start_time))
         start_time = time.time()
         for i in range(len(self.vehicle_manager_list)):
             x,y = self.processor.process_single_waypoint_forward(self.vehicle_manager_list[i].vehicle.get_location().x, self.vehicle_manager_list[i].vehicle.get_location().y)
@@ -530,7 +530,7 @@ class EdgeManager(object):
         #   # for waypoints in waypoint_buffer:
         #   #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
         #   waypoint_buffer.clear() #EDIT MADE 16/03
-            waypoint_buffer_proto = sim_state.WaypointBuffer()
+            waypoint_buffer_proto = ecloud.WaypointBuffer()
             waypoint_buffer_proto.vehicle_index = idx
 
             for k in range(0,1):

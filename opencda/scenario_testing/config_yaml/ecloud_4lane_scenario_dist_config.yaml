@@ -11,6 +11,7 @@ define: &perception_is_active false
 # define carla simulation setting
 world:
   # spectate settings
+  x_pos: 256
   z_pos: 512
   roll: 90
   sync_mode: true
@@ -33,7 +34,7 @@ ecloud:
   server_ping_time_s: 0.005 # 5ms
   client_world_time_factor: 0.9 # what percentage of last world time to wait initially
   client_ping_spawn_s: 0.05 # sleep to wait between pings after spawn
-  client_ping_tick_s: 0.01 # minimum sleep to wait between pings after spawn
+  client_ping_tick_s: 0.005 # minimum sleep to wait between pings after tick
 
 # First define the basic parameters of the vehicles
 vehicle_base: &vehicle_base
@@ -129,7 +130,7 @@ carla_traffic_manager:
 # define scenario. In this scenario, a 4-vehicle platoon already exists.
 scenario:
   ecloud: 
-    num_cars: 128
+    num_cars: 256
     location_type: random # random || explicit - applies to spawn & destination
     done_behavior: control # destroy || control
   single_cav_list: # this is for merging vehicle or single cav without v2x

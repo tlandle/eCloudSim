@@ -10,6 +10,7 @@ import argparse
 import importlib
 import os
 import sys
+import subprocess
 
 from opencda.version import __version__
 import coloredlogs, logging
@@ -37,6 +38,8 @@ def arg_parse():
                             help="Make more noise")
     parser.add_argument('-q', "--quiet", action="store_true",
                             help="Make no noise")
+    parser.add_argument('-b', "--build", action="store_true",
+                            help="Rebuild gRPC proto files")
     opt = parser.parse_args()
     return opt
 
@@ -54,6 +57,11 @@ def main():
                                'opencda/scenario_testing/config_yaml/%s.yaml' % opt.test_scenario)
     if not os.path.isfile(config_yaml):
         sys.exit("opencda/scenario_testing/config_yaml/%s.yaml not found!" % opt.test_scenario)
+
+    # eCLoud
+    if opt.build:
+        subprocess.run(['python','-m','grpc_tools.protoc','-I./opencda/protos','--python_out=.','--grpc_python_out=.','./opencda//protos/ecloud.proto'])
+    # ------
 
     scenario_runner = getattr(testing_scenario, 'run_scenario')
     # run scenario testing

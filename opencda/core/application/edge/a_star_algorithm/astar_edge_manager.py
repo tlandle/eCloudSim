@@ -47,8 +47,8 @@ from opencda.core.application.edge.a_star_algorithm.astar_test_groupcaps_transfo
 from opencda.core.application.edge.a_star_algorithm.transform_utils import *
 from opencda.core.application.edge.a_star_algorithm.a_star_carla_helper import *
 import grpc
-import sim_api_pb2 as sim_state
-import sim_api_pb2_grpc as rpc
+import ecloud_pb2 as ecloud
+import ecloud_pb2_grpc as rpc
 
 class EdgeAstarManager(EdgeManager):
     """
@@ -458,7 +458,7 @@ class EdgeAstarManager(EdgeManager):
         #   # for waypoints in waypoint_buffer:
         #   #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
         #   waypoint_buffer.clear() #EDIT MADE 16/03
-            waypoint_buffer_proto = sim_state.WaypointBuffer()
+            waypoint_buffer_proto = ecloud.WaypointBuffer()
             waypoint_buffer_proto.vehicle_index = idx
 
             for k in range(0,1):
