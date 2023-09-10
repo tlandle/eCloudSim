@@ -53,6 +53,10 @@ def run_scenario(opt, config_yaml):
         world_pitch = scenario_params['world']['pitch'] if 'pitch' in scenario_params['world'] else -90
         world_yaw = scenario_params['world']['yaw'] if 'yaw' in scenario_params['world'] else 0
 
+        run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else \
+                          True if 'ecloud' in scenario_params else \
+                          False
+
         cav_world = CavWorld(opt.apply_ml)
         # create scenario manager
         scenario_manager = sim_api.ScenarioManager(scenario_params,
@@ -60,17 +64,14 @@ def run_scenario(opt, config_yaml):
                                                    opt.version,
                                                    town=TOWN,
                                                    cav_world=cav_world,
-                                                   config_file=config_yaml)
+                                                   config_file=config_yaml,
+                                                   distributed=run_distributed)
 
         if opt.record:
             scenario_manager.client. \
                 start_recorder(LOG_NAME, True)
 
-        # create single cavs
-        run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else \
-                          True if 'ecloud' in scenario_params else \
-                          False
-        
+        # create single cavs        
         if run_distributed:
             single_cav_list = \
                 scenario_manager.create_distributed_vehicle_manager(application=['single']) 
@@ -93,19 +94,17 @@ def run_scenario(opt, config_yaml):
         step = 0 
         flag = True
         while flag:
+            print("Step: %d" %step)
+            scenario_manager.tick_world()
             if run_distributed:
-                print("Step: %d" %step)
-                scenario_manager.tick_world()
                 flag = scenario_manager.broadcast_tick()
-
-                step = step + 1
-                if(step > 250):
-                    flag = scenario_manager.broadcast_message(ecloud.Command.REQUEST_DEBUG_INFO)
-                    break
             
             else:    
                 # non-dist will break automatically; don't need to set flag
-                scenario_manager.tick()
+                for i, single_cav in enumerate(single_cav_list):
+                    single_cav.update_info()
+                    control = single_cav.run_step()
+                    single_cav.vehicle.apply_control(control)
 
             # same for dist / non-dist - only required for specate
             transform = single_cav_list[0].vehicle.get_transform()
@@ -118,7 +117,13 @@ def run_scenario(opt, config_yaml):
                 carla.Rotation(
                     yaw=world_yaw,
                     roll=world_roll,
-                    pitch=world_pitch)))                
+                    pitch=world_pitch)))   
+
+            step = step + 1
+            if step > 250:
+                if run_distributed:
+                    flag = scenario_manager.broadcast_message(ecloud.Command.REQUEST_DEBUG_INFO)
+                break             
 
     finally:
         if run_distributed:
@@ -131,6 +136,10 @@ def run_scenario(opt, config_yaml):
 
         scenario_manager.close()
   
+        if not run_distributed:
+            for v in single_cav_list:
+                v.destroy()
+
         for v in bg_veh_list:
             print("destroying background vehicle")
             try:

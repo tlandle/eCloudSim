@@ -97,59 +97,60 @@ class VehicleManager(object):
             vehicle=None,
             config_yaml=None,
             vehicle_index=None,
-            config_file=None,
             application=['single'],
+            carla_world=None,
             carla_map=None,
             cav_world=None,
             carla_version='0.9.12',
             current_time='',
             data_dumping=False,
-            location_type=eLocationType.EXPLICIT):
+            location_type=eLocationType.EXPLICIT,
+            run_distributed=False,
+            map_helper=None):
 
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
 
         self.vehicle_index = vehicle_index
         self.location_type = location_type
+        self.run_distributed = run_distributed
+        self.scenario_params = config_yaml
+        self.carla_version = carla_version
+
+        # set random seed if stated
+        seed = time.time()
+        if 'seed' in config_yaml['world']:
+            seed = config_yaml['world']['seed']
+        
+        if self.location_type == eLocationType.RANDOM:
+            assert( 'seed' in config_yaml['world'] )
+            seed = seed + self.vehicle_index # speeds up finding a start because we don't get a guaranteed collision with the same seed so every vehicle will at least try a different spawn point to start
+
+        np.random.seed(seed)
+        random.seed(seed)
+
+        cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
+                        else self.scenario_params['scenario']['single_cav_list'][0]
 
         # ORIGINAL FLOW
 
-        if vehicle != None and config_yaml != None and carla_map != None:
-
-            cav_config = config_yaml
-            self.vehicle = vehicle
+        if run_distributed == False:
+            assert( carla_world is not None )
+            self.world = carla_world
             self.carla_map = carla_map
-            self.run_distributed = False
             
         # eCLOUD BEGIN
 
-        elif vehicle_index != None:
+        else: # run_distributed == True
 
             edge_sets_destination = False
-            self.run_distributed = True
-            if config_file != None:
-                self.scenario_params = load_yaml(config_file)
-            elif config_yaml != None:
-                self.scenario_params = config_yaml
-            else:
-                assert(False, "need to pass a YAML file or dict")
 
-            self.initialize_process() # random is seeded here
+            self.initialize_process() # get world & map info
             self.carla_version = carla_version
-
-            # By default, we use lincoln as our cav model.
-            default_model = 'vehicle.lincoln.mkz2017' \
-                if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
-
-            cav_vehicle_bp = \
-                self.world.get_blueprint_library().find(default_model)
 
             # if the spawn position is a single scalar, we need to use map
             # helper to transfer to spawn transform
-            if 'single_cav_list' in self.scenario_params['scenario']:
-                cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
-                                else self.scenario_params['scenario']['single_cav_list'][0]
-            elif 'edge_list' in self.scenario_params['scenario']:
+            if 'edge_list' in self.scenario_params['scenario']:
                 # TODO: support multiple edges... 
                 cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
                 logger.debug(cav_config)
@@ -159,89 +160,91 @@ class VehicleManager(object):
             else:
                 assert(False, "no known vehicle indexing format found")
             
-            spawned = False
-            while not spawned:
-                try:
-                    if location_type == eLocationType.EXPLICIT:
-                        self.spawn_transform = carla.Transform(
-                        carla.Location(
-                            x=cav_config['spawn_position'][0],
-                            y=cav_config['spawn_position'][1],
-                            z=cav_config['spawn_position'][2]),
-                        carla.Rotation(
-                            pitch=cav_config['spawn_position'][5],
-                            yaw=cav_config['spawn_position'][4],
-                            roll=cav_config['spawn_position'][3]))  
+        spawned = False
+        while not spawned:
+            try:
+                if 'spawn_special' in cav_config:
+                    self.spawn_transform = map_helper(self.carla_version,
+                                             *cav_config['spawn_special'])
+                elif location_type == eLocationType.EXPLICIT:
+                    self.spawn_transform = carla.Transform(
+                    carla.Location(
+                        x=cav_config['spawn_position'][0],
+                        y=cav_config['spawn_position'][1],
+                        z=cav_config['spawn_position'][2]),
+                    carla.Rotation(
+                        pitch=cav_config['spawn_position'][5],
+                        yaw=cav_config['spawn_position'][4],
+                        roll=cav_config['spawn_position'][3]))  
 
-                        self.destination = {}
-                        if edge_sets_destination:
-                            self.destination['x'] = self.scenario_params['scenario']['edge_list'][0]['destination'][0]
-                            self.destination['y'] = self.scenario_params['scenario']['edge_list'][0]['destination'][1]
-                            self.destination['z'] = self.scenario_params['scenario']['edge_list'][0]['destination'][2]
-                        else:    
-                            self.destination['x'] = cav_config['destination'][0]
-                            self.destination['y'] = cav_config['destination'][1]
-                            self.destination['z'] = cav_config['destination'][2]
+                    self.destination = {}
+                    if edge_sets_destination:
+                        self.destination['x'] = self.scenario_params['scenario']['edge_list'][0]['destination'][0]
+                        self.destination['y'] = self.scenario_params['scenario']['edge_list'][0]['destination'][1]
+                        self.destination['z'] = self.scenario_params['scenario']['edge_list'][0]['destination'][2]
+                    else:    
+                        self.destination['x'] = cav_config['destination'][0]
+                        self.destination['y'] = cav_config['destination'][1]
+                        self.destination['z'] = cav_config['destination'][2]
 
-                        self.destination_location = carla.Location(
-                                x=self.destination['x'],
-                                y=self.destination['y'],
-                                z=self.destination['z'])  
-                        
-                    elif location_type == eLocationType.RANDOM:
-                        spawn_points = self.world.get_map().get_spawn_points()
-                        self.spawn_transform = spawn_points[random.randint(0, len(spawn_points))]
-                        self.spawn_location = carla.Location(
-                                x=self.spawn_transform.location.x,
-                                y=self.spawn_transform.location.y,
-                                z=self.spawn_transform.location.z)
-                        
-                    elif config_file != None:
-                        assert( False, "['spawn_special'] not supported in eCloud currently")
-
-                    cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-                    self.vehicle = self.world.spawn_actor(cav_vehicle_bp, self.spawn_transform)
-
-                    logger.debug(f"spawned @ {self.spawn_transform}")
-
-                    if location_type == eLocationType.RANDOM:
-                        dist = 0
-                        min_dist = MIN_DESTINATION_DISTANCE_M
-                        count = 0
-                        while dist < min_dist: 
-                            destination_transform = spawn_points[random.randint(0, len(spawn_points))]
-                            destination_location = carla.Location(
-                                x=destination_transform.location.x,
-                                y=destination_transform.location.y,
-                                z=destination_transform.location.z)
-                            dist = compute_distance(destination_location, self.spawn_location)
-                            count += 1
-                            if count % 10 == 0:
-                                min_dist = min_dist / 2
-
-                        logger.debug(f"it took {count} tries to find a destination that's {int(dist)}m away")
-                        self.destination_location = destination_location    
-                        self.destination = {}
-                        self.destination['x'] = destination_location.x
-                        self.destination['y'] = destination_location.y
-                        self.destination['z'] = destination_location.z
-
-                    logger.debug(f"set destination to {self.destination}")
-
-                    spawned = True
-                
-                except Exception as e:
-                    if COLLISION_ERROR not in f'{e}':
-                        raise
+                    self.destination_location = carla.Location(
+                            x=self.destination['x'],
+                            y=self.destination['y'],
+                            z=self.destination['z'])  
                     
-                    continue
+                elif location_type == eLocationType.RANDOM:
+                    spawn_points = self.world.get_map().get_spawn_points()
+                    self.spawn_transform = spawn_points[random.randint(0, len(spawn_points))]
+                    self.spawn_location = carla.Location(
+                            x=self.spawn_transform.location.x,
+                            y=self.spawn_transform.location.y,
+                            z=self.spawn_transform.location.z)
+                
+                # By default, we use lincoln as our cav model.
+                default_model = 'vehicle.lincoln.mkz2017' \
+                    if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
 
-            # teleport vehicle to desired spawn point
-            # self.vehicle.set_transform(spawn_transform)
-            # self.world.tick()
+                cav_vehicle_bp = self.world.get_blueprint_library().find(default_model)
+                cav_vehicle_bp.set_attribute('color', '0, 0, 255')
+                self.vehicle = self.world.spawn_actor(cav_vehicle_bp, self.spawn_transform)
 
-        else:
-            assert( False, "need to provide some known config" )
+                logger.debug(f"spawned @ {self.spawn_transform}")
+
+                if location_type == eLocationType.RANDOM:
+                    dist = 0
+                    min_dist = MIN_DESTINATION_DISTANCE_M
+                    count = 0
+                    while dist < min_dist: 
+                        destination_transform = spawn_points[random.randint(0, len(spawn_points))]
+                        destination_location = carla.Location(
+                            x=destination_transform.location.x,
+                            y=destination_transform.location.y,
+                            z=destination_transform.location.z)
+                        dist = compute_distance(destination_location, self.spawn_location)
+                        count += 1
+                        if count % 10 == 0:
+                            min_dist = min_dist / 2
+
+                    logger.debug(f"it took {count} tries to find a destination that's {int(dist)}m away")
+                    self.destination_location = destination_location    
+                    self.destination = {}
+                    self.destination['x'] = destination_location.x
+                    self.destination['y'] = destination_location.y
+                    self.destination['z'] = destination_location.z
+
+                logger.debug(f"set destination to {self.destination}")
+
+                spawned = True
+            
+            except Exception as e:
+                if COLLISION_ERROR not in f'{e}':
+                    raise
+                
+                continue
+
+        # teleport vehicle to desired spawn point
+        # self.vehicle.set_transform(spawn_transform)
+        # self.world.tick()
 
         # eCLOUD END    
 
@@ -305,18 +308,6 @@ class VehicleManager(object):
 
     def initialize_process(self):
         simulation_config = self.scenario_params['world']
-
-        # set random seed if stated
-        seed = time.time()
-        if 'seed' in simulation_config:
-            seed = simulation_config['seed']
-        
-        if self.location_type == eLocationType.RANDOM:
-            assert( 'seed' in simulation_config )
-            seed = seed + self.vehicle_index # speeds up finding a start because we don't get a guaranteed collision with the same seed so every vehicle will at least try a different spawn point to start
-
-        np.random.seed(seed)
-        random.seed(seed)
 
         self.client = \
             carla.Client(CARLA_IP, simulation_config['client_port'])

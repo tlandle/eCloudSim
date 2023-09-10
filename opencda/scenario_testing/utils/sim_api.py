@@ -322,34 +322,34 @@ class ScenarioManager:
                  xodr_path=None,
                  town=None,
                  cav_world=None,
-                 config_file=None):
-                 
-        server_log_level = 0 if logger.getEffectiveLevel() == logging.DEBUG else 1 # 1: WARNING | 2: ERROR
-        try:
-            ecloud_pid = subprocess.check_output(['pgrep','ecloud_server'])
-        except subprocess.CalledProcessError as e:
-            if e.returncode > 1:
-                raise
-            ecloud_pid = None
-        if ecloud_pid != None:
-            logger.info(f'killing exiting ecloud gRPC server process')
-            subprocess.run(['pkill','-9','ecloud_server'])
+                 config_file=None,
+                 distributed=False):
 
-        self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'])
+        self.run_distributed = distributed
+        if distributed:
+            server_log_level = 0 if logger.getEffectiveLevel() == logging.DEBUG else 1 # 1: WARNING | 2: ERROR
+            try:
+                ecloud_pid = subprocess.check_output(['pgrep','ecloud_server'])
+            except subprocess.CalledProcessError as e:
+                if e.returncode > 1:
+                    raise
+                ecloud_pid = None
+            if ecloud_pid != None:
+                logger.info(f'killing exiting ecloud gRPC server process')
+                subprocess.run(['pkill','-9','ecloud_server'])
+
+            self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'])
 
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.config_file = config_file
         self.perception = scenario_params['perception_active'] if 'perception_active' in scenario_params else False
-        self.run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else \
-                               True if 'ecloud' in scenario_params else False
-
+        
         simulation_config = scenario_params['world']
         
         cav_world.update_scenario_manager(self)
 
         random.seed(time.time())
-
         # set random seed if stated
         if 'seed' in simulation_config:
             np.random.seed(simulation_config['seed'])
@@ -397,6 +397,23 @@ class ScenarioManager:
         self.apply_ml = apply_ml
 
         # eCLOUD BEGIN
+
+        if 'ecloud' in scenario_params['scenario'] and 'num_cars' in scenario_params['scenario']['ecloud']:
+            assert('edge_list' not in scenario_params['scenario']) # edge requires explicit
+            self.vehicle_count = scenario_params['scenario']['ecloud']['num_cars']
+            logger.debug(f"'ecloud' in YAML specified {self.vehicle_count} cars")
+        
+        elif 'single_cav_list' in scenario_params['scenario']:
+            self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
+        
+        elif 'edge_list' in scenario_params['scenario']:
+            # TODO: support multiple edges...
+            self.is_edge = True
+            self.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['members'])
+        
+        else:
+            assert(False, "no known vehicle indexing format found")
+
         if self.run_distributed:
             self.apply_ml = False
             if apply_ml == True:
@@ -411,22 +428,6 @@ class ScenarioManager:
                 ],
             )
             self.ecloud_server = ecloud_rpc.EcloudStub(channel)
-
-            if 'ecloud' in scenario_params['scenario'] and 'num_cars' in scenario_params['scenario']['ecloud']:
-                assert('edge_list' not in scenario_params['scenario']) # edge requires explicit
-                self.vehicle_count = scenario_params['scenario']['ecloud']['num_cars']
-                logger.debug(f"'ecloud' in YAML specified {self.vehicle_count} cars")
-            
-            elif 'single_cav_list' in scenario_params['scenario']:
-                self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
-            
-            elif 'edge_list' in scenario_params['scenario']:
-                # TODO: support multiple edges...
-                self.is_edge = True
-                self.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['members'])
-            
-            else:
-                assert(False, "no known vehicle indexing format found")
 
             ScenarioManager.debug_helper.update_sim_start_timestamp(time.time())
 
@@ -456,6 +457,9 @@ class ScenarioManager:
             self.world.tick()
 
             logger.debug("eCloud debug: pushed START")
+
+        else: # sequential
+            ScenarioManager.debug_helper.update_sim_start_timestamp(time.time())
 
         # eCLOUD END
 
@@ -506,55 +510,29 @@ class ScenarioManager:
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        print('Creating single CAVs.')
-        # By default, we use lincoln as our cav model.
-        default_model = 'vehicle.lincoln.mkz2017' \
-            if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
-
-        cav_vehicle_bp = \
-            self.world.get_blueprint_library().find(default_model)
+        logger.info('Creating single CAVs.')
+        config_yaml = load_yaml(self.config_file)
+        ecloud_config = EcloudConfig(config_yaml, logger)
         single_cav_list = []
-
-        for i, cav_config in enumerate(
-                self.scenario_params['scenario']['single_cav_list']):
-
-            # if the spawn position is a single scalar, we need to use map
-            # helper to transfer to spawn transform
-            if 'spawn_special' not in cav_config:
-                spawn_transform = carla.Transform(
-                    carla.Location(
-                        x=cav_config['spawn_position'][0],
-                        y=cav_config['spawn_position'][1],
-                        z=cav_config['spawn_position'][2]),
-                    carla.Rotation(
-                        pitch=cav_config['spawn_position'][5],
-                        yaw=cav_config['spawn_position'][4],
-                        roll=cav_config['spawn_position'][3]))
-            else:
-                spawn_transform = map_helper(self.carla_version,
-                                             *cav_config['spawn_special'])
-
-            cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-            vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
+        for vehicle_index in range(self.vehicle_count):
 
             # create vehicle manager for each cav
             vehicle_manager = VehicleManager(
-                vehicle=vehicle, config_yaml=cav_config, application=application,
+                vehicle_index=vehicle_index, carla_world=self.world, 
+                config_yaml=self.scenario_params, application=application,
                 carla_map=self.carla_map, cav_world=self.cav_world,
                 current_time=self.scenario_params['current_time'],
-                data_dumping=data_dump)
+                data_dumping=data_dump, map_helper=map_helper,
+                location_type=ecloud_config.get_location_type())
 
             self.world.tick()
 
             vehicle_manager.v2x_manager.set_platoon(None)
-
-            destination = carla.Location(x=cav_config['destination'][0],
-                                         y=cav_config['destination'][1],
-                                         z=cav_config['destination'][2])
+            
             vehicle_manager.update_info()
             vehicle_manager.set_destination(
                 vehicle_manager.vehicle.get_location(),
-                destination,
+                vehicle_manager.destination_location,
                 clean=True)
 
             single_cav_list.append(vehicle_manager)
@@ -637,7 +615,6 @@ class ScenarioManager:
             platoon_list.append(platoon_manager)
 
         return platoon_list
-
 
     def spawn_vehicles_by_list(self, tm, traffic_config, bg_list):
         """

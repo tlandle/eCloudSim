@@ -115,9 +115,6 @@ class VehicleManagerProxy(object):
         self.current_time = current_time
         self.vehicle_index = vehicle_index
 
-        if self.vehicle_index == 0: # spectator
-            self.initialize_process(config_yaml)
-
         # an unique uuid for this vehicle
 #        self.vid = str(uuid.uuid1())
         self.carla_map = carla_map
@@ -176,44 +173,3 @@ class VehicleManagerProxy(object):
             self.data_dumper = None
 
         self.cav_world.update_vehicle_manager(self)
-
-    def initialize_process(self, config_yaml):
-        simulation_config = config_yaml['world']
-
-        # set random seed if stated
-        if 'seed' in simulation_config:
-            np.random.seed(simulation_config['seed'])
-            random.seed(simulation_config['seed'])
-
-        self.client = \
-            carla.Client(CARLA_IP, simulation_config['client_port'])
-        self.client.set_timeout(10.0)
-        self.world = self.client.get_world()
-        self.carla_map = self.world.get_map()
-
-    def is_process_running(self, processName):
-        '''
-        Check if there is any running process that contains the given name processName.
-        '''
-        #Iterate over the all the running process
-        for proc in psutil.process_iter():
-            try:
-                # Check if process name contains the given name string.
-                if processName.lower() in proc.name().lower():
-                    return True
-
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                pass
-
-        print(f"{processName} is no longer running...")
-        return False
-
-    def destroy(self):
-        """
-        Destroy the actor vehicle
-        """
-        if self.is_process_running("CarlaUE4"):
-            self.perception_manager.destroy()
-            self.localizer.destroy()
-            self.vehicle.destroy()
-            #self._socket.close()
