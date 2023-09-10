@@ -121,7 +121,6 @@ class VehicleManager(object):
             self.carla_map = carla_map
             self.run_distributed = False
             
-
         # eCLOUD BEGIN
 
         elif vehicle_index != None:
@@ -191,7 +190,7 @@ class VehicleManager(object):
                         
                     elif location_type == eLocationType.RANDOM:
                         spawn_points = self.world.get_map().get_spawn_points()
-                        self.spawn_transform = spawn_points[random.randint(0, len(spawn_points)) % ( vehicle_index + 1 )] # speeds up finding a start because we don't get a guaranteed collision with the same seed so every vehicle will at least try a different spawn point to start
+                        self.spawn_transform = spawn_points[random.randint(0, len(spawn_points))]
                         self.spawn_location = carla.Location(
                                 x=self.spawn_transform.location.x,
                                 y=self.spawn_transform.location.y,
@@ -210,7 +209,7 @@ class VehicleManager(object):
                         min_dist = MIN_DESTINATION_DISTANCE_M
                         count = 0
                         while dist < min_dist: 
-                            destination_transform = spawn_points[random.randint(0, len(spawn_points)) % ( vehicle_index + 1 )] # speeds up finding a start because we don't get a guaranteed collision with the same seed so every vehicle will at least try a different spawn point to start
+                            destination_transform = spawn_points[random.randint(0, len(spawn_points))]
                             destination_location = carla.Location(
                                 x=destination_transform.location.x,
                                 y=destination_transform.location.y,
@@ -308,11 +307,16 @@ class VehicleManager(object):
         simulation_config = self.scenario_params['world']
 
         # set random seed if stated
+        seed = time.time()
+        if 'seed' in simulation_config:
+            seed = simulation_config['seed']
+        
         if self.location_type == eLocationType.RANDOM:
             assert( 'seed' in simulation_config )
-        if 'seed' in simulation_config:
-            np.random.seed(simulation_config['seed'])
-            random.seed(simulation_config['seed'])
+            seed = seed + self.vehicle_index # speeds up finding a start because we don't get a guaranteed collision with the same seed so every vehicle will at least try a different spawn point to start
+
+        np.random.seed(seed)
+        random.seed(seed)
 
         self.client = \
             carla.Client(CARLA_IP, simulation_config['client_port'])

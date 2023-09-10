@@ -256,7 +256,10 @@ async def main():
             client_start_timestamp = Timestamp()
             client_start_timestamp.GetCurrentTime()
             # update info runs BEFORE waypoint injection
+            update_info_start_time = time.time()
             vehicle_manager.update_info()
+            update_info_end_time = time.time()
+            vehicle_manager.debug_helper.update_update_info_time((update_info_end_time-update_info_start_time)*1000)
             logger.debug("update_info complete")
 
             # find waypoint buffer for our vehicle
@@ -408,10 +411,12 @@ async def main():
                 if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and last_command == ecloud.Command.REQUEST_DEBUG_INFO:
                     # we were asked for debug data and provided it, so NOW we exit
                     # TODO: this is better handled by done
+                    logger.info(f"pushed DEBUG_INFO_UPDATE")
                     break
 
                 else:
                     reported_done = True
+                    logger.info(f"reported_done")
                 
         else: # done
             break

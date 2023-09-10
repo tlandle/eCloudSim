@@ -1142,7 +1142,7 @@ class ScenarioManager:
     def evaluate_network_data(self, cumulative_stats_folder_path):
         all_network_data_lists = sum(ScenarioManager.debug_helper.network_time_dict.values(), [])
 
-        logger.error(all_network_data_lists)
+        # logger.error(all_network_data_lists)
 
         all_network_data_list_flat = np.array(all_network_data_lists)
         if all_network_data_list_flat.any():
