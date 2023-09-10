@@ -250,8 +250,8 @@ async def main():
   
         # HANDLE TICK
         elif ecloud_update.command == ecloud.Command.TICK:
-            recv_timestamp = Timestamp()
-            recv_timestamp.GetCurrentTime()
+            client_start_timestamp = Timestamp()
+            client_start_timestamp.GetCurrentTime()
             # update info runs BEFORE waypoint injection
             vehicle_manager.update_info()
             logger.debug("update_info complete")
@@ -322,8 +322,8 @@ async def main():
             vehicle_update = ecloud.VehicleUpdate()
             vehicle_update.tick_id = tick_id
             vehicle_update.vehicle_index = vehicle_index
-            vehicle_update.tstamp1.CopyFrom(recv_timestamp)
-            vehicle_update.tstamp3.CopyFrom(sim_state_update.tstamp)
+            vehicle_update.client_start_tstamp.CopyFrom(client_start_timestamp)
+            vehicle_update.sm_start_tstamp.CopyFrom(ecloud_update.sm_start_tstamp)
             
             if should_run_step:
                 if control is None or vehicle_manager.is_close_to_scenario_destination():
@@ -334,7 +334,7 @@ async def main():
                     vehicle_manager.apply_control(control)
                     logger.debug("apply_control complete")
                     vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
-                    vehicle_update.tstamp2.GetCurrentTime()
+                    vehicle_update.client_end_tstamp.GetCurrentTime()
                     #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
             
             else:

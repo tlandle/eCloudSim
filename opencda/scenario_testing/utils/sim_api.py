@@ -221,14 +221,24 @@ class ScenarioManager:
             ping = await stub_.Server_Ping(ecloud.Empty())
             if ping.tick_id == 1:
                 end_time = time.time()
-                logger.info(f"polled {count} times over a total of {(end_time - start_time)*1000}ms")
+                logger.info(f"do_tick: polled {count} times over a total of {(end_time - start_time)*1000}ms")
+                for vehicle_update in ping.timestamps:
+                  client_time = (vehicle_update.client_end_tstamp.ToNanoseconds() - vehicle_update.client_start_tstamp.ToNanoseconds()) / 1000000
+                  logger.debug(f"timestamps: {vehicle_update.client_end_tstamp.ToDatetime().time()} {vehicle_update.client_start_tstamp.ToDatetime().time()} Total client time: {client_time}")
+                  network_time = ((time.time_ns() - vehicle_update.sm_start_tstamp.ToNanoseconds())/1000000) - client_time
+                  logger.debug(f'Network Time: {network_time}')
+                  ScenarioManager.debug_helper.update_network_time_timestamp(vehicle_update.vehicle_index, network_time)
+                  logger.debug(f"Updated network")
+                  ScenarioManager.debug_helper.update_individual_client_step_time(vehicle_update.vehicle_index, (time.time_ns() - vehicle_update.sm_start_tstamp.ToNanoseconds())*1000000)
+                  logger.debug(f"Updated network time for vehicle {vehicle_update.vehicle_index}")
+  
                 break
 
             if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
                 await self.server_unpack_debug_data(stub_)
 
             count += 1
-
+        
         return response
     
     async def server_start_scenario(self, stub_, update_):
@@ -290,7 +300,7 @@ class ScenarioManager:
             logger.info(f'killing exiting ecloud gRPC server process')
             subprocess.run(['pkill','-9','ecloud'])
 
-        self.ecloud_server_process = subprocess.Popen(['./ecloud',f'--log_level={server_log_level}'])
+        self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--log_level={server_log_level}'])
 
         self.scenario_params = scenario_params
         self.carla_version = carla_version
@@ -397,7 +407,7 @@ class ScenarioManager:
                 logger.debug(f"vehicle {vehicle_update.vehicle_index} | actor_id: {vehicle_update.actor_id} & vid: {vehicle_update.vid}")
                 vehicle_tuple = ( vehicle_update.actor_id, vehicle_update.vid )
                 self.vehicles[f"vehicle_{vehicle_update.vehicle_index}"] = vehicle_tuple
-
+                
             self.world.tick()
 
             logger.debug("eCloud debug: pushed START")
@@ -988,10 +998,11 @@ class ScenarioManager:
                 sim_state_update.all_waypoint_buffers.extend([waypoint_buffer_proto])
 
         logger.debug(f"Getting timestamp")
-        sim_state_update.tstamp.GetCurrentTime()
+        sim_state_update.sm_start_tstamp.GetCurrentTime()
         logger.debug(f"Added Timestamp") 
 
-        asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, sim_state_update))
+        ecloud_update = asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, sim_state_update))
+        
 
         if message_type == ecloud.Command.TICK:
             self.waypoint_buffer_overrides.clear()
@@ -1088,18 +1099,17 @@ class ScenarioManager:
             self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_network_data(self, cumulative_stats_folder_path):
-        all_network_data_lists(sum(ScenarioManager.debug_helper.network_time_dict.values()))
+        all_network_data_lists = sum(ScenarioManager.debug_helper.network_time_dict.values(), [])
 
-        logger.debug(all_agent_data_lists)
+        logger.error(all_network_data_lists)
 
-        for idx, all_agent_sub_list in enumerate(all_agent_data_lists):
-            all_client_data_list_flat = np.array(all_agent_sub_list)
-            if all_client_data_list_flat.any():
-                all_client_data_list_flat = np.hstack(all_client_data_list_flat)
-            else:
-                all_client_data_list_flat = all_client_data_list_flat.flatten()
-            data_key = f"agent_step_list_{idx}"
-            self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
+        all_network_data_list_flat = np.array(all_network_data_lists)
+        if all_network_data_list_flat.any():
+            all_network_data_list_flat = np.hstack(all_network_data_list_flat)
+        else:
+            all_network_data_list_flat = all_network_data_list_flat.flatten()
+        data_key = f"network_latency"
+        self.do_pickling(data_key, all_network_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_client_data(self, client_data_key, cumulative_stats_folder_path):
         all_client_data_list = []
@@ -1140,6 +1150,8 @@ class ScenarioManager:
                 os.makedirs(cumulative_stats_folder_path)
 
             self.evaluate_agent_data(cumulative_stats_folder_path)
+
+            self.evaluate_network_data(cumulative_stats_folder_path)
 
             client_helper = ClientDebugHelper(0)
             debug_data_lists = client_helper.get_debug_data().keys()
