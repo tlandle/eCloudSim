@@ -960,7 +960,7 @@ class ScenarioManager:
         # create edges
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
-            edge_manager = EdgeManager(edge, self.cav_world, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt)
+            edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt)
             for vehicle_index, cav in enumerate(edge['members']):
 
                 logger.debug(f"Creating VehiceManagerProxy for vehicle {vehicle_index}")

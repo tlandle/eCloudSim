@@ -41,7 +41,7 @@ def run_scenario(opt, config_yaml):
 
         if opt.record:
             scenario_manager.client. \
-                start_recorder("ecloud_edge_26_car.log", True)
+                start_recorder("ecloud_edge_16_car.log", True)
 
         world_dt = scenario_params['world']['fixed_delta_seconds']
         edge_dt = scenario_params['edge_base']['edge_dt']
@@ -87,7 +87,7 @@ def run_scenario(opt, config_yaml):
             flag = scenario_manager.broadcast_tick()
             
             step = step + 1
-            if(step > ecloud_config.get_step_count()):
+            if step > ecloud_config.get_step_count():
                 flag = scenario_manager.broadcast_message(ecloud.Command.REQUEST_DEBUG_INFO)
                 break
 
@@ -110,6 +110,6 @@ def run_scenario(opt, config_yaml):
         if opt.record:
             scenario_manager.client.stop_recorder()       
 
-        scenario_manager.close(spectator_vehicle)
+        scenario_manager.close()
         for edge in edge_list:
             edge.destroy()

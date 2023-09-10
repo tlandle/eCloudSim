@@ -69,7 +69,7 @@ class EdgeManager(object):
         The destiantion of the current plan.
     """
 
-    def __init__(self, config_yaml, cav_world, world_dt=0.03, edge_dt=0.20, search_dt=2.00):
+    def __init__(self, config_yaml, cav_world, carla_client, world_dt=0.03, edge_dt=0.20, search_dt=2.00):
 
         self.edgeid = str(uuid.uuid1())
         self.vehicle_manager_list = []
@@ -99,6 +99,7 @@ class EdgeManager(object):
         self.processor = None
         self.secondary_offset=0
         cav_world.update_edge(self)
+        self.carla_client = carla_client
 
         self.debug_helper = EdgeDebugHelper(0)
 
@@ -142,7 +143,7 @@ class EdgeManager(object):
       self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
     
     def get_four_lane_waypoints_dict(self):
-      world = self.vehicle_manager_list[0].vehicle.get_world()
+      world = self.carla_client.get_world()
       self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
       grp = GlobalRoutePlanner(self._dao)
       grp.setup()

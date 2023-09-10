@@ -98,12 +98,6 @@ def run_scenario(opt, config_yaml):
                 scenario_manager.tick_world()
                 flag = scenario_manager.broadcast_tick()
 
-                # update the Carla data on VehicleManagerProxies
-                # REQUIRED for Evaluation which runs on Proxies' local data
-                # DO NOT WANT THIS TO RUN! SLOW!!
-                # for _, single_cav in enumerate(single_cav_list):
-                #     single_cav.update_info()
-
                 step = step + 1
                 if(step > 250):
                     flag = scenario_manager.broadcast_message(sim_state.Command.REQUEST_DEBUG_INFO)
