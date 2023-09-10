@@ -191,7 +191,7 @@ class VehicleManager(object):
                         
                     elif location_type == eLocationType.RANDOM:
                         spawn_points = self.world.get_map().get_spawn_points()
-                        self.spawn_transform = spawn_points[random.randint(0, len(spawn_points))]
+                        self.spawn_transform = spawn_points[random.randint(0, len(spawn_points)) % ( vehicle_index + 1 )] # speeds up finding a start because we don't get a guaranteed collision with the same seed so every vehicle will at least try a different spawn point to start
                         self.spawn_location = carla.Location(
                                 x=self.spawn_transform.location.x,
                                 y=self.spawn_transform.location.y,
@@ -210,7 +210,7 @@ class VehicleManager(object):
                         min_dist = MIN_DESTINATION_DISTANCE_M
                         count = 0
                         while dist < min_dist: 
-                            destination_transform = spawn_points[random.randint(0, len(spawn_points))]
+                            destination_transform = spawn_points[random.randint(0, len(spawn_points)) % ( vehicle_index + 1 )] # speeds up finding a start because we don't get a guaranteed collision with the same seed so every vehicle will at least try a different spawn point to start
                             destination_location = carla.Location(
                                 x=destination_transform.location.x,
                                 y=destination_transform.location.y,
