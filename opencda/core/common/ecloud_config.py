@@ -1,4 +1,5 @@
 from enum import Enum
+import logging
 
 class eLocationType(Enum):
     RANDOM = 0
@@ -24,12 +25,12 @@ class EcloudConfig(object):
                             CONTROL : eDoneBehavior.CONTROL }
 
 
-    def __init__(self, config_json, logger):
+    def __init__(self, config_json, logger=None):
 
         # logger.debug(f"main - test_scenario: {config_json}") # VERY verbose
 
         self.config_json = config_json
-        self.logger = logger
+        self.logger = logger if logger is not None else logging.getLogger(__name__)
         self.ecloud_base = {
             "num_servers" : 2, # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 )
             "server_ping_time_s" : 0.005, # 5ms
@@ -42,6 +43,7 @@ class EcloudConfig(object):
            "num_cars" : 0,
            "location_type" : self.EXPLICIT,
            "done_behavior" : self.DESTROY,
+           "step_count" : 250, # number of steps to take before breaking
         }
 
         if 'ecloud' in config_json:
@@ -98,3 +100,7 @@ class EcloudConfig(object):
     def get_done_behavior(self):
         self.logger.debug(f"done_behavior: {self.ecloud_scenario['done_behavior']}")
         return EcloudConfig.done_behavior_types[self.ecloud_scenario['done_behavior']]
+    
+    def get_step_count(self):
+        self.logger.debug(f"step_count: {self.ecloud_scenario['step_count']}")
+        return self.ecloud_scenario['step_count']

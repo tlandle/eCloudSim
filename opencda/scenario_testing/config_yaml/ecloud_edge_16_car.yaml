@@ -101,7 +101,14 @@ vehicle_base: &vehicle_base
     speed_noise: 0.0
     lag: 0
 
- #define the platoon basic characteristics
+ecloud:
+  num_servers: 2 # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 )
+  server_ping_time_s: 0.005 # 5ms
+  client_world_time_factor: 0.9 # what percentage of last world time to wait initially
+  client_ping_spawn_s: 0.05 # sleep to wait between pings after spawn
+  client_ping_tick_s: 0.005 # minimum sleep to wait between pings after tick
+
+#define the edge basic characteristics
 edge_base: &edge_base
   max_capacity: 10
   inter_gap: 0.6 # desired time gap
@@ -112,9 +119,10 @@ edge_base: &edge_base
   stage_duration: 10 # how long should the leader keeps in the current velocity stag
   target_speed: 55 # kph
   num_lanes: 4
-  edge_dt: 0.200
-  search_dt: 2.00
+  edge_dt: 0.210 # must be an even multiple of world_dt
+  search_dt: 2.10
   edge_sets_destination: true # otherwise, edge sets WP
+
 # define the background traffic control by carla
 carla_traffic_manager:
   sync_mode: true # has to be same as the world setting
@@ -131,6 +139,10 @@ carla_traffic_manager:
 
 # define scenario. In this scenario, a 4-vehicle platoon already exists.
 scenario:
+  ecloud: 
+    location_type: explicit # random || explicit - edge scenarios require explicit (default)
+    done_behavior: control # destroy || control
+    step_count: 250
   edge_list:
     - <<: *edge_base
       destination: [630, 131.39, 0.3]

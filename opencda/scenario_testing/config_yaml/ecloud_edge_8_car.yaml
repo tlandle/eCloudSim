@@ -142,6 +142,7 @@ scenario:
   ecloud: 
     location_type: explicit # random || explicit - edge scenarios require explicit (default)
     done_behavior: control # destroy || control
+    step_count: 250
   edge_list:
     - <<: *edge_base
       destination: [630, 131.39, 0.3] # shared by *all* vehicles when edge_sets_destination == true
