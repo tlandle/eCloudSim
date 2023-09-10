@@ -20,7 +20,6 @@
 cmake_minimum_required(VERSION 3.8)
 
 project(EcloudServer C CXX)
-
 include(../cmake/common.cmake)
 
 # Proto file
@@ -67,5 +66,9 @@ foreach(_target
     absl::log
     ${_REFLECTION}
     ${_GRPC_GRPCPP}
-    ${_PROTOBUF_LIBPROTOBUF})
+    ${_PROTOBUF_LIBPROTOBUF}
+    absl::flags
+    absl::flags_parse
+    absl::flags_usage
+  )
 endforeach()

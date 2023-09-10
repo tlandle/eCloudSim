@@ -3,7 +3,7 @@
 
 # In[1]:
 
-import sys
+
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -139,7 +139,8 @@ def create_stacked_bar_chart(data,  y, labels):
         'client_agent_update_info', 
         'client_controller_update_info', 
         'client_controller_step',  
-        'client_control']
+        'client_control',
+        'network_latency']
 
     ax = data.plot(y=y, kind='bar', stacked=True, color=colors, figsize=(11, 8))
     plt.xlabel(labels['xlabel'])
@@ -255,10 +256,8 @@ def plot_client_step_time():
     plt.clf()
 
     new_df = sim_stats_df.groupby(by='num_cars').mean()
-
     pd.options.display.max_columns = 99
     print(new_df)
-
     # Scatter plot
     # ax = create_scatter_plot(data=sim_stats_df, x='num_cars', y='step_time_ms', labels=labels)
     # save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/step_time_scatterplot.png'
@@ -397,6 +396,7 @@ def plot_client_stacked_barchart():
             "client_controller_step_time_list",
             # "client_vehicle_step_time_list", # COMPOSITE: client_agent_step_time_list + client_controller_step_time_list
             "client_control_time_list",
+            "network_latency",
     ]
     for list_name in client_debug_data:
         step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_{list_name}'
@@ -491,8 +491,6 @@ if __name__ == '__main__':
 
     # Plotting simulation step time stats
     plot_client_step_time()
-
-    sys.exit(0)
 
     # Plotting simulation step time stats
     plot_client_perception_time()

@@ -44,6 +44,7 @@ using grpc::ServerBuilder;
 using grpc::ServerUnaryReactor;
 using grpc::Status;
 
+
 using ecloud::Ecloud;
 using ecloud::EcloudResponse;
 using ecloud::VehicleUpdate;
@@ -62,6 +63,7 @@ using ecloud::LocDebugHelper;
 using ecloud::AgentDebugHelper;
 using ecloud::PlanerDebugHelper;
 using ecloud::ClientDebugHelper;
+using ecloud::Timestamps;
 using ecloud::WaypointRequest;
 using ecloud::EdgeWaypoints;
 
@@ -88,6 +90,7 @@ int16_t numCars_;
 std::string configYaml_;
 std::string application_;
 std::string version_;
+google::protobuf::Timestamp timestamp_;
 
 State simState_;
 Command command_;
@@ -95,8 +98,10 @@ Command command_;
 std::vector<std::pair<int16_t, std::string>> serializedEdgeWaypoints_; // vehicleIdx, serializedWPBuffer
 
 absl::Mutex mu_;
-std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // serialized protobuf
+absl::Mutex timestamp_mu_;
 
+std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // serialized protobuf
+std::vector<Timestamps> client_timestamps_ ABSL_GUARDED_BY(timestamp_mu_);
 // Logic and data behind the server's behavior.
 class EcloudServiceImpl final : public Ecloud::CallbackService {
 public:
@@ -117,6 +122,7 @@ public:
 
             pendingReplies_.clear();
             init_ = true;
+            client_timestamps_.clear();
         }
     }
 
@@ -160,8 +166,13 @@ public:
         else
         {
             ping->set_tick_id( complete_ ? 1 : 0 );
-            if ( complete_ )
+            if(complete_)
             {
+                timestamp_mu_.Lock();
+                //std::cout << "LOG(INFO) " << "Timestamps: " << client_timestamps_.size() << std::endl;
+                *ping->mutable_timestamps() = {client_timestamps_.begin(), client_timestamps_.end()};
+                timestamp_mu_.Unlock();
+
                 const auto now = std::chrono::system_clock::now();
                 DLOG(INFO) << "tick " << tickId_ << " complete at " << std::chrono::duration_cast<std::chrono::milliseconds>(
                     now.time_since_epoch()).count();    
@@ -239,6 +250,17 @@ public:
         }
         else if ( request->vehicle_state() == VehicleState::TICK_OK )
         {
+            Timestamps vehicle_timestamp;
+            vehicle_timestamp.set_vehicle_index(request->vehicle_index());
+            vehicle_timestamp.mutable_sm_start_tstamp()->set_seconds(timestamp_.seconds());
+            vehicle_timestamp.mutable_sm_start_tstamp()->set_nanos(timestamp_.nanos());
+            vehicle_timestamp.mutable_client_start_tstamp()->set_seconds(request->client_start_tstamp().seconds());
+            vehicle_timestamp.mutable_client_start_tstamp()->set_nanos(request->client_start_tstamp().nanos());
+            vehicle_timestamp.mutable_client_end_tstamp()->set_seconds(request->client_end_tstamp().seconds());
+            vehicle_timestamp.mutable_client_end_tstamp()->set_nanos(request->client_end_tstamp().nanos());
+            timestamp_mu_.Lock();
+            client_timestamps_.push_back(vehicle_timestamp);
+            timestamp_mu_.Unlock();
             numRepliedVehicles_++;
         }
         else if ( request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
@@ -339,10 +361,12 @@ public:
             repliedCars_[i] = false;
 
         numRepliedVehicles_ = 0;
+        client_timestamps_.clear();
         assert(tickId_ == request->tick_id() - 1);
         tickId_++;
         lastWorldTickTimeMS_.store(request->last_world_tick_time_ms());
         command_ = request->command();
+        timestamp_ = request->sm_start_tstamp();
         
         const auto now = std::chrono::system_clock::now();
         DLOG(INFO) << "received new tick " << request->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -435,7 +459,7 @@ void RunServer(uint16_t port) {
     server->Wait();
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
 
     if (signal(SIGINT, _sig_handler) == SIG_ERR) {
             fprintf(stderr, "Can't catch SIGINT...exiting.\n");

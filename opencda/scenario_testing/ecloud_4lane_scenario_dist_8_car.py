@@ -37,7 +37,7 @@ SCENARIO_NAME = "ecloud_4lane_scenario" # data drive from file name?
 TOWN = 'Town06'
 
 def run_scenario(opt, config_yaml):
-    try:
+#    try:
         scenario_params = load_yaml(config_yaml)
 
         # sanity checks...
@@ -112,7 +112,7 @@ def run_scenario(opt, config_yaml):
                     pitch=-
                     90)))                
 
-    finally:
+#    finally:
         if run_distributed:
             scenario_manager.end() # only dist requires explicit scenario end call
 
