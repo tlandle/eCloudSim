@@ -215,7 +215,7 @@ class VehicleManager(object):
                     min_dist = MIN_DESTINATION_DISTANCE_M
                     count = 0
                     while dist < min_dist: 
-                        destination_transform = spawn_points[random.randint(0, len(spawn_points))]
+                        destination_transform = spawn_points[random.randint(0, len(spawn_points) -1)]
                         destination_location = carla.Location(
                             x=destination_transform.location.x,
                             y=destination_transform.location.y,
