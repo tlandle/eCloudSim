@@ -191,7 +191,7 @@ async def main():
     done_behavior = ecloud_config.get_done_behavior()
 
     vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
-                                     carla_version=version, location_type=location_type)
+                                     carla_version=version, location_type=location_type, run_distributed=True)
 
     target_speed = None
     edge_sets_destination = False
