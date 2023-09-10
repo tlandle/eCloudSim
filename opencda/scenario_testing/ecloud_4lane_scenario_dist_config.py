@@ -135,7 +135,7 @@ def run_scenario(opt, config_yaml):
         if opt.record:
             scenario_manager.client.stop_recorder()
 
-        scenario_manager.close(single_cav_list[0])
+        scenario_manager.close()
   
         for v in bg_veh_list:
             print("destroying background vehicle")

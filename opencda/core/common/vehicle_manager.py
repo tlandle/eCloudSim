@@ -41,6 +41,7 @@ coloredlogs.install(level='DEBUG', logger=logger)
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
 MIN_DESTINATION_DISTANCE_M = 500 # TODO: config?
+COLLISION_ERROR = "Spawn failed because of collision at spawn position"
 
 class VehicleManager(object):
     """
@@ -231,7 +232,7 @@ class VehicleManager(object):
                     spawned = True
                 
                 except Exception as e:
-                    if f'{e}'.find("collision") != -1:
+                    if COLLISION_ERROR not in f'{e}':
                         raise
                     
                     continue

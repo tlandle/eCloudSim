@@ -96,14 +96,19 @@ class VehicleManagerProxy(object):
             data_dumping=False,
             location_type=eLocationType.EXPLICIT):
 
+        self.is_edge = False
         if 'single_cav_list' in config_yaml['scenario']:
                 self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
                                 else config_yaml['scenario']['single_cav_list'][0]
+        
         elif 'edge_list' in config_yaml['scenario']:
             # TODO: support multiple edges...
+            self.is_edge = True
             self.cav_config = config_yaml['scenario']['edge_list'][0]['members'][vehicle_index]
+        
         else:
             assert(False, "no known vehicle indexing format found")
+        
         self.cav_world = cav_world
         self.data_dumping = data_dumping
         self.application = application
@@ -126,12 +131,7 @@ class VehicleManagerProxy(object):
         self.vid = vid # message["vid"] # Vehicle sends back the uuid id we use as unique identifier
 
         # print("eCloud debug | actor_id: " + str(actor_id))
-
-        if self.vehicle_index == 0: # spectator vehicle & edge require actual actors
-            vehicle = self.world.get_actor(actor_id)
-        else:
-            vehicle = ActorProxy(self.vehicle_index)
-        self.vehicle = vehicle
+        self.vehicle = ActorProxy(self.vehicle_index)
 
         # retrieve the configure for different modules
         sensing_config = self.cav_config['sensing']
@@ -142,13 +142,13 @@ class VehicleManagerProxy(object):
         self.v2x_manager = V2XManager(self.cav_world, v2x_config, self.vid)
         # localization module
         self.localizer = LocalizationManager(
-            vehicle, sensing_config['localization'], self.carla_map)
+            self.vehicle, sensing_config['localization'], self.carla_map)
         # perception module - proxy should never use perception
         sensing_config['perception']['activate'] = False
         sensing_config['perception']['camera_visualize'] = False
         sensing_config['perception']['lidar_visualize'] = False
         self.perception_manager = PerceptionManager(
-            vehicle, sensing_config['perception'], self.cav_world,
+            self.vehicle, sensing_config['perception'], self.cav_world,
             self.data_dumping)
 
         # behavior agent

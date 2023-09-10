@@ -79,7 +79,10 @@ def serialize_debug_info(vehicle_update, vehicle_manager):
 async def send_registration_to_ecloud_server(stub_):
     request = ecloud.VehicleUpdate()
     request.vehicle_state = ecloud.VehicleState.REGISTERING
-    request.container_name = os.environ["HOSTNAME"]
+    try:
+        request.container_name = os.environ["HOSTNAME"]
+    except Exception as e:
+        request.container_name = f"vehiclesim.py"    
     
     response = await stub_.Client_RegisterVehicle(request)
 
@@ -132,6 +135,7 @@ def arg_parse():
 
 async def main():
     # default params which can be over-written from the simulation controller
+    SPECTATOR_INDEX = 0
     application = ["single"]
     version = "0.9.12"
     tick_id = 0
@@ -233,7 +237,6 @@ async def main():
                 vehicle_manager.destination_location,
                 clean=True)
 
-    tick_time = []
     logger.info(f"vehicle {vehicle_index} beginning scenario tick flow")
     while state != ecloud.State.ENDED:   
         
@@ -243,9 +246,6 @@ async def main():
         
         # HANDLE DEBUG DATA REQUEST
         if ecloud_update.command == ecloud.Command.REQUEST_DEBUG_INFO:
-            nparr = np.array(tick_time)
-            mean = np.mean(nparr)
-            logger.info(f"tick average time: {mean}ms")
             vehicle_update.tick_id = tick_id
             vehicle_update.vehicle_index = vehicle_index
             vehicle_update.vehicle_state = ecloud.VehicleState.DEBUG_INFO_UPDATE            
@@ -347,7 +347,7 @@ async def main():
                     vehicle_update.client_end_tstamp.GetCurrentTime()
                     #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
 
-                if is_edge:
+                if is_edge or vehicle_index == SPECTATOR_INDEX:
                     velocity = vehicle_manager.vehicle.get_velocity()
                     pv = ecloud.Velocity()
                     pv.x = velocity.x

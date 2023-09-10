@@ -30,6 +30,8 @@
 
 #define WORLD_TICK_DEFAULT_MS 50
 #define SLOW_CAR_COUNT 1
+#define SPECTATOR_INDEX 0
+#define VERBOSE_PRINT_COUNT 5
 
 ABSL_FLAG(uint16_t, sim_port, 50052, "Server port for the service");
 ABSL_FLAG(uint16_t, vehicle_one_port, 50051, "Server port for the service");
@@ -137,7 +139,7 @@ public:
         pong->set_tick_id(tick_);
         pong->set_command(comm_);
 
-        if ( ( pong->tick_id() - 1 ) % 5 == 0 && new_ )
+        if ( ( pong->tick_id() - 1 ) % VERBOSE_PRINT_COUNT == 0 && new_ )
         {
             const auto now = std::chrono::system_clock::now();
             DLOG(INFO) << "sent new tick " << pong->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -224,7 +226,7 @@ public:
                                const VehicleUpdate* request,
                                SimulationState* reply) override {
 
-        if ( isEdge_ || request->vehicle_state() == VehicleState::TICK_DONE || request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
+        if ( isEdge_ || request->vehicle_index() == SPECTATOR_INDEX || request->vehicle_state() == VehicleState::TICK_DONE || request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
         {   
             std::string msg;
             request->SerializeToString(&msg);
@@ -235,7 +237,7 @@ public:
 
         repliedCars_[request->vehicle_index()] = true;
 
-        if ( ( tickId_ - 1 ) % 5 == 0 )
+        if ( ( tickId_ - 1 ) % VERBOSE_PRINT_COUNT == 0 )
         {
             const auto now = std::chrono::system_clock::now();
             DLOG(INFO) << "received OK from vehicle " << request->vehicle_index() << " taking " << request->step_time_ms() << "ms for tick " << tickId_ << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(

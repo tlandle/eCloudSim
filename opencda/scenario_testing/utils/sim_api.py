@@ -204,7 +204,8 @@ class ScenarioManager:
 
     debug_helper = SimDebugHelper(0)
 
-    SERVER_PING_SLEEP = 0.005
+    SPECTATOR_INDEX = 0
+    SERVER_PING_SLEEP = 0.005 # TODO: drive from config
     last_world_tick_time_ms = 50
 
     async def server_unpack_debug_data(self, stub_):
@@ -218,6 +219,9 @@ class ScenarioManager:
     async def server_unpack_vehicle_updates(self, stub_):
         ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
         for vehicle_update in ecloud_update.vehicle_update:
+            if not self.is_edge and vehicle_update.vehicle_index != ScenarioManager.SPECTATOR_INDEX:
+                continue
+            
             vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
             if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ):
                 t = carla.Transform(
@@ -264,8 +268,7 @@ class ScenarioManager:
                 if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
                     await self.server_unpack_debug_data(stub_)
 
-                elif self.is_edge:
-                    await self.server_unpack_vehicle_updates(stub_)
+                await self.server_unpack_vehicle_updates(stub_)
                 
                 break
 
@@ -1088,9 +1091,9 @@ class ScenarioManager:
 
         logger.debug(f"pushed END")
 
-        for i in range(0, 5):
-            time.sleep(1)
-            logger.debug("scenario ending in %d", 5 - i)
+        # for i in range(0, 5):
+        #     time.sleep(1)
+        #     logger.debug("scenario ending in %d", 5 - i)
 
         os.kill(self.ecloud_server_process.pid, signal.SIGTERM)
 
