@@ -15,6 +15,9 @@
 #include "absl/flags/parse.h"
 #include "absl/strings/str_format.h"
 #include "absl/log/log.h"
+#include "absl/log/flags.h"
+#include "absl/log/initialize.h"
+#include "absl/log/globals.h"
 
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/grpcpp.h>
@@ -25,10 +28,15 @@
 
 //#include <glog/logging.h>
 
+#define WORLD_TICK_DEFAULT_MS 50
+#define SLOW_CAR_COUNT 1
+
 ABSL_FLAG(uint16_t, sim_port, 50052, "Server port for the service");
 ABSL_FLAG(uint16_t, vehicle_one_port, 50051, "Server port for the service");
 ABSL_FLAG(uint16_t, vehicle_two_port, 50053, "Server port for the service");
-ABSL_FLAG(uint16_t, log_level, 0, "Server port for the service");
+ABSL_FLAG(uint16_t, minloglevel, static_cast<uint16_t>(absl::LogSeverityAtLeast::kInfo),
+          "Messages logged at a lower level than this don't actually "
+          "get logged anywhere");
 
 using grpc::CallbackServerContext;
 using grpc::Server;
@@ -57,10 +65,6 @@ using ecloud::ClientDebugHelper;
 using ecloud::WaypointRequest;
 using ecloud::EdgeWaypoints;
 
-#define _DEBUG
-//#define NDEBUG
-#define WORLD_TICK_DEFAULT_MS 50
-
 static void _sig_handler(int signo) 
 {
     if (signo == SIGTERM || signo == SIGINT) 
@@ -75,8 +79,11 @@ volatile std::atomic<int16_t> numRepliedVehicles_;
 volatile std::atomic<int32_t> tickId_;
 volatile std::atomic<int32_t> lastWorldTickTimeMS_;
 
+#define MAX_CARS 128
+bool repliedCars_[MAX_CARS];
+std::string carNames_[MAX_CARS];
+
 bool init_;
-int8_t logLevel_;
 int16_t numCars_;
 std::string configYaml_;
 std::string application_;
@@ -123,10 +130,10 @@ public:
         pong->set_tick_id(tick_);
         pong->set_command(comm_);
 
-        if ( logLevel_ > 0 && ( pong->tick_id() - 1 ) % 5 == 0 && new_ )
+        if ( ( pong->tick_id() - 1 ) % 5 == 0 && new_ )
         {
             const auto now = std::chrono::system_clock::now();
-            LOG(INFO) << "sent new tick " << pong->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
+            DLOG(INFO) << "sent new tick " << pong->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
                 now.time_since_epoch()).count();
         }
 
@@ -143,7 +150,7 @@ public:
         const bool complete_ = ( replies_ + completions_ ) == numCars_;
 
         if ( complete_ )
-            LOG(INFO) << "Server_Ping COMPLETE";
+            DLOG(INFO) << "Server_Ping COMPLETE";
 
         if ( simState_ == State::NEW )
         {
@@ -153,13 +160,25 @@ public:
         else
         {
             ping->set_tick_id( complete_ ? 1 : 0 );
-        }
-
-        if ( logLevel_ > 0 && complete_ )
-        {
-            const auto now = std::chrono::system_clock::now();
-            LOG(INFO) << "tick " << tickId_ << " complete at " << std::chrono::duration_cast<std::chrono::milliseconds>(
-                now.time_since_epoch()).count();    
+            if ( complete_ )
+            {
+                const auto now = std::chrono::system_clock::now();
+                DLOG(INFO) << "tick " << tickId_ << " complete at " << std::chrono::duration_cast<std::chrono::milliseconds>(
+                    now.time_since_epoch()).count();    
+            }
+            else if ( ( replies_ + completions_ ) >= numCars_ - SLOW_CAR_COUNT )
+            {
+                for ( int i=0; i < numCars_; i++ )
+                {
+                    if ( repliedCars_[i] == false )
+                    {
+                        if ( ( replies_ + completions_ ) == numCars_ - 1 )
+                                DLOG(ERROR) << "waiting on reply from vehicle " << i << " | container " << carNames_[i];
+                            else
+                                DLOG(WARNING) << "waiting on reply from vehicle " << i << " | container " << carNames_[i];
+                    }
+                }    
+            }
         }
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -170,11 +189,16 @@ public:
     ServerUnaryReactor* Server_GetVehicleUpdates(CallbackServerContext* context,
                                const Empty* empty,
                                EcloudResponse* reply) override {
+        
+        DLOG(INFO) << "Server_GetVehicleUpdates - deserializing updates.";
+        
         for ( int i = 0; i < pendingReplies_.size(); i++ )
         {
             VehicleUpdate *update = reply->add_vehicle_update();
             update->ParseFromString(pendingReplies_[i]);
         }
+
+        DLOG(INFO) << "Server_GetVehicleUpdates - updates deserialized.";
 
         numRepliedVehicles_ = 0;
         pendingReplies_.clear();
@@ -197,10 +221,12 @@ public:
             mu_.Unlock();
         }
 
-        if ( logLevel_ > 0 && ( tickId_ - 1 ) % 5 == 0 )
+        repliedCars_[request->vehicle_index()] = true;
+
+        if ( ( tickId_ - 1 ) % 5 == 0 )
         {
             const auto now = std::chrono::system_clock::now();
-            LOG(INFO) << "received OK from vehicle " << request->vehicle_index() << " taking " << request->step_time_ms() << "ms for tick " << tickId_ << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
+            DLOG(INFO) << "received OK from vehicle " << request->vehicle_index() << " taking " << request->step_time_ms() << "ms for tick " << tickId_ << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
                 now.time_since_epoch()).count();
         }    
 
@@ -221,7 +247,6 @@ public:
             DLOG(INFO) << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
         }
 
-        DLOG(INFO) << "Client_SendUpdate - replying tick id: " << tickId_;
         reply->set_tick_id(tickId_.load());
         reply->set_last_world_tick_time_ms(lastWorldTickTimeMS_.load());
 
@@ -274,7 +299,8 @@ public:
             reply->set_application(application_);
             reply->set_version(version_);
             
-            DLOG(INFO) << "RegisterVehicle - REGISTERING - vehicle id: " << reply->vehicle_index();
+            DLOG(INFO) << "RegisterVehicle - REGISTERING - container " << request->container_name() << " got vehicle id: " << reply->vehicle_index();
+            carNames_[reply->vehicle_index()] = request->container_name();
             
             numRegisteredVehicles_++;
         }
@@ -309,18 +335,18 @@ public:
                                EcloudResponse* reply) override {
         simState_ = State::ACTIVE;
 
+        for (int i = 0; i < MAX_CARS; i++)
+            repliedCars_[i] = false;
+
         numRepliedVehicles_ = 0;
         assert(tickId_ == request->tick_id() - 1);
         tickId_++;
         lastWorldTickTimeMS_.store(request->last_world_tick_time_ms());
         command_ = request->command();
         
-        if (logLevel_ > 0)
-        {
-            const auto now = std::chrono::system_clock::now();
-            LOG(INFO) << "received new tick " << request->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
-                now.time_since_epoch()).count();
-        }
+        const auto now = std::chrono::system_clock::now();
+        DLOG(INFO) << "received new tick " << request->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
+            now.time_since_epoch()).count();
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -353,6 +379,9 @@ public:
         application_ = request->application();
         version_ = request->version();
         numCars_ = request->vehicle_index(); // bit of a hack to use vindex as count
+
+        assert( numCars_ <= MAX_CARS );
+        DLOG(INFO) << "numCars_: " << numCars_;
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -419,6 +448,8 @@ int main(int argc, char** argv) {
     }
 
     absl::ParseCommandLine(argc, argv);
+    absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(
+              absl::GetFlag(FLAGS_minloglevel)));
 
     std::thread vehicle_one_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_one_port));
     std::thread vehicle_two_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_two_port));

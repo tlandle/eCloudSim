@@ -30,6 +30,7 @@ from opencda.core.plan.behavior_agent \
 from opencda.core.common.data_dumper import DataDumper
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from opencda.client_debug_helper import ClientDebugHelper
+from opencda.core.common.ecloud_config import eLocationType
 
 RESULT_SUCCESS = 0 # Step ran ok
 RESULT_ERROR = 1 # Step resulted in an error
@@ -61,10 +62,12 @@ class VehicleManagerProxy(object):
             cav_world,
             carla_version,
             current_time='',
-            data_dumping=False):
+            data_dumping=False,
+            location_type=eLocationType.EXPLICIT):
 
         if 'single_cav_list' in config_yaml['scenario']:
-            self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index]
+                self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
+                                else config_yaml['scenario']['single_cav_list'][0]
         elif 'edge_list' in config_yaml['scenario']:
             # TODO: support multiple edges...
             self.cav_config = config_yaml['scenario']['edge_list'][0]['members'][vehicle_index]
@@ -76,7 +79,7 @@ class VehicleManagerProxy(object):
         self.current_time = current_time
         self.vehicle_index = vehicle_index
 
-        if self.vehicle_index == 0: # spectator vehicle
+        if self.vehicle_index == 0: # spectator
             self.initialize_process(config_yaml)
 
         # an unique uuid for this vehicle
@@ -93,7 +96,7 @@ class VehicleManagerProxy(object):
 
         # print("eCloud debug | actor_id: " + str(actor_id))
 
-        if self.vehicle_index == 0: # spectator vehicle
+        if self.vehicle_index == 0: # spectator vehicle & edge require actual actors
             vehicle = self.world.get_actor(actor_id)
         else:
             vehicle = ActorProxy(self.vehicle_index)

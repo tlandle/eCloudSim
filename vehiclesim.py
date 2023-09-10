@@ -13,6 +13,7 @@ from curses import A_DIM
 import sys
 import json
 import asyncio
+import os
 
 import carla
 
@@ -25,8 +26,7 @@ from opencda.core.application.edge.transform_utils import *
 from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
-
-from opencda.core.common.ecloud_config import EcloudConfig, eLocationType, eDoneBehavior
+from opencda.core.common.ecloud_config import EcloudConfig, eDoneBehavior
 
 # gRPC
 from concurrent.futures import ThreadPoolExecutor
@@ -79,6 +79,7 @@ def serialize_debug_info(vehicle_update, vehicle_manager):
 async def send_registration_to_ecloud_server(stub_):
     request = ecloud.VehicleUpdate()
     request.vehicle_state = ecloud.VehicleState.REGISTERING
+    request.container_name = os.environ["HOSTNAME"]
     
     response = await stub_.Client_RegisterVehicle(request)
 
@@ -137,13 +138,6 @@ async def main():
     state = ecloud.State.UNDEFINED #do we need a global state?
     reported_done = False
 
-    # TODO: config override
-    SPAWN_SLEEP_TIME = 0.05
-    TICK_SLEEP_TIME = 0.01
-    WORLD_TIME_SLEEP_FACTOR = 0.9
-    NUM_SERVERS = 2
-    done_behavior = eDoneBehavior.CONTROL
-
     opt = arg_parse()
     if opt.verbose:
         logger.setLevel(logging.DEBUG)
@@ -171,7 +165,6 @@ async def main():
     application = ecloud_update.application
     version = ecloud_update.version
 
-    logger.debug(f"main - test_scenario: {test_scenario}") # VERY verbose
     logger.debug(f"main - application: {application}")
     logger.debug(f"main - version: {version}")
 
@@ -181,11 +174,26 @@ async def main():
     logger.info(f"eCloud debug: creating VehicleManager vehicle_index: {vehicle_index}")
 
     scenario_yaml = json.loads(test_scenario) #load_yaml(test_scenario)
-    vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, carla_version=version)
+    if 'debug_scenario' in scenario_yaml:
+        logger.debug(f"main - test_scenario: {test_scenario}") # VERY verbose
+
+    ecloud_config = EcloudConfig(scenario_yaml, logger)
+    SPAWN_SLEEP_TIME = ecloud_config.get_client_spawn_ping_time_s()
+    TICK_SLEEP_TIME = ecloud_config.get_client_tick_ping_time_s()
+    WORLD_TIME_SLEEP_FACTOR = ecloud_config.get_client_world_tick_factor()
+    NUM_SERVERS = ecloud_config.get_num_servers()
+
+    location_type = ecloud_config.get_location_type()
+    done_behavior = ecloud_config.get_done_behavior()
+
+    vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
+                                     carla_version=version, location_type=location_type)
 
     target_speed = None
     edge_sets_destination = False
+    is_edge = False
     if 'edge_list' in scenario_yaml['scenario']:
+        is_edge = True
         # TODO: support multiple edges... 
         target_speed = scenario_yaml['scenario']['edge_list'][0]['target_speed']
         edge_sets_destination = scenario_yaml['scenario']['edge_list'][0]['edge_sets_destination'] \
@@ -220,14 +228,10 @@ async def main():
                 break
 
     if not edge_sets_destination:
-        cav_config = scenario_yaml['scenario']['single_cav_list'][vehicle_index]
-        destination = carla.Location(x=cav_config['destination'][0],
-                                     y=cav_config['destination'][1],
-                                     z=cav_config['destination'][2])
         vehicle_manager.update_info()
         vehicle_manager.set_destination(
                 vehicle_manager.vehicle.get_location(),
-                destination,
+                vehicle_manager.destination_location,
                 clean=True)
 
     tick_time = []
@@ -257,47 +261,48 @@ async def main():
 
             # find waypoint buffer for our vehicle
             waypoint_proto = None
-            for wpb in ecloud_update.all_waypoint_buffers:
-                #logger.debug(wpb.SerializeToString())
-                if wpb.vehicle_index == vehicle_index:
-                    waypoint_proto = wpb
-                    break
-            
-            is_wp_valid = False
-            has_not_cleared_buffer = True
-            if waypoint_proto != None:
-                '''
-                world = self.vehicle_manager_list[0].vehicle.get_world()
-                self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
-                location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
-                '''
-                world = vehicle_manager.vehicle.get_world()
-                dao = GlobalRoutePlannerDAO(world.get_map(), 2)
-                for swp in waypoint_proto.waypoint_buffer:
-                    #logger.debug(swp.SerializeToString())
-                    logger.debug(f"Override Waypoint x:{swp.transform.location.x}, y:{swp.transform.location.y}, z:{swp.transform.location.z}, rl:{swp.transform.rotation.roll}, pt:{swp.transform.rotation.pitch}, yw:{swp.transform.rotation.yaw}")
-                    wp = deserialize_waypoint(swp, dao)
-                    logger.debug(f"DAO Waypoint x:{wp.transform.location.x}, y:{wp.transform.location.y}, z:{wp.transform.location.z}, rl:{wp.transform.rotation.roll}, pt:{wp.transform.rotation.pitch}, yw:{wp.transform.rotation.yaw}")
-                    is_wp_valid = vehicle_manager.agent.get_local_planner().is_waypoint_valid(waypoint=wp)
-                    
-                    if edge_sets_destination and is_wp_valid:
-                        cur_location = vehicle_manager.vehicle.get_location()
-                        start_location = carla.Location(x=cur_location.x, y=cur_location.y, z=cur_location.z)
-                        end_location = carla.Location(x=wp.transform.location.x, y=wp.transform.location.y, z=wp.transform.location.z)
-                        clean = True # bool(destination["clean"])
-                        end_reset = True # bool(destination["reset"])
-                        vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
+            if is_edge:
+                for wpb in ecloud_update.all_waypoint_buffers:
+                    #logger.debug(wpb.SerializeToString())
+                    if wpb.vehicle_index == vehicle_index:
+                        waypoint_proto = wpb
+                        break
+                
+                is_wp_valid = False
+                has_not_cleared_buffer = True
+                if waypoint_proto != None:
+                    '''
+                    world = self.vehicle_manager_list[0].vehicle.get_world()
+                    self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+                    location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
+                    '''
+                    world = vehicle_manager.vehicle.get_world()
+                    dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+                    for swp in waypoint_proto.waypoint_buffer:
+                        #logger.debug(swp.SerializeToString())
+                        logger.debug(f"Override Waypoint x:{swp.transform.location.x}, y:{swp.transform.location.y}, z:{swp.transform.location.z}, rl:{swp.transform.rotation.roll}, pt:{swp.transform.rotation.pitch}, yw:{swp.transform.rotation.yaw}")
+                        wp = deserialize_waypoint(swp, dao)
+                        logger.debug(f"DAO Waypoint x:{wp.transform.location.x}, y:{wp.transform.location.y}, z:{wp.transform.location.z}, rl:{wp.transform.rotation.roll}, pt:{wp.transform.rotation.pitch}, yw:{wp.transform.rotation.yaw}")
+                        is_wp_valid = vehicle_manager.agent.get_local_planner().is_waypoint_valid(waypoint=wp)
+                        
+                        if edge_sets_destination and is_wp_valid:
+                            cur_location = vehicle_manager.vehicle.get_location()
+                            start_location = carla.Location(x=cur_location.x, y=cur_location.y, z=cur_location.z)
+                            end_location = carla.Location(x=wp.transform.location.x, y=wp.transform.location.y, z=wp.transform.location.z)
+                            clean = True # bool(destination["clean"])
+                            end_reset = True # bool(destination["reset"])
+                            vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
 
-                    elif is_wp_valid:
-                            if has_not_cleared_buffer:
-                                # override waypoints
-                                waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-                                # print(waypoint_buffer)
-                                # for waypoints in waypoint_buffer:
-                                #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
-                                waypoint_buffer.clear() #EDIT MADE
-                                has_not_cleared_buffer = False
-                            waypoint_buffer.append((wp, RoadOption.STRAIGHT))
+                        elif is_wp_valid:
+                                if has_not_cleared_buffer:
+                                    # override waypoints
+                                    waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+                                    # print(waypoint_buffer)
+                                    # for waypoints in waypoint_buffer:
+                                    #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
+                                    waypoint_buffer.clear() #EDIT MADE
+                                    has_not_cleared_buffer = False
+                                waypoint_buffer.append((wp, RoadOption.STRAIGHT))
 
                 cur_location = vehicle_manager.vehicle.get_location()
                 logger.debug(f"location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")
@@ -311,7 +316,7 @@ async def main():
             #    logger.warning("final: waypoints transform for Vehicle: %s", waypoints[0].transform)
 
             should_run_step = False
-            if ( has_not_cleared_buffer and waypoint_proto == None ) or ( ( not has_not_cleared_buffer ) and waypoint_proto != None ):
+            if not is_edge or ( has_not_cleared_buffer and waypoint_proto == None ) or ( ( not has_not_cleared_buffer ) and waypoint_proto != None ):
                 should_run_step = True
 
             if should_run_step:
@@ -358,7 +363,9 @@ async def main():
         # block waiting for a response
         if not reported_done or done_behavior == eDoneBehavior.CONTROL:
             if not reported_done:
+                last_command = ecloud_update.command
                 ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
+            
             await asyncio.sleep(WORLD_TIME_SLEEP_FACTOR * ecloud_update.last_world_tick_time_ms / 1000)
             done_time = time.time()
             count = 1
@@ -382,19 +389,18 @@ async def main():
 
             #logger.debug(f"received tick: {tick_id}")
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
-                if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and ecloud_update.command == ecloud.Command.REQUEST_DEBUG_INFO:
+                if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and last_command == ecloud.Command.REQUEST_DEBUG_INFO:
                     # we were asked for debug data and provided it, so NOW we exit
                     # TODO: this is better handled by done
                     break
+
                 else:
                     reported_done = True
                 
-        
         else: # done
             break
 
     # end while    
-    
     vehicle_manager.destroy()  
     logger.info("scenario complete. exiting.")
     sys.exit(0)

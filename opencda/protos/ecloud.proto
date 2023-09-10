@@ -141,6 +141,7 @@ message VehicleUpdate {
   PlanerDebugHelper planer_debug_helper = 7;
   ClientDebugHelper client_debug_helper = 8;
   float step_time_ms = 9;
+  string container_name = 10;
 }
 
 message EcloudResponse {

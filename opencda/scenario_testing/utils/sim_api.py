@@ -60,6 +60,8 @@ from opencda.sim_debug_helper import SimDebugHelper
 from opencda.client_debug_helper import ClientDebugHelper
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 import opencda.core.plan.drive_profile_plotting as open_plt
+from opencda.core.common.ecloud_config import EcloudConfig
+
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
 
@@ -219,10 +221,10 @@ class ScenarioManager:
             if ping.tick_id == 1:
                 end_time = time.time()
                 logger.info(f"polled {count} times over a total of {(end_time - start_time)*1000}ms")
+                if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
+                    await self.server_unpack_debug_data(stub_)
+                
                 break
-
-            if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
-                await self.server_unpack_debug_data(stub_)
 
             count += 1
 
@@ -239,7 +241,7 @@ class ScenarioManager:
             ping = await stub_.Server_Ping(ecloud.Empty())
             await asyncio.sleep(self.SERVER_PING_SLEEP)
             if count % 20 == 0:
-                logger.info(f"waiting for registration to complete")
+                logger.info(f"waiting for registration to complete - received {ping.tick_id} replies so far")
 
             if ping.tick_id > registered_vehicles:
                 registered_vehicles = ping.tick_id
@@ -274,7 +276,7 @@ class ScenarioManager:
                  cav_world=None,
                  config_file=None):
                  
-        server_log_level = 1 if logger.getEffectiveLevel() == logging.DEBUG else 0
+        server_log_level = 0 if logger.getEffectiveLevel() == logging.DEBUG else 4
         try:
             ecloud_pid = subprocess.check_output(['pgrep','ecloud_server'])
         except subprocess.CalledProcessError as e:
@@ -285,13 +287,14 @@ class ScenarioManager:
             logger.info(f'killing exiting ecloud gRPC server process')
             subprocess.run(['pkill','-9','ecloud_server'])
 
-        self.ecloud_server_process = subprocess.Popen(['./ecloud_server',f'--log_level={server_log_level}'])
+        self.ecloud_server_process = subprocess.Popen(['./ecloud_server','--minloglevel',f'{server_log_level}'])
 
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.config_file = config_file
         self.perception = scenario_params['perception_active'] if 'perception_active' in scenario_params else False
-        self.run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else False
+        self.run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else \
+                               True if 'ecloud' in scenario_params else False
 
         simulation_config = scenario_params['world']
 
@@ -362,7 +365,11 @@ class ScenarioManager:
             )
             self.ecloud_server = ecloud_rpc.EcloudStub(channel)
 
-            if 'single_cav_list' in scenario_params['scenario']:
+            if 'ecloud' in scenario_params['scenario'] and 'num_cars' in scenario_params['scenario']['ecloud']:
+                assert('edge_list' not in scenario_params['scenario']) # edge requires explicit
+                self.vehicle_count = scenario_params['scenario']['ecloud']['num_cars']
+                logger.debug(f"'ecloud' in YAML specified {self.vehicle_count} cars")
+            elif 'single_cav_list' in scenario_params['scenario']:
                 self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
             elif 'edge_list' in scenario_params['scenario']:
                 # TODO: support multiple edges...
@@ -832,8 +839,8 @@ class ScenarioManager:
         single_cav_list = []
 
         config_yaml = load_yaml(self.config_file)
-        for vehicle_index, _ in enumerate(
-                self.scenario_params['scenario']['single_cav_list']):
+        ecloud_config = EcloudConfig(config_yaml, logger)
+        for vehicle_index in range(self.vehicle_count):
             logger.debug(f"Creating VehiceManagerProxy for vehicle {vehicle_index}")
 
             # create vehicle manager for each cav
@@ -841,7 +848,7 @@ class ScenarioManager:
                 vehicle_index, config_yaml, application,
                 self.carla_map, self.cav_world,
                 current_time=self.scenario_params['current_time'],
-                data_dumping=data_dump, carla_version=self.carla_version)
+                data_dumping=data_dump, carla_version=self.carla_version, location_type=ecloud_config.get_location_type())
             logger.debug("finished creating VehiceManagerProxy")
 
             # self.tick_world()

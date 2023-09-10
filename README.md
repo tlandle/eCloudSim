@@ -99,31 +99,11 @@ ln -s <source> <destination>
 
   - gRPC server sends down WP buffer for specific vehicle
 
-- random seeding in config
-
-- if start is random, destination should also be random
-
-  - hardcode minimum distance; TODO configurable, but this likely doesn't add much
-
-- `ecloud` sections in YAML
-
-- Back Off Config to YAML for Sleep Timing
-
-    - Base initial wait off last world_tick_time; server to send
-
-- Continue To Apply Control To Keep Vehicles From Driving Off Once Complete
-
-- Test Different Backoffs
-
 - Test Perf of Multiple gRPC Servers
 
     - If benefit, YAML to specify number of servers; % vehicle id to specify which server # to connect to
 
-- YAML fixup to allow randomized spawning or explicit
-
-- YAML to allow randomized destination
-
-- YAML to specify num cars (with randomized locations & destination - or single destination)
+- Edge requires Vehicle Info (speed, location, ?) - Proxies need it? Or send via Update?
 
 Top Level
 
@@ -133,14 +113,11 @@ define: &perception_is_active false
 ...
 # eCloud
 ecloud:
-  perception_active: *perception_is_active
-  distributed: true # set to false or comment out to run "standard" OpenCDA sequential sims
   num_servers: 2 # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 )
   server_ping_time_s: 0.005 # 5ms
   client_world_time_factor: 0.9 # what percentage of last world time to wait initially
   client_ping_spawn_s: 0.05 # sleep to wait between pings after spawn
-  client_ping_tick_min_s: 0.01 # minimum sleep to wait between pings after spawn
-  client_ping_tick_backoff: 0.5 # how much to drop sleep each successive ping
+  client_ping_tick_s: 0.01 # minimum sleep to wait between pings after spawn
 ```
 
 Scenario

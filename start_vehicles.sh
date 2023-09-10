@@ -11,10 +11,14 @@ if [[ "$rebuild" = "Y" || "$rebuild" = "y" ]]; then
     sudo docker build -f Dockerfile -t vehicle-sim:latest .
 fi
 
-echo "Starting $count Vehicle Client Containers..."
+echo "Stopping and Removing all old containers..."
 
 sudo docker stop $(sudo docker ps -a -q)
 sudo docker rm $(sudo docker ps -a -q)
+
+sudo docker container ls
+
+echo "Starting $count Vehicle Client Containers..."
 
 for ((i=0; i<$count; i++))
 do
@@ -24,7 +28,7 @@ do
     else 
         #sudo nvidia-docker run --rm --gpus all -d --network=host -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim
         #sudo docker run --runtime=nvidia --gpus all -d --network=host -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim
-        sudo docker run -d --network=host vehicle-sim
+        sudo docker run -d --network=host --name=container_$i -e "HOSTNAME=container_$i" vehicle-sim
     fi    
 done
 
