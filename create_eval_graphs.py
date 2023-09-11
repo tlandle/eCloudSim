@@ -18,7 +18,7 @@ GRAPH_PERCEPTION = False
 GRAPH_SINGLE_NODE = False
 PERCEPTION_TITLE = "with Perception" if GRAPH_PERCEPTION else "without Perception"
 NODE_TITLE = "single node" if GRAPH_SINGLE_NODE else "multi node"
-CUMULATIVE_STATS_FOLDER_PATH = './evaluation_outputs/cumulative_stats_with_perception' if GRAPH_PERCEPTION else './evaluation_outputs/cumulative_stats_no_perception'
+CUMULATIVE_STATS_FOLDER_PATH = './evaluation_outputs/cumulative_stats_dist_with_perception' if GRAPH_PERCEPTION else './evaluation_outputs/cumulative_stats_dist_no_perception'
 
 SHOULD_SHOW = False
 

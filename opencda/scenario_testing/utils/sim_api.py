@@ -1160,10 +1160,16 @@ class ScenarioManager:
             """
 
             perform_txt = ''
+            
+            if(self.run_distributed):
+              cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_dist_no_perception'
+              if self.perception:
+                  cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_dist_with_perception'
+            else:
+              cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_seq_no_perception'
+              if self.perception:
+                cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_seq_with_perception'
 
-            cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_no_perception'
-            if self.perception:
-                cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_with_perception'
 
             if not os.path.exists(cumulative_stats_folder_path):
                 os.makedirs(cumulative_stats_folder_path)
