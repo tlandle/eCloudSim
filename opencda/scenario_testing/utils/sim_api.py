@@ -262,7 +262,7 @@ class ScenarioManager:
                   logger.debug(f'Network Time: {network_time}')
                   ScenarioManager.debug_helper.update_network_time_timestamp(vehicle_update.vehicle_index, network_time)
                   logger.debug(f"Updated network")
-                  ScenarioManager.debug_helper.update_individual_client_step_time(vehicle_update.vehicle_index, (time.time_ns() - vehicle_update.sm_start_tstamp.ToNanoseconds())*1000000)
+                  ScenarioManager.debug_helper.update_individual_client_step_time(vehicle_update.vehicle_index, (time.time_ns() - vehicle_update.sm_start_tstamp.ToNanoseconds())/1000000)
                   logger.debug(f"Updated network time for vehicle {vehicle_update.vehicle_index}")
   
                 if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
@@ -1131,6 +1131,19 @@ class ScenarioManager:
         data_key = f"network_latency"
         self.do_pickling(data_key, all_network_data_list_flat, cumulative_stats_folder_path)
 
+    def evaluate_individual_client_data(self, cumulative_stats_folder_path):
+        all_client_data_lists = sum(ScenarioManager.debug_helper.client_tick_time_dict.values(), [])
+
+        # logger.error(all_network_data_lists)
+
+        all_client_data_list_flat = np.array(all_client_data_lists)
+        if all_client_data_list_flat.any():
+            all_client_data_list_flat = np.hstack(all_client_data_list_flat)
+        else:
+            all_client_data_list_flat = all_client_data_list_flat.flatten()
+        data_key = f"client_individual_step_time"
+        self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
+
     def evaluate_client_data(self, client_data_key, cumulative_stats_folder_path):
         all_client_data_list = []
         for _, vehicle_manager_proxy in self.vehicle_managers.items():
@@ -1178,6 +1191,8 @@ class ScenarioManager:
             self.evaluate_agent_data(cumulative_stats_folder_path)
 
             self.evaluate_network_data(cumulative_stats_folder_path)
+
+            self.evaluate_individual_client_data(cumulative_stats_folder_path)
 
             client_helper = ClientDebugHelper(0)
             debug_data_lists = client_helper.get_debug_data().keys()
