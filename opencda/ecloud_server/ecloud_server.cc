@@ -82,7 +82,7 @@ volatile std::atomic<int16_t> numRepliedVehicles_;
 volatile std::atomic<int32_t> tickId_;
 volatile std::atomic<int32_t> lastWorldTickTimeMS_;
 
-#define MAX_CARS 128
+#define MAX_CARS 512
 bool repliedCars_[MAX_CARS];
 std::string carNames_[MAX_CARS];
 
@@ -360,7 +360,7 @@ public:
                                EcloudResponse* reply) override {
         simState_ = State::ACTIVE;
 
-        for (int i = 0; i < MAX_CARS; i++)
+        for (int i = 0; i < numCars_; i++)
             repliedCars_[i] = false;
 
         numRepliedVehicles_ = 0;

@@ -93,17 +93,11 @@ ln -s <source> <destination>
 
 ## ToDo List
 
-- Edge WP push fixup
+- gRPC server should reject old packets
 
-  - sim API pushes WP buffer for all vehicles
+- use `CHECK` in logs more to simplify and optimize logging logic for perf
 
-  - gRPC server sends down WP buffer for specific vehicle
-
-- Test Perf of Multiple gRPC Servers
-
-    - If benefit, YAML to specify number of servers; % vehicle id to specify which server # to connect to
-
-- Edge requires Vehicle Info (speed, location, ?) - Proxies need it? Or send via Update?
+- move to completion queue & threadpool with servers on client & sim API
 
 Top Level
 
