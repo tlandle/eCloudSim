@@ -18,7 +18,7 @@ GRAPH_PERCEPTION = False
 GRAPH_SINGLE_NODE = False
 PERCEPTION_TITLE = "with Perception" if GRAPH_PERCEPTION else "without Perception"
 NODE_TITLE = "single node" if GRAPH_SINGLE_NODE else "multi node"
-CUMULATIVE_STATS_FOLDER_PATH = './evaluation_outputs/cumulative_stats_dist_with_perception' if GRAPH_PERCEPTION else './evaluation_outputs/cumulative_stats_dist_no_perception'
+CUMULATIVE_STATS_FOLDER_PATH = './evaluation_outputs/cumulative_stats_seq_with_perception' if GRAPH_PERCEPTION else './evaluation_outputs/cumulative_stats_seq_no_perception'
 
 SHOULD_SHOW = False
 
@@ -124,24 +124,23 @@ def create_stacked_bar_chart(data,  y, labels):
      ]
     
     labels_legend = [
-        #'agent_step_0',
-        #'agent_step_1',
-        #'agent_step_2', 
-        #'agent_step_3', 
-        #'agent_step_4', 
-        #'agent_step_5', 
-        #'agent_step_6', 
-        #'agent_step_10', 
-        #'agent_step_11', 
-        #'client_control', 
-        #'client_perception', 
-        #'client_localization', 
-        #'client_agent_update_info', 
-        #'client_controller_update_info', 
-        #'client_controller_step',  
-        #'client_control',
-        'network_latency',
-        'client_step_time']
+        'agent_step_0',
+        'agent_step_1',
+        'agent_step_2', 
+        'agent_step_3', 
+        'agent_step_4', 
+        'agent_step_5', 
+        'agent_step_6', 
+        'agent_step_10', 
+        'agent_step_11', 
+        'client_control', 
+        'client_perception', 
+        'client_localization', 
+        'client_agent_update_info', 
+        'client_controller_update_info', 
+        'client_controller_step',  
+        'client_control',
+        'network_latency']
 
     ax = data.plot(y=y, kind='bar', stacked=True, color=colors, figsize=(11, 8))
     plt.xlabel(labels['xlabel'])
@@ -405,8 +404,6 @@ def plot_client_stacked_barchart():
         agent_df = agent_df.join(sim_stats_df[f'{list_name}_ms'])
         y_columns.append(f'{list_name}_ms')
 
-    print(agent_df)
-
     new_df = agent_df.groupby(by='num_cars').mean()
 
     pd.options.display.max_columns = 99
@@ -416,44 +413,6 @@ def plot_client_stacked_barchart():
     ax = create_stacked_bar_chart(y=y_columns, data=new_df , labels=labels)
 
     save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/agent_step_time_boxplot.png'
-    save_ax(ax, save_file_path)
-    if SHOULD_SHOW:
-      plt.show()
-    plt.clf()
-
-
-def plot_simple_client_stacked_barchart():
-
-    agent_df = pd.DataFrame()
-    y_columns = []
-
-    labels = {"xlabel": 'Number of Cars',
-              "ylabel": f' Step Time',
-              "title": f'eCloudSim: Client and Network Times \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
-
-
-    client_debug_data = [ # see ClientDebugHelper.debug_data
-            "client_individual_step_time",
-            "network_latency",
-    ]
-    for list_name in client_debug_data:
-        step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_{list_name}'
-        sim_stats_df = get_stats_df(step_time_df_path)
-        agent_df[f'num_cars'] = sim_stats_df[f'num_cars'] 
-        agent_df[f'{list_name}_ms'] = sim_stats_df[f'{list_name}_ms']
-        y_columns.append(f'{list_name}_ms')
-
-    print(agent_df)
-
-    new_df = agent_df.groupby(by='num_cars').mean()
-
-    pd.options.display.max_columns = 99
-    print(new_df)
-    print(y_columns)
-
-    ax = create_stacked_bar_chart(y=y_columns, data=new_df , labels=labels)
-
-    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_network_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
       plt.show()
@@ -544,7 +503,7 @@ if __name__ == '__main__':
 
     #plot_agent_step_times()
 
-    plot_simple_client_stacked_barchart()
+    #plot_client_stacked_barchart()
 
    # Example DataFrame for comparison chart
     comparison_data = pd.DataFrame({
