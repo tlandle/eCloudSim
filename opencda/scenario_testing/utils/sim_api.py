@@ -268,7 +268,8 @@ class ScenarioManager:
                 if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
                     await self.server_unpack_debug_data(stub_)
 
-                await self.server_unpack_vehicle_updates(stub_)
+                else:
+                    await self.server_unpack_vehicle_updates(stub_)
                 
                 break
 

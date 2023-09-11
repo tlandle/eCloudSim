@@ -106,7 +106,8 @@ class VehicleManager(object):
             data_dumping=False,
             location_type=eLocationType.EXPLICIT,
             run_distributed=False,
-            map_helper=None):
+            map_helper=None,
+            is_edge=False):
 
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
@@ -129,7 +130,8 @@ class VehicleManager(object):
         np.random.seed(seed)
         random.seed(seed)
 
-        cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
+        if not is_edge:
+            cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
                         else self.scenario_params['scenario']['single_cav_list'][0]
 
         # ORIGINAL FLOW
@@ -150,7 +152,8 @@ class VehicleManager(object):
 
             # if the spawn position is a single scalar, we need to use map
             # helper to transfer to spawn transform
-            if 'edge_list' in self.scenario_params['scenario']:
+            if is_edge:
+                assert('edge_list' in self.scenario_params['scenario'])
                 # TODO: support multiple edges... 
                 cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
                 logger.debug(cav_config)
@@ -194,7 +197,7 @@ class VehicleManager(object):
                     
                 elif location_type == eLocationType.RANDOM:
                     spawn_points = self.world.get_map().get_spawn_points()
-                    self.spawn_transform = spawn_points[random.randint(0, len(spawn_points))]
+                    self.spawn_transform = spawn_points[random.randint(0, len(spawn_points) - 1)]
                     self.spawn_location = carla.Location(
                             x=self.spawn_transform.location.x,
                             y=self.spawn_transform.location.y,
@@ -215,7 +218,7 @@ class VehicleManager(object):
                     min_dist = MIN_DESTINATION_DISTANCE_M
                     count = 0
                     while dist < min_dist: 
-                        destination_transform = spawn_points[random.randint(0, len(spawn_points) -1)]
+                        destination_transform = spawn_points[random.randint(0, len(spawn_points) - 1)]
                         destination_location = carla.Location(
                             x=destination_transform.location.x,
                             y=destination_transform.location.y,
