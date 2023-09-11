@@ -190,9 +190,6 @@ async def main():
     location_type = ecloud_config.get_location_type()
     done_behavior = ecloud_config.get_done_behavior()
 
-    vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
-                                     carla_version=version, location_type=location_type, run_distributed=True)
-
     target_speed = None
     edge_sets_destination = False
     is_edge = False # TODO: added this to the actual protobuf message
@@ -202,6 +199,9 @@ async def main():
         target_speed = scenario_yaml['scenario']['edge_list'][0]['target_speed']
         edge_sets_destination = scenario_yaml['scenario']['edge_list'][0]['edge_sets_destination'] \
             if 'edge_sets_destination' in scenario_yaml['scenario']['edge_list'][0] else False
+
+    vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
+                                     carla_version=version, location_type=location_type, run_distributed=True, is_edge=is_edge)
 
     actor_id = vehicle_manager.vehicle.id
     vid = vehicle_manager.vid
@@ -238,6 +238,7 @@ async def main():
                 clean=True)
 
     logger.info(f"vehicle {vehicle_index} beginning scenario tick flow")
+    waypoint_proto = None
     while state != ecloud.State.ENDED:   
         
         vehicle_update = ecloud.VehicleUpdate()
@@ -262,15 +263,7 @@ async def main():
             vehicle_manager.debug_helper.update_update_info_time((update_info_end_time-update_info_start_time)*1000)
             logger.debug("update_info complete")
 
-            # find waypoint buffer for our vehicle
-            waypoint_proto = None
-            if is_edge:
-                for wpb in ecloud_update.all_waypoint_buffers:
-                    #logger.debug(wpb.SerializeToString())
-                    if wpb.vehicle_index == vehicle_index:
-                        waypoint_proto = wpb
-                        break
-                
+            if is_edge:               
                 is_wp_valid = False
                 has_not_cleared_buffer = True
                 if waypoint_proto != None:
@@ -306,6 +299,8 @@ async def main():
                                     waypoint_buffer.clear() #EDIT MADE
                                     has_not_cleared_buffer = False
                                 waypoint_buffer.append((wp, RoadOption.STRAIGHT))
+
+                    waypoint_proto = None
 
                 cur_location = vehicle_manager.vehicle.get_location()
                 logger.debug(f"location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")
@@ -398,6 +393,12 @@ async def main():
 
                     if pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
                         ecloud_update.command = ecloud.Command.REQUEST_DEBUG_INFO
+
+                    elif pong.command == ecloud.Command.PULL_WAYPOINTS_AND_TICK:
+                        wp_request = ecloud.WaypointRequest()
+                        wp_request.vehicle_index = vehicle_index
+                        waypoint_proto = await ecloud_server.Client_GetWaypoints(wp_request)
+                        ecloud_update.command = ecloud.Command.TICK    
 
                     end_time = time.time()
                     logger.info(f"polled {count} times over {(end_time - done_time)*1000}ms")

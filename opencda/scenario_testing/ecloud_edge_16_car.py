@@ -37,7 +37,8 @@ def run_scenario(opt, config_yaml):
                                                    opt.version,
                                                    town='Town06',
                                                    cav_world=cav_world,
-                                                   config_file=config_yaml)
+                                                   config_file=config_yaml,
+                                                   distributed=True)
 
         if opt.record:
             scenario_manager.client. \

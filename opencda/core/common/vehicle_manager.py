@@ -106,7 +106,8 @@ class VehicleManager(object):
             data_dumping=False,
             location_type=eLocationType.EXPLICIT,
             run_distributed=False,
-            map_helper=None):
+            map_helper=None,
+            is_edge=False):
 
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
@@ -129,7 +130,8 @@ class VehicleManager(object):
         np.random.seed(seed)
         random.seed(seed)
 
-        cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
+        if not is_edge:
+            cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
                         else self.scenario_params['scenario']['single_cav_list'][0]
 
         # ORIGINAL FLOW
@@ -150,7 +152,8 @@ class VehicleManager(object):
 
             # if the spawn position is a single scalar, we need to use map
             # helper to transfer to spawn transform
-            if 'edge_list' in self.scenario_params['scenario']:
+            if is_edge:
+                assert('edge_list' in self.scenario_params['scenario'])
                 # TODO: support multiple edges... 
                 cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
                 logger.debug(cav_config)
