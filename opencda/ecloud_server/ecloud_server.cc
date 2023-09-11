@@ -29,7 +29,7 @@
 //#include <glog/logging.h>
 
 #define WORLD_TICK_DEFAULT_MS 50
-#define SLOW_CAR_COUNT 1
+#define SLOW_CAR_COUNT 0
 #define SPECTATOR_INDEX 0
 #define VERBOSE_PRINT_COUNT 5
 
@@ -187,9 +187,9 @@ public:
                     if ( repliedCars_[i] == false )
                     {
                         if ( ( replies_ + completions_ ) == numCars_ - 1 )
-                                DLOG(ERROR) << "waiting on reply from vehicle " << i << " | container " << carNames_[i];
-                            else
-                                DLOG(WARNING) << "waiting on reply from vehicle " << i << " | container " << carNames_[i];
+                            DLOG(INFO) << "waiting on reply from vehicle " << i << " | container " << carNames_[i];
+                        else
+                            DLOG(INFO) << "waiting on reply from vehicle " << i << " | container " << carNames_[i];
                     }
                 }    
             }
