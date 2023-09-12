@@ -328,7 +328,7 @@ class ScenarioManager:
                  distributed=False):
 
         self.run_distributed = distributed
-        if distributed:
+        if distributed and ECLOUD_IP == 'localhost':
             server_log_level = 0 if logger.getEffectiveLevel() == logging.DEBUG else \
                                 1 if logger.getEffectiveLevel() == logging.WARNING else 2 # 1: WARNING | 2: ERROR
             try:
