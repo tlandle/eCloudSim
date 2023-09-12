@@ -328,7 +328,7 @@ class ScenarioManager:
                  distributed=False):
 
         self.run_distributed = distributed
-        if distributed and ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP:
+        if distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
             server_log_level = 0 if logger.getEffectiveLevel() == logging.DEBUG else \
                                 1 if logger.getEffectiveLevel() == logging.WARNING else 2 # 1: WARNING | 2: ERROR
             try:
@@ -1074,7 +1074,7 @@ class ScenarioManager:
         # for i in range(0, 5):
         #     time.sleep(1)
         #     logger.debug("scenario ending in %d", 5 - i)
-        if ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP:
+        if self.run_distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
             os.kill(self.ecloud_server_process.pid, signal.SIGTERM)
 
     def do_pickling(self, column_key, flat_list, file_path):
