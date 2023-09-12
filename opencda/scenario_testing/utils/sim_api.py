@@ -1074,8 +1074,8 @@ class ScenarioManager:
         # for i in range(0, 5):
         #     time.sleep(1)
         #     logger.debug("scenario ending in %d", 5 - i)
-
-        os.kill(self.ecloud_server_process.pid, signal.SIGTERM)
+        if ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP:
+            os.kill(self.ecloud_server_process.pid, signal.SIGTERM)
 
     def do_pickling(self, column_key, flat_list, file_path):
         data_df = pd.DataFrame(flat_list, columns = [f'{column_key}_ms'])
