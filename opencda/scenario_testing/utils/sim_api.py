@@ -423,7 +423,7 @@ class ScenarioManager:
                 assert( False, "ML should only be run on the distributed clients")
 
             channel = grpc.aio.insecure_channel(
-            target=f"[{ECLOUD_IP}]:50051",
+            target=f"{ECLOUD_IP}:50051",
             options=[
                 ("grpc.lb_policy_name", "pick_first"),
                 ("grpc.enable_retries", 0),
