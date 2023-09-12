@@ -8,12 +8,15 @@ here we have this class to enable different CAVs share the same model to
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
+import os
 
 import cv2
 import torch
 # torch.cuda.empty_cache()
 import numpy as np
 
+YOLO_PATH = "yolov5/"
+YOLO_FILE = "hubconf.py"
 
 class MLManager(object):
     """
@@ -28,7 +31,10 @@ class MLManager(object):
     def __init__(self):
 
         #self.object_detector = torch.hub.load('ultralytics/yolov5', 'yolov5m', force_reload=True)
-        self.object_detector = torch.hub.load('ultralytics/yolov5', 'yolov5m')
+        if os.path.exists(os.path.join(YOLO_PATH, YOLO_FILE)):
+            self.object_detector = torch.hub.load(YOLO_PATH, model='yolov5m', source='local')
+        else:
+            self.object_detector = torch.hub.load('ultralytics/yolov5', 'yolov5m')
 
     def draw_2d_box(self, result, rgb_image, index):
         """

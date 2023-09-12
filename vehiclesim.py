@@ -200,6 +200,9 @@ async def main():
         edge_sets_destination = scenario_yaml['scenario']['edge_list'][0]['edge_sets_destination'] \
             if 'edge_sets_destination' in scenario_yaml['scenario']['edge_list'][0] else False
 
+    if opt.apply_ml:
+        await asyncio.sleep(vehicle_index + 1)
+
     vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
                                      carla_version=version, location_type=location_type, run_distributed=True, is_edge=is_edge)
 

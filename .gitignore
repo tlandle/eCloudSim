@@ -145,6 +145,7 @@ cython_debug/
 output/
 outputs
 *.pt
+!yolov5m.pt
 opencda/evaluation_figures/
 *.save
 *cache*
