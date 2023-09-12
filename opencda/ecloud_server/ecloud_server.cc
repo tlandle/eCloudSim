@@ -76,7 +76,6 @@ static void _sig_handler(int signo)
     }
 }
 
-volatile std::atomic<int16_t> numRegisteredVehicles_;
 volatile std::atomic<int16_t> numCompletedVehicles_;
 volatile std::atomic<int16_t> numRepliedVehicles_;
 volatile std::atomic<int32_t> tickId_;
@@ -101,7 +100,9 @@ std::vector<std::pair<int16_t, std::string>> serializedEdgeWaypoints_; // vehicl
 
 absl::Mutex mu_;
 absl::Mutex timestamp_mu_;
+absl::Mutex registration_mu_;
 
+volatile std::atomic<int16_t> numRegisteredVehicles_ ABSL_GUARDED_BY(registration_mu_);
 std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // serialized protobuf
 std::vector<Timestamps> client_timestamps_ ABSL_GUARDED_BY(timestamp_mu_);
 // Logic and data behind the server's behavior.
@@ -319,15 +320,18 @@ public:
 
             reply->set_state(State::NEW);
             reply->set_tick_id(0);
-            reply->set_vehicle_index(numRegisteredVehicles_);
+
+            registration_mu_.Lock();
+            reply->set_vehicle_index(numRegisteredVehicles_.load());
+            numRegisteredVehicles_++;
+            registration_mu_.Unlock();
+
             reply->set_test_scenario(configYaml_);
             reply->set_application(application_);
             reply->set_version(version_);
             
             DLOG(INFO) << "RegisterVehicle - REGISTERING - container " << request->container_name() << " got vehicle id: " << reply->vehicle_index();
             carNames_[reply->vehicle_index()] = request->container_name();
-            
-            numRegisteredVehicles_++;
         }
         else if ( request->vehicle_state() == VehicleState::CARLA_UPDATE )
         {            

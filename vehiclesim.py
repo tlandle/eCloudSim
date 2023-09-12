@@ -51,6 +51,7 @@ logger.setLevel(logging.DEBUG)
 
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
+ECLOUD_IP = cloud_config["ecloud_server_public_ip"]
 
 if cloud_config["log_level"] == "error":
     logger.setLevel(logging.ERROR)
@@ -152,7 +153,7 @@ async def main():
     logging.basicConfig()
 
     channel = grpc.aio.insecure_channel(
-        target=f"{CARLA_IP}:{opt.port}",
+        target=f"{ECLOUD_IP}:{opt.port}",
         options=[
             ("grpc.lb_policy_name", "pick_first"),
             ("grpc.enable_retries", 0),
@@ -216,7 +217,7 @@ async def main():
         logger.info("connecting to secondary server...")
         await channel.close()
         channel = grpc.aio.insecure_channel(
-            target=f"{CARLA_IP}:{int(opt.port) + server_port}",
+            target=f"{ECLOUD_IP}:{int(opt.port) + server_port}",
             options=[
                 ("grpc.lb_policy_name", "pick_first"),
                 ("grpc.enable_retries", 0),
