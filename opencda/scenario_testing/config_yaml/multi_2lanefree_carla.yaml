@@ -4,8 +4,8 @@ description: |-
   Content: This is the scenario testing configuration file for single vehicle perception/localization/behavior/control
            testing in high speed in the customized 2lanefree simple version.
 
-distributed: true
-define: &perception_is_active true
+distributed: false
+define: &perception_is_active false
 perception_active: *perception_is_active
 
 # define carla simulation setting
@@ -25,6 +25,12 @@ world:
     fog_falloff: 0 # Density of the fog (as in specific mass) from 0 to infinity. The bigger the value, the more dense and heavy it will be, and the fog will reach smaller heights
     wetness: 0
 
+ecloud:
+  num_servers: 2 # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 )
+  server_ping_time_s: 0.005 # 5ms
+  client_world_time_factor: 0.9 # what percentage of last world time to wait initially
+  client_ping_spawn_s: 0.05 # sleep to wait between pings after spawn
+  client_ping_tick_s: 0.005 # minimum sleep to wait between pings after tick
 
 # First define the basic parameters of the vehicles
 vehicle_base: &vehicle_base
@@ -154,28 +160,28 @@ scenario:
         localization:
           <<: *base_localize 
 
-    # - <<: *vehicle_base
-    #   spawn_position: [-400, 8.3, 0.3, 0, 0, 0]
-    #   # this parameter will overwrite the spawn position, when it is set, the vehicle is spawn
-    #   # at the merging lane. 0.5 means it is spawn at the middle of the whole merging lange.
-    #   # spawn_special: [0.34]
-    #   destination: [680, 8.3, 0.3]
-    #   v2x:
-    #     <<: *base_v2x
-    #     communication_range: 45
+    - <<: *vehicle_base
+      spawn_position: [-400, 8.3, 0.3, 0, 0, 0]
+      # this parameter will overwrite the spawn position, when it is set, the vehicle is spawn
+      # at the merging lane. 0.5 means it is spawn at the middle of the whole merging lange.
+      # spawn_special: [0.34]
+      destination: [670, 8.3, 0.3]
+      v2x:
+        <<: *base_v2x
+        communication_range: 45
 
-    #   behavior:
-    #     <<: *base_behavior
-    #     local_planner:
-    #       <<: *base_local_planner
-    #       debug_trajectory: true
-    #       debug: true
+      behavior:
+        <<: *base_behavior
+        local_planner:
+          <<: *base_local_planner
+          debug_trajectory: true
+          debug: true
 
-    #   sensing:
-    #     <<: *base_sensing
-    #     perception:
-    #       <<: *base_perception
-    #       camera_visualize: 0  
-    #       activate: false
-    #     localization:
-    #       <<: *base_localize     
+      sensing:
+        <<: *base_sensing
+        perception:
+          <<: *base_perception
+          camera_visualize: 0  
+          activate: false
+        localization:
+          <<: *base_localize     

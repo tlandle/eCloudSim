@@ -130,6 +130,7 @@ class VehicleManager(object):
         np.random.seed(seed)
         random.seed(seed)
 
+        edge_sets_destination = False
         if not is_edge:
             cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
                         else self.scenario_params['scenario']['single_cav_list'][0]
@@ -144,8 +145,6 @@ class VehicleManager(object):
         # eCLOUD BEGIN
 
         else: # run_distributed == True
-
-            edge_sets_destination = False
 
             self.initialize_process() # get world & map info
             self.carla_version = carla_version
