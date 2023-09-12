@@ -69,6 +69,7 @@ coloredlogs.install(level='DEBUG', logger=logger)
 
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
+ECLOUD_IP = cloud_config["ecloud_server_public_ip"]
 
 if cloud_config["log_level"] == "error":
     logger.setLevel(logging.ERROR)
@@ -422,7 +423,7 @@ class ScenarioManager:
                 assert( False, "ML should only be run on the distributed clients")
 
             channel = grpc.aio.insecure_channel(
-            target="[::]:50051",
+            target=f"[{ECLOUD_IP}]:50051",
             options=[
                 ("grpc.lb_policy_name", "pick_first"),
                 ("grpc.enable_retries", 0),
