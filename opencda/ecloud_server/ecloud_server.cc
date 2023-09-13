@@ -33,10 +33,10 @@
 #define SPECTATOR_INDEX 0
 #define VERBOSE_PRINT_COUNT 5
 
-ABSL_FLAG(uint16_t, sim_port, 50051, "Sim API server port for the service");
-ABSL_FLAG(uint16_t, vehicle_one_port, 50052, "Vehicle client server port one for the server");
-ABSL_FLAG(uint16_t, vehicle_two_port, 50053, "Vehicle client server port for the service");
-ABSL_FLAG(uint16_t, num_ports, 32, "Total number of ports to open - each vehicle client thread will open half this number");
+ABSL_FLAG(uint16_t, port, 50051, "Sim API server port for the service");
+//ABSL_FLAG(uint16_t, vehicle_one_port, 50052, "Vehicle client server port one for the server");
+//ABSL_FLAG(uint16_t, vehicle_two_port, 50053, "Vehicle client server port for the service");
+ABSL_FLAG(uint16_t, num_ports, 1, "Total number of ports to open - each vehicle client thread will open half this number");
 ABSL_FLAG(uint16_t, minloglevel, static_cast<uint16_t>(absl::LogSeverityAtLeast::kInfo),
           "Messages logged at a lower level than this don't actually "
           "get logged anywhere");
@@ -490,15 +490,15 @@ int main(int argc, char* argv[]) {
     absl::ParseCommandLine(argc, argv);
     //absl::InitializeLog();
 
-    std::thread vehicle_one_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_one_port));
-    std::thread vehicle_two_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_two_port));
-    std::thread sim_server = std::thread(&RunServer,absl::GetFlag(FLAGS_sim_port));
+    //std::thread vehicle_one_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_one_port));
+    //std::thread vehicle_two_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_two_port));
+    std::thread server = std::thread(&RunServer,absl::GetFlag(FLAGS_port));
 
     absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(absl::GetFlag(FLAGS_minloglevel)));
 
-    vehicle_one_server.join();
-    vehicle_two_server.join();
-    sim_server.join();
+    //vehicle_one_server.join();
+    //vehicle_two_server.join();
+    server.join();
 
     return 0;
 }

@@ -31,8 +31,8 @@ world:
     wetness: 0
 
 ecloud:
-  num_servers: 2 # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 )
-  num_ports: 2
+  num_servers: 1 # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 )
+  num_ports: 1
   server_ping_time_s: 0.005 # 5ms
   client_world_time_factor: 0.9 # what percentage of last world time to wait initially
   client_ping_spawn_s: 0.05 # sleep to wait between pings after spawn

@@ -124,8 +124,8 @@ def arg_parse():
                              'Set it to true only when you have installed the pytorch/sklearn package.')
     parser.add_argument('-i', "--ipaddress", type=str, default=CARLA_IP,
                         help="Specifies the ip address of the server to connect to. [Default: localhost]")
-    parser.add_argument('-p', "--port", type=int, default=50052,
-                        help="Specifies the port to connect to. [Default: 50052]")
+    parser.add_argument('-p', "--port", type=int, default=50051,
+                        help="Specifies the port to connect to. [Default: 50051]")
     parser.add_argument('-v', "--verbose", action="store_true",
                             help="Make more noise")
     parser.add_argument('-q', "--quiet", action="store_true",
