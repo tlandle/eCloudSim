@@ -32,7 +32,8 @@ class EcloudConfig(object):
         self.config_json = config_json
         self.logger = logger if logger is not None else logging.getLogger(__name__)
         self.ecloud_base = {
-            "num_servers" : 2, # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 )
+            "num_servers" : 2, # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 ) - really # of server THREADS
+            "num_ports" : 32,
             "server_ping_time_s" : 0.005, # 5ms
             "client_world_time_factor" : 0.9, # what percentage of last world time to wait initially
             "client_ping_spawn_s" : 0.05, # sleep to wait between pings after spawn
@@ -71,6 +72,10 @@ class EcloudConfig(object):
     def get_num_servers(self):
         self.logger.debug(f"num_servers: {self.ecloud_base['num_servers']}")
         return self.ecloud_base['num_servers']
+    
+    def get_num_ports(self):
+        self.logger.debug(f"num_ports: {self.ecloud_base['num_ports']}")
+        return self.ecloud_base['num_ports']
         
     def get_server_ping_time_s(self):
         self.logger.debug(f"server_ping_time_s: {self.ecloud_base['server_ping_time_s']}")

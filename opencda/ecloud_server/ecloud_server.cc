@@ -36,7 +36,7 @@
 ABSL_FLAG(uint16_t, sim_port, 50051, "Sim API server port for the service");
 ABSL_FLAG(uint16_t, vehicle_one_port, 50052, "Vehicle client server port one for the server");
 ABSL_FLAG(uint16_t, vehicle_two_port, 50053, "Vehicle client server port for the service");
-ABSL_FLAG(uint16_t, total_ports, 32, "Total number of ports to open - each vehicle client thread will open half this number");
+ABSL_FLAG(uint16_t, num_ports, 32, "Total number of ports to open - each vehicle client thread will open half this number");
 ABSL_FLAG(uint16_t, minloglevel, static_cast<uint16_t>(absl::LogSeverityAtLeast::kInfo),
           "Messages logged at a lower level than this don't actually "
           "get logged anywhere");
@@ -441,7 +441,7 @@ void RunServer(uint16_t port) {
     grpc::reflection::InitProtoReflectionServerBuilderPlugin();
     ServerBuilder builder;
     // Listen on the given address without any authentication mechanism.
-    for ( int i = 0; i < absl::GetFlag(FLAGS_total_ports); i += 2 )
+    for ( int i = 0; i < absl::GetFlag(FLAGS_num_ports); i += 2 )
     {
         std::string server_address = absl::StrFormat("0.0.0.0:%d", port + i );
         builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());

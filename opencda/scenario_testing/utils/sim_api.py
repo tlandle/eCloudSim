@@ -327,6 +327,14 @@ class ScenarioManager:
                  config_file=None,
                  distributed=False):
 
+        self.config_file = config_file
+        self.ecloud_config = EcloudConfig(load_yaml(self.config_file), logger)
+        self.scenario_params = scenario_params
+        self.carla_version = carla_version
+        self.perception = scenario_params['perception_active'] if 'perception_active' in scenario_params else False
+        
+        simulation_config = scenario_params['world']
+
         self.run_distributed = distributed
         if distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
             server_log_level = 0 if logger.getEffectiveLevel() == logging.DEBUG else \
@@ -341,15 +349,8 @@ class ScenarioManager:
                 logger.info(f'killing exiting ecloud gRPC server process')
                 subprocess.run(['pkill','-9','ecloud_server'])
 
-            self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'])
+            self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}',f'--num_ports={self.ecloud_config.get_num_ports()}'])
 
-        self.scenario_params = scenario_params
-        self.carla_version = carla_version
-        self.config_file = config_file
-        self.perception = scenario_params['perception_active'] if 'perception_active' in scenario_params else False
-        
-        simulation_config = scenario_params['world']
-        
         cav_world.update_scenario_manager(self)
 
         random.seed(time.time())
@@ -514,8 +515,6 @@ class ScenarioManager:
             A list contains all single CAVs' vehicle manager.
         """
         logger.info('Creating single CAVs.')
-        config_yaml = load_yaml(self.config_file)
-        ecloud_config = EcloudConfig(config_yaml, logger)
         single_cav_list = []
         for vehicle_index in range(self.vehicle_count):
 
@@ -526,7 +525,7 @@ class ScenarioManager:
                 carla_map=self.carla_map, cav_world=self.cav_world,
                 current_time=self.scenario_params['current_time'],
                 data_dumping=data_dump, map_helper=map_helper,
-                location_type=ecloud_config.get_location_type())
+                location_type=self.ecloud_config.get_location_type())
 
             self.world.tick()
 
@@ -872,7 +871,6 @@ class ScenarioManager:
         single_cav_list = []
 
         config_yaml = load_yaml(self.config_file)
-        ecloud_config = EcloudConfig(config_yaml, logger)
         for vehicle_index in range(self.vehicle_count):
             logger.debug(f"Creating VehiceManagerProxy for vehicle {vehicle_index}")
 
@@ -881,7 +879,7 @@ class ScenarioManager:
                 vehicle_index, config_yaml, application,
                 self.carla_map, self.cav_world,
                 current_time=self.scenario_params['current_time'],
-                data_dumping=data_dump, carla_version=self.carla_version, location_type=ecloud_config.get_location_type())
+                data_dumping=data_dump, carla_version=self.carla_version, location_type=self.ecloud_config.get_location_type())
             logger.debug("finished creating VehiceManagerProxy")
 
             # self.tick_world()

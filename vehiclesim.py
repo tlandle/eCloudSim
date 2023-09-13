@@ -137,7 +137,7 @@ def arg_parse():
 async def main():
     # default params which can be over-written from the simulation controller
     SPECTATOR_INDEX = 0
-    NUM_PORTS = 32 # TODO: config
+
     application = ["single"]
     version = "0.9.12"
     tick_id = 0
@@ -188,6 +188,7 @@ async def main():
     TICK_SLEEP_TIME = ecloud_config.get_client_tick_ping_time_s()
     WORLD_TIME_SLEEP_FACTOR = ecloud_config.get_client_world_tick_factor()
     NUM_SERVERS = ecloud_config.get_num_servers()
+    NUM_PORTS = ecloud_config.get_num_ports()
 
     location_type = ecloud_config.get_location_type()
     done_behavior = ecloud_config.get_done_behavior()
