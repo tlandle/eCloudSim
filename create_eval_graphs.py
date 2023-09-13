@@ -140,14 +140,14 @@ def create_stacked_bar_chart(data,  y, labels):
         #'client_controller_update_info', 
         #'client_controller_step',  
         #'client_control',
-        'network_latency',
-        'client_step_time']
+        'client_step_time',
+        'network_latency']
 
     ax = data.plot(y=y, kind='bar', stacked=True, color=colors, figsize=(11, 8))
     plt.xlabel(labels['xlabel'])
     plt.ylabel(labels['ylabel'])
     plt.title(labels['title'])
-    ax.legend(labels=labels_legend)
+    ax.legend(labels=S)
     return ax
 
 
