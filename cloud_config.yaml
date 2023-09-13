@@ -1,5 +1,8 @@
-carla_server_public_ip: "20.122.64.203" # server
-#carla_server_public_ip: "localhost"
-ecloud_server_public_ip: "20.172.248.156" # ndm
-#ecloud_server_public_ip: "localhost"
-log_level: "debug"
+#carla_server_public_ip: "20.122.64.203" # server
+carla_server_public_ip: "localhost"
+
+#ecloud_server_public_ip: "20.172.248.156" # ndm
+#ecloud_server_public_ip: "20.122.64.203" # server
+ecloud_server_public_ip: "localhost"
+
+log_level: "error"
