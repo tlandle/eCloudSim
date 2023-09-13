@@ -62,8 +62,8 @@ def run_scenario(opt, config_yaml):
                 scenario_manager.create_distributed_vehicle_manager(application=['single']) 
         else:    
             single_cav_list = \
-                scenario_manager.create_vehicle_manager(application=['single'],
-                                                        map_helper=map_api.spawn_helper_2lanefree)
+                scenario_manager.create_vehicle_manager(application=['single'])#,
+                                                        #map_helper=map_api.spawn_helper_2lanefree)
 
         # create background traffic in carla
         traffic_manager, bg_veh_list = \

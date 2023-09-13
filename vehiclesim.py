@@ -137,6 +137,7 @@ def arg_parse():
 async def main():
     # default params which can be over-written from the simulation controller
     SPECTATOR_INDEX = 0
+    NUM_PORTS = 32 # TODO: config
     application = ["single"]
     version = "0.9.12"
     tick_id = 0
@@ -212,9 +213,9 @@ async def main():
 
     ecloud_update = await send_carla_data_to_opencda(ecloud_server, vehicle_index, actor_id, vid)
 
-    server_port = vehicle_index % NUM_SERVERS
+    server_port = vehicle_index % NUM_PORTS
     if server_port != 0:
-        logger.info("connecting to secondary server...")
+        logger.info(f"connecting to secondary server on port {int(opt.port) + server_port}")
         await channel.close()
         channel = grpc.aio.insecure_channel(
             target=f"{ECLOUD_IP}:{int(opt.port) + server_port}",
