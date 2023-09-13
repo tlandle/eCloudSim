@@ -147,7 +147,7 @@ def create_stacked_bar_chart(data,  y, labels):
     plt.xlabel(labels['xlabel'])
     plt.ylabel(labels['ylabel'])
     plt.title(labels['title'])
-    ax.legend(labels=S)
+    ax.legend(labels=labels_legend)
     return ax
 
 
