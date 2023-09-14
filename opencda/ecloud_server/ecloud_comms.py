@@ -100,12 +100,12 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
 async def ecloud_run_push_server(port, 
                        q: asyncio.Queue) -> None:
     
-    logger.info("Spinning up eCloud push server")
+    logger.info("spinning up eCloud push server")
     server = grpc.aio.server()
     ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(q), server)
     listen_addr = f"[::]:{port}"
     server.add_insecure_port(listen_addr)
-    logger.info("Starting eCloud push server on %s", listen_addr)
+    print(f"starting eCloud push server on {listen_addr}")
     
     await server.start()
     await server.wait_for_termination()

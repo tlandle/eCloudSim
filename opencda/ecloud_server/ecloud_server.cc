@@ -129,8 +129,11 @@ class PushClient
             if ( sendTimestamps )
             {
                 timestamp_mu_.Lock();
-                //std::cout << "LOG(INFO) " << "Timestamps: " << client_timestamps_.size() << std::endl;
-                ping.mutable_timestamps() = {client_timestamps_.begin(), client_timestamps_.end()};
+                for (int i=0; i < client_timestamps_.size(); i++)
+                {
+                    Timestamps *t = ping.add_timestamps();
+                    t->CopyFrom(client_timestamps_[i]);
+                }
                 timestamp_mu_.Unlock();
             }
 

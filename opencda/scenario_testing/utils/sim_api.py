@@ -277,7 +277,7 @@ class ScenarioManager:
     async def server_start_scenario(self, stub_, update_):
         await stub_.Server_StartScenario(update_)
 
-        logger.info(f"pushed scenario start")
+        print(f"pushed scenario start")
 
         assert(self.push_q.empty())
         await self.push_q.get()
@@ -441,9 +441,10 @@ class ScenarioManager:
         server_request.is_edge = self.is_edge
         server_request.vehicle_machine_ip = VEHICLE_IP
 
-        print("start vehicle containers")
         ecloud_update = await self.server_start_scenario(self.ecloud_server, server_request)
 
+        print("start vehicle containers")
+        
         logger.debug(f"unpacking ecloud_update...")
 
         # unpack the update - which will contain a repeated list of updates from the indivudal containers
