@@ -33,6 +33,8 @@ elif cloud_config["log_level"] == "info":
 class EcloudClient:
 
     '''
+    Wrapper Class around gRPC Vehicle Client Calls
+    
     // CLIENT
     rpc Client_SendUpdate (VehicleUpdate) returns (SimulationState);
     rpc Client_RegisterVehicle (VehicleUpdate) returns (SimulationState);
@@ -76,22 +78,20 @@ class EcloudClient:
 class EcloudPushServer(ecloud_rpc.EcloudServicer):
 
     '''
-    // PUSH
-    rpc PushClient_DoTick(Ping) returns (Empty);
-    rpc PushServer_TickDone(Ping) returns (Empty);
+    Lightweight gRPC Server Class for Receiving Push Messages from Ochestrator
     '''
 
     def __init__(self, 
                  q: asyncio.Queue):
         
-        logger.info("push server initialized")
+        logger.info("eCloud push server initialized")
         self.q = q
 
     async def PushTick(self, 
                        ping: ecloud.Ping, 
                        context: grpc.aio.ServicerContext) -> ecloud.Empty:
 
-        logger.info("PushTick()")
+        logger.debug(f"PushTick(): ping - {ping.SerializeToString()}")
         assert(self.q.empty())
         self.q.put_nowait(ping)
 
@@ -100,12 +100,12 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
 async def ecloud_run_push_server(port, 
                        q: asyncio.Queue) -> None:
     
-    logger.info("ecloud_run_push_server")
+    logger.info("Spinning up eCloud push server")
     server = grpc.aio.server()
     ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(q), server)
     listen_addr = f"[::]:{port}"
     server.add_insecure_port(listen_addr)
-    logger.info("Starting push server on %s", listen_addr)
+    logger.info("Starting eCloud push server on %s", listen_addr)
     
     await server.start()
     await server.wait_for_termination()

@@ -71,6 +71,7 @@ coloredlogs.install(level='DEBUG', logger=logger)
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
 ECLOUD_IP = cloud_config["ecloud_server_public_ip"]
+VEHICLE_IP = cloud_config["vehicle_client_public_ip"]
 ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 
 if cloud_config["log_level"] == "error":
@@ -438,7 +439,7 @@ class ScenarioManager:
         server_request.tick_id = self.tick_id
         server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
         server_request.is_edge = self.is_edge
-        server_request.vehicle_machine_ip = ECLOUD_IP
+        server_request.vehicle_machine_ip = VEHICLE_IP
 
         print("start vehicle containers")
         ecloud_update = await self.server_start_scenario(self.ecloud_server, server_request)

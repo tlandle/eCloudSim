@@ -120,11 +120,19 @@ class PushClient
         explicit PushClient( std::shared_ptr<grpc::Channel> channel, std::string connection ) : 
                             stub_(Ecloud::NewStub(channel)), connection_(connection) {}
 
-        bool PushTick(int32_t tick, Command command)
+        bool PushTick(int32_t tick, Command command, bool sendTimestamps)
         {
             Ping ping;
             ping.set_tick_id(tick);
             ping.set_command(command);
+
+            if ( sendTimestamps )
+            {
+                timestamp_mu_.Lock();
+                //std::cout << "LOG(INFO) " << "Timestamps: " << client_timestamps_.size() << std::endl;
+                ping.mutable_timestamps() = {client_timestamps_.begin(), client_timestamps_.end()};
+                timestamp_mu_.Unlock();
+            }
 
             grpc::ClientContext context;
             Empty empty;
@@ -260,11 +268,16 @@ public:
             timestamp_mu_.Lock();
             client_timestamps_.push_back(vehicle_timestamp);
             timestamp_mu_.Unlock();
+
+            mu_.Lock();
             numRepliedVehicles_++;
+            mu_.Unlock();
         }
         else if ( request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
         {
+            mu_.Lock();
             numCompletedVehicles_++;
+            mu_.Unlock();
             DLOG(INFO) << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
         }
 
@@ -280,7 +293,7 @@ public:
 
         LOG_IF(INFO, complete_ ) << "tick " << request->tick_id() << " COMPLETE";
         if ( complete_ )
-            simAPIClient_->PushTick(1, command_);
+            simAPIClient_->PushTick(1, command_, true);
         // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -374,7 +387,7 @@ public:
         if ( complete_ )
         {
             assert( simState_ == State::NEW || ( simState_ == State::NEW && replies_ == pendingReplies_.size() ) );
-            simAPIClient_->PushTick(replies_, command_);
+            simAPIClient_->PushTick(replies_, command_, false);
         }
         // END PUSH   
 
@@ -405,7 +418,7 @@ public:
 
         // BEGIN PUSH
         for ( int i; i < vehicleClients_.size(); i++ )
-            vehicleClients_[i]->PushTick(request->tick_id(), request->command());
+            vehicleClients_[i]->PushTick(request->tick_id(), request->command(), false);
         // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -441,7 +454,7 @@ public:
         numCars_ = request->vehicle_index(); // bit of a hack to use vindex as count
         isEdge_ = request->is_edge();
         vehicleMachineIP_ = request->vehicle_machine_ip();
-        // TODO: simIP_ = 
+        // TODO: simIP_ = // always localhost for now
 
         assert( numCars_ <= MAX_CARS );
         DLOG(INFO) << "numCars_: " << numCars_;
