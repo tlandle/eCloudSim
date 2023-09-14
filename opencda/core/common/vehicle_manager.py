@@ -116,12 +116,11 @@ class VehicleManager(object):
 
         # set random seed if stated
         seed = time.time()
-        simulation_config = self.scenario_params['world']
-        if 'seed' in simulation_config:
-            seed = simulation_config['world']['seed']
+        if 'seed' in self.scenario_params['world']:
+            seed = self.scenario_params['world']['seed']
             
         if spawn_random:
-            assert( 'seed' in config_yaml['world'] )
+            assert( 'seed' in self.scenario_params['world'] )
             seed = seed + self.vehicle_index    
             
         np.random.seed(seed)
