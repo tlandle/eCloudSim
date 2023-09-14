@@ -349,7 +349,9 @@ def main():
 
     #print(test_scenario)
     scenario_yaml = json.loads(test_scenario) #load_yaml(test_scenario)
-    vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, carla_version=version)
+    spawn_random = True if ( 'ecloud' in scenario_yaml['scenario'] and 'location_type' in scenario_yaml['scenario']['ecloud'] and scenario_yaml['scenario']['ecloud']['location_type'] == 'random' ) else False
+
+    vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, carla_version=version, spawn_random=spawn_random)
 
     target_speed = None
     edge_sets_destination = False
@@ -372,7 +374,6 @@ def main():
     carla_vehicle_created.set()
 
     #_socket.send(json.dumps(message).encode('utf-8'))
-
 
     # run scenario testing
     # TODO
@@ -412,7 +413,7 @@ def main():
             end_location = carla.Location(x=destination["end"]["x"], y=destination["end"]["y"], z=destination["end"]["z"])
             clean = bool(destination["clean"])
             end_reset = bool(destination["reset"])
-            vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
+            vehicle_manager.set_destination(start_location, end_location, clean, end_reset, set_random=spawn_random)
             #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
             pushed_message.clear()    
             popped_message.set()
