@@ -57,6 +57,8 @@ message SimulationState {
   google.protobuf.Timestamp sm_start_tstamp = 9;
   int32 last_world_tick_time_ms = 10;
   bool is_edge = 11;
+  string vehicle_machine_ip = 12; // TODO: multiple
+  string sim_api_ip = 13;
 }
 
 message WaypointRequest {
@@ -174,15 +176,18 @@ message EcloudResponse {
 }
 
 service Ecloud {
+  // STREAM
+  rpc SimulationStateStream (Ping) returns (stream Ping); // DEPRECATED
+  // PUSH
+  rpc PushTick(Ping) returns (Empty);
+  // CLIENT
   rpc Client_SendUpdate (VehicleUpdate) returns (SimulationState);
   rpc Client_RegisterVehicle (VehicleUpdate) returns (SimulationState);
-  rpc Client_Ping (Ping) returns (Ping);
   rpc Client_GetWaypoints(WaypointRequest) returns (WaypointBuffer);
   // SERVER
   rpc Server_DoTick(SimulationState) returns (EcloudResponse);
   rpc Server_StartScenario(SimulationState) returns (EcloudResponse);
   rpc Server_EndScenario(Empty) returns (Empty);
-  rpc Server_Ping(Empty) returns (Ping);
   rpc Server_GetVehicleUpdates(Empty) returns (EcloudResponse);
   rpc Server_PushEdgeWaypoints(EdgeWaypoints) returns (Empty);
 }

@@ -8,16 +8,18 @@ Script to run a simulated vehicle
 
 
 import argparse
-from atexit import register
-from curses import A_DIM
 import sys
 import json
 import asyncio
 import os
+import logging
+import threading
+import time
+import queue
 
 import carla
-
 import numpy as np
+import coloredlogs
 
 from opencda.version import __version__
 from opencda.core.common.cav_world import CavWorld
@@ -27,23 +29,16 @@ from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.common.ecloud_config import EcloudConfig, eDoneBehavior
-
-# gRPC
-from concurrent.futures import ThreadPoolExecutor
-import coloredlogs, logging
-import threading
-import time
-from typing import Iterator
-from queue import Queue
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
-from google.protobuf.json_format import MessageToJson
+
+from opencda.ecloud_server.ecloud_comms import EcloudClient, EcloudPushServer, ecloud_run_push_server
+
 import grpc
+from google.protobuf.json_format import MessageToJson
 from google.protobuf.timestamp_pb2 import Timestamp
-# sys.path.append('../../protos/')
 
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
-#end gRPC
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -52,6 +47,7 @@ logger.setLevel(logging.DEBUG)
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
 ECLOUD_IP = cloud_config["ecloud_server_public_ip"]
+ECLOUD_PUSH_BASE_PORT = 50101 # TODO: config
 
 if cloud_config["log_level"] == "error":
     logger.setLevel(logging.ERROR)
@@ -143,6 +139,7 @@ async def main():
     tick_id = 0
     state = ecloud.State.UNDEFINED #do we need a global state?
     reported_done = False
+    push_q = asyncio.Queue()
 
     opt = arg_parse()
     if opt.verbose:
@@ -183,6 +180,10 @@ async def main():
     if 'debug_scenario' in scenario_yaml:
         logger.debug(f"main - test_scenario: {test_scenario}") # VERY verbose
 
+    # spawn push server
+    push_port = ECLOUD_PUSH_BASE_PORT + vehicle_index
+    push_server = asyncio.get_event_loop().create_task(ecloud_run_push_server(push_port, push_q))
+
     ecloud_config = EcloudConfig(scenario_yaml, logger)
     SPAWN_SLEEP_TIME = ecloud_config.get_client_spawn_ping_time_s()
     TICK_SLEEP_TIME = ecloud_config.get_client_tick_ping_time_s()
@@ -214,28 +215,9 @@ async def main():
 
     ecloud_update = await send_carla_data_to_opencda(ecloud_server, vehicle_index, actor_id, vid)
 
-    server_port = vehicle_index % NUM_PORTS
-    if server_port != 0:
-        logger.info(f"connecting to secondary server on port {int(opt.port) + server_port}")
-        await channel.close()
-        channel = grpc.aio.insecure_channel(
-            target=f"{ECLOUD_IP}:{int(opt.port) + server_port}",
-            options=[
-                ("grpc.lb_policy_name", "pick_first"),
-                ("grpc.enable_retries", 0),
-                ("grpc.keepalive_timeout_ms", 10000),
-            ],
-        )
-        ecloud_server = ecloud_rpc.EcloudStub(channel)
-
-    while 1:
-            await asyncio.sleep(SPAWN_SLEEP_TIME)
-            ping = ecloud.Ping()
-            ping.tick_id = tick_id
-            pong = await ecloud_server.Client_Ping(ping)
-            if pong.tick_id != tick_id:
-                tick_id = pong.tick_id
-                break
+    assert(push_q.empty())
+    await push_q.get()
+    push_q.task_done()
 
     vehicle_manager.update_info()
     vehicle_manager.set_destination(
@@ -385,35 +367,22 @@ async def main():
             if not reported_done:
                 last_command = ecloud_update.command
                 ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
-            
-            await asyncio.sleep(WORLD_TIME_SLEEP_FACTOR * ecloud_update.last_world_tick_time_ms / 1000)
-            done_time = time.time()
-            count = 1
-            # poll the server
-            while vehicle_update.vehicle_state != ecloud.VehicleState.TICK_DONE and vehicle_update.vehicle_state != ecloud.VehicleState.DEBUG_INFO_UPDATE:
-                ping = ecloud.Ping()
-                ping.tick_id = tick_id
-                pong = await ecloud_server.Client_Ping(ping)
-                if pong.tick_id != tick_id:
-                    tick_id = pong.tick_id
+                        
+            assert(push_q.empty())
+            pong = await push_q.get()
+            push_q.task_done()
+            assert( pong.tick_id != tick_id )
+            tick_id = pong.tick_id
 
-                    if pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
-                        ecloud_update.command = ecloud.Command.REQUEST_DEBUG_INFO
+            if pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
+                ecloud_update.command = ecloud.Command.REQUEST_DEBUG_INFO
 
-                    elif pong.command == ecloud.Command.PULL_WAYPOINTS_AND_TICK:
-                        wp_request = ecloud.WaypointRequest()
-                        wp_request.vehicle_index = vehicle_index
-                        waypoint_proto = await ecloud_server.Client_GetWaypoints(wp_request)
-                        ecloud_update.command = ecloud.Command.TICK    
+            elif pong.command == ecloud.Command.PULL_WAYPOINTS_AND_TICK:
+                wp_request = ecloud.WaypointRequest()
+                wp_request.vehicle_index = vehicle_index
+                waypoint_proto = await ecloud_server.Client_GetWaypoints(wp_request)
+                ecloud_update.command = ecloud.Command.TICK    
 
-                    end_time = time.time()
-                    logger.info(f"polled {count} times over {(end_time - done_time)*1000}ms")
-                    break
-
-                await asyncio.sleep(TICK_SLEEP_TIME)
-                count += 1
-
-            #logger.debug(f"received tick: {tick_id}")
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
                 if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and last_command == ecloud.Command.REQUEST_DEBUG_INFO:
                     # we were asked for debug data and provided it, so NOW we exit
@@ -429,7 +398,9 @@ async def main():
             break
 
     # end while    
-    vehicle_manager.destroy()  
+    vehicle_manager.destroy()
+    push_server.cancel()
+    await asyncio.gather(*push_server, return_exceptions=True)  
     logger.info("scenario complete. exiting.")
     sys.exit(0)
 
