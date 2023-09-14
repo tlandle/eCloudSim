@@ -176,7 +176,7 @@ class VehicleManager(object):
                                                 z=self.spawn_transform.location.z)
 
                         cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-                        self.vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
+                        self.vehicle = self.world.spawn_actor(cav_vehicle_bp, self.spawn_transform)
                         spawned = True
 
                     except Exception as e:
@@ -198,7 +198,7 @@ class VehicleManager(object):
                             yaw=0,
                             roll=0))
 
-                    spawn_transform = carla.Transform(
+                    self.spawn_transform = carla.Transform(
                         carla.Location(
                             x=cav_config['spawn_position'][0],
                             y=cav_config['spawn_position'][1],
@@ -215,7 +215,7 @@ class VehicleManager(object):
                 self.cav_destination['y'] = cav_config['destination'][1]
 
                 cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-                self.vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
+                self.vehicle = self.world.spawn_actor(cav_vehicle_bp, self.spawn_transform)
 
         else:
             assert( False, "need to provide some known config" )
