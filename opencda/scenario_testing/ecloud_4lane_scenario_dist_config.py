@@ -17,6 +17,7 @@ DO NOT USE for 2-Lane Free
 # Core
 import os
 import time
+import asyncio
 
 # 3rd Party
 import carla
@@ -72,6 +73,8 @@ def run_scenario(opt, config_yaml):
             scenario_manager.client. \
                 start_recorder(LOG_NAME, True)
 
+        asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
+
         # create single cavs        
         if run_distributed:
             single_cav_list = \
@@ -91,7 +94,9 @@ def run_scenario(opt, config_yaml):
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
+
         # run steps
+        
         step = 0 
         flag = True
         while flag:

@@ -84,12 +84,14 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
     def __init__(self, 
                  q: asyncio.Queue):
         
+        logger.info("push server initialized")
         self.q = q
 
     async def PushTick(self, 
                        ping: ecloud.Ping, 
                        context: grpc.aio.ServicerContext) -> ecloud.Empty:
 
+        logger.info("PushTick()")
         assert(self.q.empty())
         self.q.put_nowait(ping)
 
@@ -98,11 +100,12 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
 async def ecloud_run_push_server(port, 
                        q: asyncio.Queue) -> None:
     
+    logger.info("ecloud_run_push_server")
     server = grpc.aio.server()
-    ecloud.add_EcloudServicer_to_server(EcloudPushServer(q), server)
+    ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(q), server)
     listen_addr = f"[::]:{port}"
     server.add_insecure_port(listen_addr)
-    logging.info("Starting server on %s", listen_addr)
+    logger.info("Starting push server on %s", listen_addr)
     
     await server.start()
     await server.wait_for_termination()

@@ -412,43 +412,48 @@ class ScenarioManager:
             )
             self.ecloud_server = ecloud_rpc.EcloudStub(channel)
 
-            self.push_q = asyncio.Queue()
-            self.push_server = asyncio.get_event_loop().create_task(ecloud_run_push_server(ECLOUD_PUSH_API_PORT, self.push_q))
-
             ScenarioManager.debug_helper.update_sim_start_timestamp(time.time())
 
             self.scenario = json.dumps(scenario_params) #self.config_file
             self.carla_version = self.carla_version
 
-            server_request = ecloud.SimulationState()
-            server_request.test_scenario = self.scenario
-            server_request.application = self.application[0]
-            server_request.version = self.carla_version
-            server_request.state = ecloud.State.START
-            server_request.tick_id = self.tick_id
-            server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
-            server_request.is_edge = self.is_edge
-            server_request.vehicle_machine_ip = ECLOUD_IP
-
-            print("start vehicle containers")
-            ecloud_update = asyncio.get_event_loop().run_until_complete(self.server_start_scenario(self.ecloud_server, server_request))
-
-            logger.debug(f"unpacking ecloud_update...")
-
-            # unpack the update - which will contain a repeated list of updates from the indivudal containers
-            for vehicle_update in ecloud_update.vehicle_update:
-                logger.debug(f"vehicle {vehicle_update.vehicle_index} | actor_id: {vehicle_update.actor_id} & vid: {vehicle_update.vid}")
-                vehicle_tuple = ( vehicle_update.actor_id, vehicle_update.vid )
-                self.vehicles[f"vehicle_{vehicle_update.vehicle_index}"] = vehicle_tuple
-                
-            self.world.tick()
-
-            logger.debug("eCloud debug: pushed START")
+        # eCLOUD END
 
         else: # sequential
             ScenarioManager.debug_helper.update_sim_start_timestamp(time.time())
 
-        # eCLOUD END
+    async def run_comms(self):
+        self.push_q = asyncio.Queue()
+        self.push_server = asyncio.create_task(ecloud_run_push_server(ECLOUD_PUSH_API_PORT, self.push_q))
+        #self.push_server = threading.Thread(target=ecloud_run_push_server, args=(ECLOUD_PUSH_API_PORT, self.push_q,))
+        #self.push_server.start()
+
+        await asyncio.sleep(1)
+
+        server_request = ecloud.SimulationState()
+        server_request.test_scenario = self.scenario
+        server_request.application = self.application[0]
+        server_request.version = self.carla_version
+        server_request.state = ecloud.State.START
+        server_request.tick_id = self.tick_id
+        server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
+        server_request.is_edge = self.is_edge
+        server_request.vehicle_machine_ip = ECLOUD_IP
+
+        print("start vehicle containers")
+        ecloud_update = await self.server_start_scenario(self.ecloud_server, server_request)
+
+        logger.debug(f"unpacking ecloud_update...")
+
+        # unpack the update - which will contain a repeated list of updates from the indivudal containers
+        for vehicle_update in ecloud_update.vehicle_update:
+            logger.debug(f"vehicle {vehicle_update.vehicle_index} | actor_id: {vehicle_update.actor_id} & vid: {vehicle_update.vid}")
+            vehicle_tuple = ( vehicle_update.actor_id, vehicle_update.vid )
+            self.vehicles[f"vehicle_{vehicle_update.vehicle_index}"] = vehicle_tuple
+            
+        self.world.tick()
+
+        logger.debug("eCloud debug: pushed START")
 
     @staticmethod
     def set_weather(weather_settings):

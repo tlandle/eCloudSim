@@ -366,6 +366,7 @@ public:
         // BEGIN PUSH
         mu_.Lock();
         const int16_t replies_ = numRepliedVehicles_.load();
+        LOG(INFO) << "received " << replies_ << " replies";
         mu_.Unlock();
         const bool complete_ = ( replies_ == numCars_ );
 

@@ -182,7 +182,9 @@ async def main():
 
     # spawn push server
     push_port = ECLOUD_PUSH_BASE_PORT + vehicle_index
-    push_server = asyncio.get_event_loop().create_task(ecloud_run_push_server(push_port, push_q))
+    push_server = asyncio.create_task(ecloud_run_push_server(push_port, push_q))
+
+    await asyncio.sleep(1)
 
     ecloud_config = EcloudConfig(scenario_yaml, logger)
     SPAWN_SLEEP_TIME = ecloud_config.get_client_spawn_ping_time_s()
