@@ -128,13 +128,11 @@ class PushClient
 
             if ( sendTimestamps )
             {
-                timestamp_mu_.Lock();
                 for (int i=0; i < client_timestamps_.size(); i++)
                 {
                     Timestamps *t = ping.add_timestamps();
                     t->CopyFrom(client_timestamps_[i]);
                 }
-                timestamp_mu_.Unlock();
             }
 
             grpc::ClientContext context;
@@ -243,7 +241,6 @@ public:
         }
 
         repliedCars_[request->vehicle_index()] = true;
-
         if ( ( tickId_ - 1 ) % VERBOSE_PRINT_COUNT == 0 )
         {
             const auto now = std::chrono::system_clock::now();
@@ -272,15 +269,11 @@ public:
             client_timestamps_.push_back(vehicle_timestamp);
             timestamp_mu_.Unlock();
 
-            mu_.Lock();
             numRepliedVehicles_++;
-            mu_.Unlock();
         }
         else if ( request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
         {
-            mu_.Lock();
             numCompletedVehicles_++;
-            mu_.Unlock();
             DLOG(INFO) << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
         }
 
@@ -288,15 +281,16 @@ public:
         reply->set_last_world_tick_time_ms(lastWorldTickTimeMS_.load());
 
         // BEGIN PUSH
-        mu_.Lock();
         const int16_t replies_ = numRepliedVehicles_.load();
         const int16_t completions_ = numCompletedVehicles_.load();
-        mu_.Unlock();
         const bool complete_ = ( replies_ + completions_ ) == numCars_;
 
         LOG_IF(INFO, complete_ ) << "tick " << request->tick_id() << " COMPLETE";
         if ( complete_ )
-            simAPIClient_->PushTick(1, command_, true);
+        {    
+            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, true);
+            t.detach();
+        }
         // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -380,17 +374,16 @@ public:
         }
 
         // BEGIN PUSH
-        mu_.Lock();
         const int16_t replies_ = numRepliedVehicles_.load();
         LOG(INFO) << "received " << replies_ << " replies";
-        mu_.Unlock();
         const bool complete_ = ( replies_ == numCars_ );
 
         LOG_IF(INFO, complete_ ) << "REGISTRATION COMPLETE";
         if ( complete_ )
         {
             assert( simState_ == State::NEW || ( simState_ == State::NEW && replies_ == pendingReplies_.size() ) );
-            simAPIClient_->PushTick(replies_, command_, false);
+            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, false);
+            t.detach();
         }
         // END PUSH   
 
@@ -420,8 +413,12 @@ public:
             now.time_since_epoch()).count();
 
         // BEGIN PUSH
+        const int32_t tickId = request->tick_id();
         for ( int i; i < vehicleClients_.size(); i++ )
-            vehicleClients_[i]->PushTick(request->tick_id(), request->command(), false);
+        {
+            std::thread t(&PushClient::PushTick, vehicleClients_[i], tickId, command_, false);
+            t.detach();
+        }
         // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();

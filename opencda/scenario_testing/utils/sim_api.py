@@ -278,6 +278,7 @@ class ScenarioManager:
         await stub_.Server_StartScenario(update_)
 
         print(f"pushed scenario start")
+        print("start vehicle containers")
 
         assert(self.push_q.empty())
         await self.push_q.get()
@@ -443,8 +444,6 @@ class ScenarioManager:
 
         ecloud_update = await self.server_start_scenario(self.ecloud_server, server_request)
 
-        print("start vehicle containers")
-        
         logger.debug(f"unpacking ecloud_update...")
 
         # unpack the update - which will contain a repeated list of updates from the indivudal containers
