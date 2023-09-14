@@ -154,10 +154,11 @@ async def main():
         target=f"{ECLOUD_IP}:{opt.port}",
         options=[
             ("grpc.lb_policy_name", "pick_first"),
-            ("grpc.enable_retries", 0),
+            ("grpc.enable_retries", 1),
             ("grpc.keepalive_timeout_ms", 10000),
-        ],
-    )
+            ("grpc.service_config", EcloudClient.retry_opts),],
+        )
+    
     ecloud_server = ecloud_rpc.EcloudStub(channel)
     ecloud_update = await send_registration_to_ecloud_server(ecloud_server)
     vehicle_index = ecloud_update.vehicle_index

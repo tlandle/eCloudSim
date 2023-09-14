@@ -42,6 +42,19 @@ class EcloudClient:
     rpc Client_GetWaypoints(WaypointRequest) returns (WaypointBuffer);
     '''
 
+    retry_opts = json.dumps({
+                    "methodConfig": [
+                    {
+                        "name": [{"service": "ecloud.Ecloud"}],
+                        "retryPolicy": {
+                            "maxAttempts": 5,
+                            "initialBackoff": "0.05s",
+                            "maxBackoff": "0.5s",
+                            "backoffMultiplier": 2,
+                            "retryableStatusCodes": ["UNAVAILABLE"],
+                        },
+                    }]})
+
     def __init__(self, channel: grpc.Channel) -> None:
         self.channel = channel
         self.stub = ecloud_rpc.EcloudStub(self.channel)     

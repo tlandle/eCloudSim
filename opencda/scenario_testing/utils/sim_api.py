@@ -408,9 +408,9 @@ class ScenarioManager:
             target=f"{ECLOUD_IP}:50051",
             options=[
                 ("grpc.lb_policy_name", "pick_first"),
-                ("grpc.enable_retries", 0),
+                ("grpc.enable_retries", 1),
                 ("grpc.keepalive_timeout_ms", TIMEOUT_MS),
-                ],
+                ("grpc.service_config", EcloudClient.retry_opts)],
             )
             self.ecloud_server = ecloud_rpc.EcloudStub(channel)
 
