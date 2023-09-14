@@ -428,6 +428,7 @@ class ScenarioManager:
             server_request.tick_id = self.tick_id
             server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
             server_request.is_edge = self.is_edge
+            server_request.vehicle_machine_ip = ECLOUD_IP
 
             print("start vehicle containers")
             ecloud_update = asyncio.get_event_loop().run_until_complete(self.server_start_scenario(self.ecloud_server, server_request))
