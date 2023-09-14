@@ -3,6 +3,7 @@
 #include <string>
 #include <atomic>
 #include <mutex>
+#include <condition_variable>
 #include <thread>
 #include <cassert>
 #include <stdexcept>
@@ -10,7 +11,6 @@
 #include <csignal>
 #include <unistd.h>
 #include <chrono>
-#include <format>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
@@ -117,15 +117,16 @@ std::vector<Timestamps> client_timestamps_ ABSL_GUARDED_BY(timestamp_mu_);
 class PushClient
 {
     public:
-        explicit PushClient( std::shared_ptr<Channel> channel, std::string connection, bool isServer ) : stub_(Ecloud::NewStub(channel)), connection_(connection) isServer_(isServer) {}
+        explicit PushClient( std::shared_ptr<grpc::Channel> channel, std::string connection ) : 
+                            stub_(Ecloud::NewStub(channel)), connection_(connection) {}
 
-        bool PushTick(int32_t tick, int32_t command)
+        bool PushTick(int32_t tick, Command command)
         {
             Ping ping;
             ping.set_tick_id(tick);
             ping.set_command(command);
 
-            ClientContext context;
+            grpc::ClientContext context;
             Empty empty;
             
             // The actual RPC.
@@ -184,7 +185,7 @@ public:
             vehicleMachineIP_ = "localhost";
         
             std::string connection = absl::StrFormat("%s:%d", simIP_, ECLOUD_PUSH_API_PORT );
-            simAPIClient_ = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials(), connection);
+            simAPIClient_ = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
 
             vehicleClients_.clear();
 
@@ -193,77 +194,6 @@ public:
 
             init_ = true;
         }
-    }
-
-    ServerUnaryReactor* Client_Ping(CallbackServerContext* context,
-                               const Ping* ping,
-                               Ping* pong) override {                                           
-        const int32_t tick_ = tickId_.load();
-        const Command comm_ = command_;
-        const bool new_ = tickId_ != ping->tick_id() ? true : false;
-
-        pong->set_tick_id(tick_);
-        pong->set_command(comm_);
-
-        if ( ( pong->tick_id() - 1 ) % VERBOSE_PRINT_COUNT == 0 && new_ )
-        {
-            const auto now = std::chrono::system_clock::now();
-            DLOG(INFO) << "sent new tick " << pong->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
-                now.time_since_epoch()).count();
-        }
-
-        ServerUnaryReactor* reactor = context->DefaultReactor();
-        reactor->Finish(Status::OK);
-        return reactor;
-    }
-
-    ServerUnaryReactor* Server_Ping(CallbackServerContext* context,
-                               const Ping* ping,
-                               Ping* pong) override {
-        const int16_t replies_ = numRepliedVehicles_.load();
-        const int16_t completions_ = numCompletedVehicles_.load();
-        const bool complete_ = ( replies_ + completions_ ) == numCars_;
-
-        if ( complete_ )
-            DLOG(INFO) << "Server_Ping COMPLETE";
-
-        if ( simState_ == State::NEW )
-        {
-            assert( replies_ == pendingReplies_.size() );
-            pong->set_tick_id( replies_ );
-        }
-        else
-        {
-            pong->set_tick_id( complete_ ? 1 : 0 );
-            if(complete_)
-            {
-                timestamp_mu_.Lock();
-                //std::cout << "LOG(INFO) " << "Timestamps: " << client_timestamps_.size() << std::endl;
-                *pong->mutable_timestamps() = {client_timestamps_.begin(), client_timestamps_.end()};
-                timestamp_mu_.Unlock();
-
-                const auto now = std::chrono::system_clock::now();
-                DLOG(INFO) << "tick " << tickId_ << " complete at " << std::chrono::duration_cast<std::chrono::milliseconds>(
-                    now.time_since_epoch()).count();    
-            }
-            else if ( ( replies_ + completions_ ) >= numCars_ - SLOW_CAR_COUNT )
-            {
-                for ( int i=0; i < numCars_; i++ )
-                {
-                    if ( repliedCars_[i] == false )
-                    {
-                        if ( ( replies_ + completions_ ) == numCars_ - 1 )
-                            DLOG(INFO) << "waiting on reply from vehicle " << i << " | container " << carNames_[i];
-                        else
-                            DLOG(INFO) << "waiting on reply from vehicle " << i << " | container " << carNames_[i];
-                    }
-                }    
-            }
-        }
-
-        ServerUnaryReactor* reactor = context->DefaultReactor();
-        reactor->Finish(Status::OK);
-        return reactor;
     }
 
     ServerUnaryReactor* Server_GetVehicleUpdates(CallbackServerContext* context,
@@ -350,7 +280,7 @@ public:
 
         LOG_IF(INFO, complete_ ) << "tick " << request->tick_id() << " COMPLETE";
         if ( complete_ )
-            simAPIClient_->PushTick(1, 0);
+            simAPIClient_->PushTick(1, command_);
         // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -401,7 +331,7 @@ public:
             registration_mu_.Lock();
             reply->set_vehicle_index(numRegisteredVehicles_.load());
             std::string connection = absl::StrFormat("%s:%d", vehicleMachineIP_, ECLOUD_PUSH_BASE_PORT + numRegisteredVehicles_.load() );
-            vehicleClient = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials(), connection);
+            PushClient *vehicleClient = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
             vehicleClients_.push_back(vehicleClient);
             numRegisteredVehicles_++;
             registration_mu_.Unlock();
@@ -442,8 +372,8 @@ public:
         LOG_IF(INFO, complete_ ) << "REGISTRATION COMPLETE";
         if ( complete_ )
         {
-            CHECK( simState_ == State::NEW || ( simState_ == State::NEW && replies_ == pendingReplies_.size() ) );
-            simAPIClient_->PushTick(replies_, 0);
+            assert( simState_ == State::NEW || ( simState_ == State::NEW && replies_ == pendingReplies_.size() ) );
+            simAPIClient_->PushTick(replies_, command_);
         }
         // END PUSH   
 
@@ -474,7 +404,7 @@ public:
 
         // BEGIN PUSH
         for ( int i; i < vehicleClients_.size(); i++ )
-            vehicleClients[i]->PushTick(request->tick_id(), request->command());
+            vehicleClients_[i]->PushTick(request->tick_id(), request->command());
         // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
