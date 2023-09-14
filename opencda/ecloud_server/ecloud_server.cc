@@ -10,6 +10,7 @@
 #include <csignal>
 #include <unistd.h>
 #include <chrono>
+#include <format>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
@@ -32,6 +33,10 @@
 #define SLOW_CAR_COUNT 0
 #define SPECTATOR_INDEX 0
 #define VERBOSE_PRINT_COUNT 5
+#define MAX_CARS 512
+
+#define ECLOUD_PUSH_BASE_PORT 50101
+#define ECLOUD_PUSH_API_PORT 50061
 
 ABSL_FLAG(uint16_t, port, 50051, "Sim API server port for the service");
 //ABSL_FLAG(uint16_t, vehicle_one_port, 50052, "Vehicle client server port one for the server");
@@ -82,7 +87,6 @@ volatile std::atomic<int16_t> numRepliedVehicles_;
 volatile std::atomic<int32_t> tickId_;
 volatile std::atomic<int32_t> lastWorldTickTimeMS_;
 
-#define MAX_CARS 512
 bool repliedCars_[MAX_CARS];
 std::string carNames_[MAX_CARS];
 
@@ -93,6 +97,9 @@ std::string configYaml_;
 std::string application_;
 std::string version_;
 google::protobuf::Timestamp timestamp_;
+
+std::string simIP_;
+std::string vehicleMachineIP_; // TODO: multiple vehicle machines
 
 State simState_;
 Command command_;
@@ -106,6 +113,54 @@ absl::Mutex registration_mu_;
 volatile std::atomic<int16_t> numRegisteredVehicles_ ABSL_GUARDED_BY(registration_mu_);
 std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // serialized protobuf
 std::vector<Timestamps> client_timestamps_ ABSL_GUARDED_BY(timestamp_mu_);
+
+class PushClient
+{
+    public:
+        explicit PushClient( std::shared_ptr<Channel> channel, std::string connection, bool isServer ) : stub_(Ecloud::NewStub(channel)), connection_(connection) isServer_(isServer) {}
+
+        bool PushTick(int32_t tick, int32_t command)
+        {
+            Ping ping;
+            ping.set_tick_id(tick);
+            ping.set_command(command);
+
+            ClientContext context;
+            Empty empty;
+            
+            // The actual RPC.
+            std::mutex mu;
+            std::condition_variable cv;
+            bool done = false;
+            Status status;
+            stub_->async()->PushTick(&context, &ping, &empty,
+                            [&mu, &cv, &done, &status](Status s) {
+                            status = std::move(s);
+                            std::lock_guard<std::mutex> lock(mu);
+                            done = true;
+                            cv.notify_one();
+                            });
+
+            std::unique_lock<std::mutex> lock(mu);
+            while (!done) {
+                cv.wait(lock);
+            }
+
+            // Act upon its status.
+            if (status.ok()) {
+                return true;
+            } else {
+                std::cout << status.error_code() << ": " << status.error_message()
+                << std::endl;
+                return false;
+            }
+        }
+
+    private:
+        std::unique_ptr<Ecloud::Stub> stub_;
+        std::string connection_;
+};
+
 // Logic and data behind the server's behavior.
 class EcloudServiceImpl final : public Ecloud::CallbackService {
 public:
@@ -125,9 +180,18 @@ public:
             configYaml_ = "";
             isEdge_ = false;
 
+            simIP_ = "localhost";
+            vehicleMachineIP_ = "localhost";
+        
+            std::string connection = absl::StrFormat("%s:%d", simIP_, ECLOUD_PUSH_API_PORT );
+            simAPIClient_ = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials(), connection);
+
+            vehicleClients_.clear();
+
             pendingReplies_.clear();
-            init_ = true;
             client_timestamps_.clear();
+
+            init_ = true;
         }
     }
 
@@ -154,8 +218,8 @@ public:
     }
 
     ServerUnaryReactor* Server_Ping(CallbackServerContext* context,
-                               const Empty* empty,
-                               Ping* ping) override {
+                               const Ping* ping,
+                               Ping* pong) override {
         const int16_t replies_ = numRepliedVehicles_.load();
         const int16_t completions_ = numCompletedVehicles_.load();
         const bool complete_ = ( replies_ + completions_ ) == numCars_;
@@ -166,16 +230,16 @@ public:
         if ( simState_ == State::NEW )
         {
             assert( replies_ == pendingReplies_.size() );
-            ping->set_tick_id( replies_ );
+            pong->set_tick_id( replies_ );
         }
         else
         {
-            ping->set_tick_id( complete_ ? 1 : 0 );
+            pong->set_tick_id( complete_ ? 1 : 0 );
             if(complete_)
             {
                 timestamp_mu_.Lock();
                 //std::cout << "LOG(INFO) " << "Timestamps: " << client_timestamps_.size() << std::endl;
-                *ping->mutable_timestamps() = {client_timestamps_.begin(), client_timestamps_.end()};
+                *pong->mutable_timestamps() = {client_timestamps_.begin(), client_timestamps_.end()};
                 timestamp_mu_.Unlock();
 
                 const auto now = std::chrono::system_clock::now();
@@ -277,6 +341,18 @@ public:
         reply->set_tick_id(tickId_.load());
         reply->set_last_world_tick_time_ms(lastWorldTickTimeMS_.load());
 
+        // BEGIN PUSH
+        mu_.Lock();
+        const int16_t replies_ = numRepliedVehicles_.load();
+        const int16_t completions_ = numCompletedVehicles_.load();
+        mu_.Unlock();
+        const bool complete_ = ( replies_ + completions_ ) == numCars_;
+
+        LOG_IF(INFO, complete_ ) << "tick " << request->tick_id() << " COMPLETE";
+        if ( complete_ )
+            simAPIClient_->PushTick(1, 0);
+        // END PUSH
+
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
         return reactor;
@@ -324,6 +400,9 @@ public:
 
             registration_mu_.Lock();
             reply->set_vehicle_index(numRegisteredVehicles_.load());
+            std::string connection = absl::StrFormat("%s:%d", vehicleMachineIP_, ECLOUD_PUSH_BASE_PORT + numRegisteredVehicles_.load() );
+            vehicleClient = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials(), connection);
+            vehicleClients_.push_back(vehicleClient);
             numRegisteredVehicles_++;
             registration_mu_.Unlock();
 
@@ -346,14 +425,27 @@ public:
             std::string msg;
             request->SerializeToString(&msg);
             pendingReplies_.push_back(msg);
-            mu_.Unlock();
-            
             numRepliedVehicles_++;
+            mu_.Unlock();
         }
         else
         {
             assert(false);
-        }   
+        }
+
+        // BEGIN PUSH
+        mu_.Lock();
+        const int16_t replies_ = numRepliedVehicles_.load();
+        mu_.Unlock();
+        const bool complete_ = ( replies_ == numCars_ );
+
+        LOG_IF(INFO, complete_ ) << "REGISTRATION COMPLETE";
+        if ( complete_ )
+        {
+            CHECK( simState_ == State::NEW || ( simState_ == State::NEW && replies_ == pendingReplies_.size() ) );
+            simAPIClient_->PushTick(replies_, 0);
+        }
+        // END PUSH   
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -379,6 +471,11 @@ public:
         const auto now = std::chrono::system_clock::now();
         DLOG(INFO) << "received new tick " << request->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
             now.time_since_epoch()).count();
+
+        // BEGIN PUSH
+        for ( int i; i < vehicleClients_.size(); i++ )
+            vehicleClients[i]->PushTick(request->tick_id(), request->command());
+        // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -412,6 +509,8 @@ public:
         version_ = request->version();
         numCars_ = request->vehicle_index(); // bit of a hack to use vindex as count
         isEdge_ = request->is_edge();
+        vehicleMachineIP_ = request->vehicle_machine_ip();
+        // TODO: simIP_ = 
 
         assert( numCars_ <= MAX_CARS );
         DLOG(INFO) << "numCars_: " << numCars_;
@@ -432,6 +531,11 @@ public:
         reactor->Finish(Status::OK);
         return reactor;
     }
+
+    private:
+
+        std::vector< PushClient * > vehicleClients_;
+        PushClient * simAPIClient_;
 };
 
 void RunServer(uint16_t port) {

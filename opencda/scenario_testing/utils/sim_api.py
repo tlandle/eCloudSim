@@ -24,7 +24,6 @@ import asyncio
 import subprocess
 import signal
 
-# gRPC
 from concurrent.futures import ThreadPoolExecutor, thread
 import coloredlogs, logging
 import threading
@@ -39,7 +38,6 @@ import grpc
 
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
-#end gRPC
 
 import carla
 import numpy as np
@@ -62,7 +60,10 @@ from opencda.sim_debug_helper import SimDebugHelper
 from opencda.client_debug_helper import ClientDebugHelper
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 import opencda.core.plan.drive_profile_plotting as open_plt
+
+# TODO: make base ecloud folder
 from opencda.core.common.ecloud_config import EcloudConfig
+from opencda.ecloud_server.ecloud_comms import EcloudClient, EcloudPushServer, ecloud_run_push_server
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -70,6 +71,7 @@ coloredlogs.install(level='DEBUG', logger=logger)
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
 ECLOUD_IP = cloud_config["ecloud_server_public_ip"]
+ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 
 if cloud_config["log_level"] == "error":
     logger.setLevel(logging.ERROR)
@@ -248,60 +250,37 @@ class ScenarioManager:
 
     async def server_do_tick(self, stub_, update_):
         response = await stub_.Server_DoTick(update_)
-        start_time = time.time()
-        count = 1
-        while 1:
-            await asyncio.sleep(self.SERVER_PING_SLEEP)
-            ping = await stub_.Server_Ping(ecloud.Empty())
-            if ping.tick_id == 1:
-                end_time = time.time()
-                logger.info(f"do_tick: polled {count} times over a total of {(end_time - start_time)*1000}ms")
-                for vehicle_update in ping.timestamps:
-                  client_time = (vehicle_update.client_end_tstamp.ToNanoseconds() - vehicle_update.client_start_tstamp.ToNanoseconds()) / 1000000
-                  logger.debug(f"timestamps: {vehicle_update.client_end_tstamp.ToDatetime().time()} {vehicle_update.client_start_tstamp.ToDatetime().time()} Total client time: {client_time}")
-                  network_time = ((time.time_ns() - vehicle_update.sm_start_tstamp.ToNanoseconds())/1000000) - client_time
-                  logger.debug(f'Network Time: {network_time}')
-                  ScenarioManager.debug_helper.update_network_time_timestamp(vehicle_update.vehicle_index, network_time)
-                  logger.debug(f"Updated network")
-                  ScenarioManager.debug_helper.update_individual_client_step_time(vehicle_update.vehicle_index, (time.time_ns() - vehicle_update.sm_start_tstamp.ToNanoseconds())/1000000)
-                  logger.debug(f"Updated network time for vehicle {vehicle_update.vehicle_index}")
-  
-                if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
-                    await self.server_unpack_debug_data(stub_)
+        
+        assert(self.push_q.empty())
+        ping = await self.push_q.get()
+        self.push_q.task_done()
+        
+        for vehicle_update in ping.timestamps:
+            client_time = (vehicle_update.client_end_tstamp.ToNanoseconds() - vehicle_update.client_start_tstamp.ToNanoseconds()) / 1000000
+            logger.debug(f"timestamps: {vehicle_update.client_end_tstamp.ToDatetime().time()} {vehicle_update.client_start_tstamp.ToDatetime().time()} Total client time: {client_time}")
+            network_time = ((time.time_ns() - vehicle_update.sm_start_tstamp.ToNanoseconds())/1000000) - client_time
+            logger.debug(f'Network Time: {network_time}')
+            ScenarioManager.debug_helper.update_network_time_timestamp(vehicle_update.vehicle_index, network_time)
+            logger.debug(f"Updated network")
+            ScenarioManager.debug_helper.update_individual_client_step_time(vehicle_update.vehicle_index, (time.time_ns() - vehicle_update.sm_start_tstamp.ToNanoseconds())/1000000)
+            logger.debug(f"Updated network time for vehicle {vehicle_update.vehicle_index}")
 
-                else:
-                    await self.server_unpack_vehicle_updates(stub_)
-                
-                break
+        if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
+            await self.server_unpack_debug_data(stub_)
 
-            count += 1
+        else:
+            await self.server_unpack_vehicle_updates(stub_)
         
         return response
     
     async def server_start_scenario(self, stub_, update_):
         await stub_.Server_StartScenario(update_)
-        start_time = time.time()
+
         logger.info(f"pushed scenario start")
 
-        count = 1
-        registered_vehicles = 0
-        while 1:
-            ping = await stub_.Server_Ping(ecloud.Empty())
-            await asyncio.sleep(self.SERVER_PING_SLEEP)
-            if count % 20 == 0:
-                logger.info(f"waiting for registration to complete - received {ping.tick_id} replies so far")
-
-            if ping.tick_id > registered_vehicles:
-                registered_vehicles = ping.tick_id
-                logger.info(f"{registered_vehicles} have been registered - ticking world")
-                self.tick_world()
-
-            if ping.tick_id == self.vehicle_count:
-                end_time = time.time()
-                logger.info(f"polled {count} times over a total of {(end_time - start_time)*1000}ms")
-                self.tick_world()
-                break
-            count += 1
+        assert(self.push_q.empty())
+        await self.push_q.get()
+        self.push_q.task_done()
 
         logger.info(f"vehicle registration complete")
 
@@ -432,6 +411,9 @@ class ScenarioManager:
                 ],
             )
             self.ecloud_server = ecloud_rpc.EcloudStub(channel)
+
+            self.push_q = asyncio.Queue()
+            self.push_server = asyncio.get_event_loop().create_task(ecloud_run_push_server(ECLOUD_PUSH_API_PORT, self.push_q))
 
             ScenarioManager.debug_helper.update_sim_start_timestamp(time.time())
 
