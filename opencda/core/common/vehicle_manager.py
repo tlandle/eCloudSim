@@ -121,7 +121,7 @@ class VehicleManager(object):
             
         if spawn_random:
             assert( 'seed' in self.scenario_params['world'] )
-            seed = seed + self.vehicle_index    
+            seed = seed + vehicle_index    
             
         np.random.seed(seed)
         random.seed(seed)
