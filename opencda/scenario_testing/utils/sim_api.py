@@ -254,16 +254,17 @@ class ScenarioManager:
         
         assert(self.push_q.empty())
         ping = await self.push_q.get()
+        snapshot_t = time.time_ns()
         self.push_q.task_done()
         
         for vehicle_update in ping.timestamps:
             client_time = (vehicle_update.client_end_tstamp.ToNanoseconds() - vehicle_update.client_start_tstamp.ToNanoseconds()) / 1000000
             logger.debug(f"timestamps: {vehicle_update.client_end_tstamp.ToDatetime().time()} {vehicle_update.client_start_tstamp.ToDatetime().time()} Total client time: {client_time}")
-            network_time = ((time.time_ns() - vehicle_update.sm_start_tstamp.ToNanoseconds())/1000000) - client_time
+            network_time = ((snapshot_t - vehicle_update.sm_start_tstamp.ToNanoseconds())/1000000) - client_time
             logger.debug(f'Network Time: {network_time}')
             ScenarioManager.debug_helper.update_network_time_timestamp(vehicle_update.vehicle_index, network_time)
             logger.debug(f"Updated network")
-            ScenarioManager.debug_helper.update_individual_client_step_time(vehicle_update.vehicle_index, (time.time_ns() - vehicle_update.sm_start_tstamp.ToNanoseconds())/1000000)
+            ScenarioManager.debug_helper.update_individual_client_step_time(vehicle_update.vehicle_index, (snapshot_t - vehicle_update.sm_start_tstamp.ToNanoseconds())/1000000)
             logger.debug(f"Updated network time for vehicle {vehicle_update.vehicle_index}")
 
         if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
