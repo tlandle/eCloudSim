@@ -1111,7 +1111,7 @@ class ScenarioManager:
             all_network_data_list_flat = np.hstack(all_network_data_list_flat)
         else:
             all_network_data_list_flat = all_network_data_list_flat.flatten()
-        logger.info(f"mean network: {np.mean(all_network_data_list_flat)} | median network: {np.median(all_network_data_list_flat)}")
+        logger.info(f"mean network: {np.mean(all_network_data_list_flat)} | median network: {np.median(all_network_data_list_flat)} | 95% percentile network {np.percentile(all_network_data_list_flat, 95)}")
         data_key = f"network_latency"
         self.do_pickling(data_key, all_network_data_list_flat, cumulative_stats_folder_path)
 
@@ -1123,7 +1123,7 @@ class ScenarioManager:
             all_idle_data_lists_flat = np.hstack(all_idle_data_lists_flat)
         else:
             all_idle_data_lists_flat = all_idle_data_lists_flat.flatten()
-        logger.info(f"mean idle: {np.mean(all_idle_data_lists_flat)} | median idle: {np.median(all_idle_data_lists_flat)}")
+        logger.info(f"mean idle: {np.mean(all_idle_data_lists_flat)} | median idle: {np.median(all_idle_data_lists_flat)} | 95% percentile idle {np.percentile(all_idle_data_lists_flat, 95)}")
         data_key = f"idle"
         self.do_pickling(data_key, all_idle_data_lists_flat, cumulative_stats_folder_path)
 
@@ -1135,7 +1135,7 @@ class ScenarioManager:
             all_client_process_data_list_flat = np.hstack(all_client_process_data_list_flat)
         else:
             all_client_process_data_list_flat = all_client_process_data_list_flat.flatten()
-        logger.info(f"mean client: {np.mean(all_client_process_data_list_flat)} | median client: {np.median(all_client_process_data_list_flat)}")
+        logger.info(f"mean client: {np.mean(all_client_process_data_list_flat)} | median client: {np.median(all_client_process_data_list_flat)} | 95% percentile client {np.percentile(all_client_process_data_list_flat, 95)}")
         data_key = f"client_process"
         self.do_pickling(data_key, all_client_process_data_list_flat, cumulative_stats_folder_path)
 
