@@ -1111,18 +1111,33 @@ class ScenarioManager:
             all_network_data_list_flat = np.hstack(all_network_data_list_flat)
         else:
             all_network_data_list_flat = all_network_data_list_flat.flatten()
+        logger.info(f"mean network: {np.mean(all_network_data_list_flat)} | median network: {np.median(all_network_data_list_flat)}")
         data_key = f"network_latency"
         self.do_pickling(data_key, all_network_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_idle_data(self, cumulative_stats_folder_path):
         all_idle_data_lists = sum(ScenarioManager.debug_helper.idle_time_dict.values(), [])
 
-        # TODO
+        all_idle_data_lists_flat = np.array(all_idle_data_lists)
+        if all_idle_data_lists_flat.any():
+            all_idle_data_lists_flat = np.hstack(all_idle_data_lists_flat)
+        else:
+            all_idle_data_lists_flat = all_idle_data_lists_flat.flatten()
+        logger.info(f"mean idle: {np.mean(all_idle_data_lists_flat)} | median idle: {np.median(all_idle_data_lists_flat)}")
+        data_key = f"idle"
+        self.do_pickling(data_key, all_idle_data_lists_flat, cumulative_stats_folder_path)
 
     def evaluate_client_process_data(self, cumulative_stats_folder_path):
         all_client_process_data_lists = sum(ScenarioManager.debug_helper.client_process_time_dict.values(), [])
 
-        # TODO
+        all_client_process_data_list_flat = np.array(all_client_process_data_lists)
+        if all_client_process_data_list_flat.any():
+            all_client_process_data_list_flat = np.hstack(all_client_process_data_list_flat)
+        else:
+            all_client_process_data_list_flat = all_client_process_data_list_flat.flatten()
+        logger.info(f"mean client: {np.mean(all_client_process_data_list_flat)} | median client: {np.median(all_client_process_data_list_flat)}")
+        data_key = f"client_process"
+        self.do_pickling(data_key, all_client_process_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_individual_client_data(self, cumulative_stats_folder_path):
         all_client_data_lists = sum(ScenarioManager.debug_helper.client_tick_time_dict.values(), [])
@@ -1182,9 +1197,9 @@ class ScenarioManager:
                 os.makedirs(cumulative_stats_folder_path)
 
             self.evaluate_agent_data(cumulative_stats_folder_path)
-
             self.evaluate_network_data(cumulative_stats_folder_path)
-
+            self.evaluate_idle_data(cumulative_stats_folder_path)
+            self.evaluate_client_process_data(cumulative_stats_folder_path)
             self.evaluate_individual_client_data(cumulative_stats_folder_path)
 
             client_helper = ClientDebugHelper(0)

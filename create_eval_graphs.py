@@ -140,8 +140,9 @@ def create_stacked_bar_chart(data,  y, labels):
         #'client_controller_update_info', 
         #'client_controller_step',  
         #'client_control',
-        'client_step_time',
-        'network_latency']
+        "client_process",
+        "idle",
+        "network_latency",]
 
     ax = data.plot(y=y, kind='bar', stacked=True, color=colors, figsize=(11, 8))
     plt.xlabel(labels['xlabel'])
@@ -433,7 +434,8 @@ def plot_simple_client_stacked_barchart():
 
 
     client_debug_data = [ # see ClientDebugHelper.debug_data
-            "client_individual_step_time",
+            "client_process",
+            "idle",
             "network_latency",
     ]
     for list_name in client_debug_data:
