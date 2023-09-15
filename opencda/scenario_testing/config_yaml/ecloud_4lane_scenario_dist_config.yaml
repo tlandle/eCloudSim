@@ -132,7 +132,7 @@ carla_traffic_manager:
 # define scenario. In this scenario, a 4-vehicle platoon already exists.
 scenario:
   ecloud: 
-    num_cars: 16
+    num_cars: 1
     location_type: random # random || explicit - applies to spawn & destination
     done_behavior: control # destroy || control
   single_cav_list: # this is for merging vehicle or single cav without v2x

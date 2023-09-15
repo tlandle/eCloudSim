@@ -257,15 +257,17 @@ class ScenarioManager:
         snapshot_t = time.time_ns()
         self.push_q.task_done()
         
-        for vehicle_update in ping.timestamps:
-            client_time = (vehicle_update.client_end_tstamp.ToNanoseconds() - vehicle_update.client_start_tstamp.ToNanoseconds()) / 1000000
-            logger.debug(f"timestamps: {vehicle_update.client_end_tstamp.ToDatetime().time()} {vehicle_update.client_start_tstamp.ToDatetime().time()} Total client time: {client_time}")
-            network_time = ((snapshot_t - vehicle_update.sm_start_tstamp.ToNanoseconds())/1000000) - client_time
+        logger.debug(f"unpacking timestamp data: {ping.timestamps}")
+        for v in ping.timestamps:
+            client_time = (v.client_end_tstamp.ToNanoseconds() - v.client_start_tstamp.ToNanoseconds()) / 1000000
+            logger.debug(f"timestamps: client_end - {v.client_end_tstamp.ToDatetime().time()} client_start - {v.client_start_tstamp.ToDatetime().time()} ecloud_rcv - {v.ecloud_rcv_tstamp.ToDatetime().time()} ecloud_snd - {v.ecloud_snd_tstamp.ToDatetime().time()} Total client time: {client_time}")
+            network_time = (( (snapshot_t - v.ecloud_snd_tstamp.ToNanoseconds()) \
+                               + (v.ecloud_rcv_tstamp.ToNanoseconds() - v.sm_start_tstamp.ToNanoseconds()) )/1000000) - client_time
             logger.debug(f'Network Time: {network_time}')
-            ScenarioManager.debug_helper.update_network_time_timestamp(vehicle_update.vehicle_index, network_time)
+            ScenarioManager.debug_helper.update_network_time_timestamp(v.vehicle_index, network_time)
             logger.debug(f"Updated network")
-            ScenarioManager.debug_helper.update_individual_client_step_time(vehicle_update.vehicle_index, (snapshot_t - vehicle_update.sm_start_tstamp.ToNanoseconds())/1000000)
-            logger.debug(f"Updated network time for vehicle {vehicle_update.vehicle_index}")
+            ScenarioManager.debug_helper.update_individual_client_step_time(v.vehicle_index, (snapshot_t - v.sm_start_tstamp.ToNanoseconds())/1000000)
+            logger.debug(f"Updated network time for vehicle {v.vehicle_index}")
 
         if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
             await self.server_unpack_debug_data(stub_)
@@ -331,7 +333,7 @@ class ScenarioManager:
                 logger.info(f'killing exiting ecloud gRPC server process')
                 subprocess.run(['pkill','-9','ecloud_server'])
 
-            self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}',f'--num_ports={self.ecloud_config.get_num_ports()}'])
+            self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}',f'--num_ports={self.ecloud_config.get_num_ports()}'], stderr=sys.stdout.buffer)
 
         cav_world.update_scenario_manager(self)
 

@@ -10,12 +10,15 @@ message Timestamps {
   google.protobuf.Timestamp sm_start_tstamp = 2;
   google.protobuf.Timestamp client_start_tstamp = 3; 
   google.protobuf.Timestamp client_end_tstamp = 4;
+  google.protobuf.Timestamp ecloud_rcv_tstamp = 5;
+  google.protobuf.Timestamp ecloud_snd_tstamp = 6;
 }
 
 message Ping {
   int32 tick_id = 1; // use as bool for server
   Command command = 2;
-  repeated Timestamps timestamps = 3;
+  google.protobuf.Timestamp sm_start_tstamp = 3;
+  repeated Timestamps timestamps = 4;
 }
 
 enum State {

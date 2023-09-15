@@ -104,7 +104,7 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
                        ping: ecloud.Ping, 
                        context: grpc.aio.ServicerContext) -> ecloud.Empty:
 
-        logger.debug(f"PushTick(): ping - {ping.SerializeToString()}")
+        #logger.debug(f"PushTick(): ping - {ping.SerializeToString()}")
         assert(self.q.empty())
         self.q.put_nowait(ping)
 

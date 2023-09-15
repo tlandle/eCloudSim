@@ -216,10 +216,10 @@ async def main():
     actor_id = vehicle_manager.vehicle.id
     vid = vehicle_manager.vid
 
-    ecloud_update = await send_carla_data_to_opencda(ecloud_server, vehicle_index, actor_id, vid)
+    await send_carla_data_to_opencda(ecloud_server, vehicle_index, actor_id, vid)
 
     assert(push_q.empty())
-    await push_q.get()
+    pong = await push_q.get()
     push_q.task_done()
 
     vehicle_manager.update_info()
@@ -233,18 +233,18 @@ async def main():
     while state != ecloud.State.ENDED:   
         
         vehicle_update = ecloud.VehicleUpdate()
-        if ecloud_update.command != ecloud.Command.TICK: # don't print tick message since there are too many
-            logger.info(f"Vehicle: received cmd {ecloud_update.command}")
+        if pong.command != ecloud.Command.TICK: # don't print tick message since there are too many
+            logger.info(f"Vehicle: received cmd {pong.command}")
         
         # HANDLE DEBUG DATA REQUEST
-        if ecloud_update.command == ecloud.Command.REQUEST_DEBUG_INFO:
+        if pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
             vehicle_update.tick_id = tick_id
             vehicle_update.vehicle_index = vehicle_index
             vehicle_update.vehicle_state = ecloud.VehicleState.DEBUG_INFO_UPDATE            
             serialize_debug_info(vehicle_update, vehicle_manager)
   
         # HANDLE TICK
-        elif ecloud_update.command == ecloud.Command.TICK:
+        elif pong.command == ecloud.Command.TICK:
             client_start_timestamp = Timestamp()
             client_start_timestamp.GetCurrentTime()
             # update info runs BEFORE waypoint injection
@@ -318,7 +318,7 @@ async def main():
             vehicle_update.tick_id = tick_id
             vehicle_update.vehicle_index = vehicle_index
             vehicle_update.client_start_tstamp.CopyFrom(client_start_timestamp)
-            vehicle_update.sm_start_tstamp.CopyFrom(ecloud_update.sm_start_tstamp)
+            vehicle_update.sm_start_tstamp.CopyFrom(pong.sm_start_tstamp)
             
             if should_run_step:
                 if control is None or vehicle_manager.is_close_to_scenario_destination():
@@ -361,33 +361,17 @@ async def main():
             #logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")   
 
         # HANDLE END
-        elif ecloud_update.command == ecloud.Command.END:
+        elif pong.command == ecloud.Command.END:
             logger.info("END received")
             break
         
         # block waiting for a response
         if not reported_done or done_behavior == eDoneBehavior.CONTROL:
             if not reported_done:
-                last_command = ecloud_update.command
                 ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
-                        
-            assert(push_q.empty())
-            pong = await push_q.get()
-            push_q.task_done()
-            assert( pong.tick_id != tick_id )
-            tick_id = pong.tick_id
-
-            if pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
-                ecloud_update.command = ecloud.Command.REQUEST_DEBUG_INFO
-
-            elif pong.command == ecloud.Command.PULL_WAYPOINTS_AND_TICK:
-                wp_request = ecloud.WaypointRequest()
-                wp_request.vehicle_index = vehicle_index
-                waypoint_proto = await ecloud_server.Client_GetWaypoints(wp_request)
-                ecloud_update.command = ecloud.Command.TICK    
 
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
-                if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and last_command == ecloud.Command.REQUEST_DEBUG_INFO:
+                if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
                     # we were asked for debug data and provided it, so NOW we exit
                     # TODO: this is better handled by done
                     logger.info(f"pushed DEBUG_INFO_UPDATE")
@@ -396,6 +380,18 @@ async def main():
                 else:
                     reported_done = True
                     logger.info(f"reported_done")
+
+            assert(push_q.empty())
+            pong = await push_q.get()
+            push_q.task_done()
+            assert( pong.tick_id != tick_id )
+            tick_id = pong.tick_id
+
+            if pong.command == ecloud.Command.PULL_WAYPOINTS_AND_TICK:
+                wp_request = ecloud.WaypointRequest()
+                wp_request.vehicle_index = vehicle_index
+                waypoint_proto = await ecloud_server.Client_GetWaypoints(wp_request)
+                pong.command = ecloud.Command.TICK    
                 
         else: # done
             break

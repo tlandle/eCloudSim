@@ -24,6 +24,8 @@
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
 
+#include <google/protobuf/util/time_util.h>
+
 #include "ecloud.grpc.pb.h"
 #include "ecloud.pb.h"
 
@@ -128,11 +130,19 @@ class PushClient
 
             if ( sendTimestamps )
             {
+                google::protobuf::Timestamp s;
+                s = google::protobuf::util::TimeUtil::GetCurrentTime();
+                LOG(INFO) << "sending @ tstamp " << s.seconds();
                 for (int i=0; i < client_timestamps_.size(); i++)
                 {
                     Timestamps *t = ping.add_timestamps();
                     t->CopyFrom(client_timestamps_[i]);
+                    t->mutable_ecloud_snd_tstamp()->CopyFrom(s);
                 }
+            }
+            else
+            {
+                ping.mutable_sm_start_tstamp()->CopyFrom(timestamp_);
             }
 
             grpc::ClientContext context;
@@ -201,6 +211,8 @@ public:
             pendingReplies_.clear();
             client_timestamps_.clear();
 
+            timestamp_ = google::protobuf::util::TimeUtil::GetCurrentTime();
+
             init_ = true;
         }
     }
@@ -257,7 +269,11 @@ public:
         }
         else if ( request->vehicle_state() == VehicleState::TICK_OK )
         {
+            google::protobuf::Timestamp t;
+            t = google::protobuf::util::TimeUtil::GetCurrentTime();
+            LOG(INFO) << "received @ tstamp " << t.seconds();
             Timestamps vehicle_timestamp;
+            vehicle_timestamp.mutable_ecloud_rcv_tstamp()->CopyFrom(t);
             vehicle_timestamp.set_vehicle_index(request->vehicle_index());
             vehicle_timestamp.mutable_sm_start_tstamp()->set_seconds(timestamp_.seconds());
             vehicle_timestamp.mutable_sm_start_tstamp()->set_nanos(timestamp_.nanos());
