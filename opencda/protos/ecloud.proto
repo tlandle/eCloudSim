@@ -18,7 +18,8 @@ message Tick {
   Command command = 2;
   google.protobuf.Timestamp sm_start_tstamp = 3; // when sim sends to grpc
   google.protobuf.Timestamp ecloud_snd_tstamp = 4; // when grcp server sends to sim --> this is the receive time *for final vehicle* | reliable transit time is sim receipt time - this time
-  repeated Timestamps timestamps = 5;
+  google.protobuf.Timestamp client_final_tstamp = 5; // when the last client ended (on their machine clock) --> still unreliable for multi-node
+  repeated Timestamps timestamps = 6;
 }
 
 enum Command {
