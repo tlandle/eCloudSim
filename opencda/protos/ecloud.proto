@@ -10,7 +10,7 @@ message Timestamps {
   google.protobuf.Timestamp sm_start_tstamp = 2;
   google.protobuf.Timestamp client_start_tstamp = 3; // when client start process
   google.protobuf.Timestamp client_end_tstamp = 4; // when client done process
-  google.protobuf.Timestamp ecloud_rcv_tstamp = 5; // when grpc receives --> NOTE: unreliable (local only valid) transit time is #5 - #4 | this time is practically unknowable _except_ when doing only local testing which leads us to overestimate idle time, especially as grpc server contention goes up. but we CAN *approximate* this - except transit time - doing LOCAL testing
+  google.protobuf.Timestamp ecloud_rcv_tstamp = 5; // when grpc receives --> NOTE: unreliable (local only valid) transit time is #5 - #4 | this time is practically unknowable _except_ when doing only local testing which leads us to overestimate idle time, especially as grpc server contention goes up. but we CAN *approximate* this - except transit time - doing LOCAL testing || ACTUALLY WE DO KNOW THIS RELIABLY! IDLE TIME is each client's end time subtracted from when the FINAL vehicle finished!!
 }
 
 message Tick {
