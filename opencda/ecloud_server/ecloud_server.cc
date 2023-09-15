@@ -58,11 +58,10 @@ using ecloud::Ecloud;
 using ecloud::EcloudResponse;
 using ecloud::VehicleUpdate;
 using ecloud::Empty;
-using ecloud::Ping;
-using ecloud::State;
+using ecloud::Tick;
 using ecloud::Command;
 using ecloud::VehicleState;
-using ecloud::SimulationState;
+using ecloud::SimulationInfo;
 using ecloud::WaypointBuffer;
 using ecloud::Waypoint;
 using ecloud::Transform;
@@ -103,7 +102,7 @@ google::protobuf::Timestamp timestamp_;
 std::string simIP_;
 std::string vehicleMachineIP_; // TODO: multiple vehicle machines
 
-State simState_;
+VehicleState vehState_;
 Command command_;
 
 std::vector<std::pair<int16_t, std::string>> serializedEdgeWaypoints_; // vehicleIdx, serializedWPBuffer
@@ -122,11 +121,11 @@ class PushClient
         explicit PushClient( std::shared_ptr<grpc::Channel> channel, std::string connection ) : 
                             stub_(Ecloud::NewStub(channel)), connection_(connection) {}
 
-        bool PushTick(int32_t tick, Command command, bool sendTimestamps)
+        bool PushTick(int32_t tickId, Command command, bool sendTimestamps)
         {
-            Ping ping;
-            ping.set_tick_id(tick);
-            ping.set_command(command);
+            Tick tick;
+            tick.set_tick_id(tickId);
+            tick.set_command(command);
 
             if ( sendTimestamps )
             {
@@ -135,14 +134,14 @@ class PushClient
                 LOG(INFO) << "sending @ tstamp " << s.seconds();
                 for (int i=0; i < client_timestamps_.size(); i++)
                 {
-                    Timestamps *t = ping.add_timestamps();
+                    Timestamps *t = tick.add_timestamps();
                     t->CopyFrom(client_timestamps_[i]);
                     t->mutable_ecloud_snd_tstamp()->CopyFrom(s);
                 }
             }
             else
             {
-                ping.mutable_sm_start_tstamp()->CopyFrom(timestamp_);
+                tick.mutable_sm_start_tstamp()->CopyFrom(timestamp_);
             }
 
             grpc::ClientContext context;
@@ -153,7 +152,7 @@ class PushClient
             std::condition_variable cv;
             bool done = false;
             Status status;
-            stub_->async()->PushTick(&context, &ping, &empty,
+            stub_->async()->PushTick(&context, &tick, &empty,
                             [&mu, &cv, &done, &status](Status s) {
                             status = std::move(s);
                             std::lock_guard<std::mutex> lock(mu);
@@ -193,7 +192,7 @@ public:
             tickId_.store(0);
             lastWorldTickTimeMS_.store(WORLD_TICK_DEFAULT_MS);
 
-            simState_ = State::UNDEFINED;
+            vehState_ = VehicleState::REGISTERING;
             command_ = Command::TICK;
             
             numCars_ = 0;
@@ -241,7 +240,7 @@ public:
 
     ServerUnaryReactor* Client_SendUpdate(CallbackServerContext* context,
                                const VehicleUpdate* request,
-                               SimulationState* reply) override {
+                               Empty* empty) override {
 
         if ( isEdge_ || request->vehicle_index() == SPECTATOR_INDEX || request->vehicle_state() == VehicleState::TICK_DONE || request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
         {   
@@ -252,13 +251,7 @@ public:
             mu_.Unlock();
         }
 
-        repliedCars_[request->vehicle_index()] = true;
-        if ( ( tickId_ - 1 ) % VERBOSE_PRINT_COUNT == 0 )
-        {
-            const auto now = std::chrono::system_clock::now();
-            DLOG(INFO) << "received OK from vehicle " << request->vehicle_index() << " taking " << request->step_time_ms() << "ms for tick " << tickId_ << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
-                now.time_since_epoch()).count();
-        }    
+        repliedCars_[request->vehicle_index()] = true; 
 
         DLOG(INFO) << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id();
 
@@ -292,10 +285,7 @@ public:
             numCompletedVehicles_++;
             DLOG(INFO) << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
         }
-
-        reply->set_tick_id(tickId_.load());
-        reply->set_last_world_tick_time_ms(lastWorldTickTimeMS_.load());
-
+        
         // BEGIN PUSH
         const int16_t replies_ = numRepliedVehicles_.load();
         const int16_t completions_ = numCompletedVehicles_.load();
@@ -342,17 +332,14 @@ public:
     }
 
     ServerUnaryReactor* Client_RegisterVehicle(CallbackServerContext* context,
-                               const VehicleUpdate* request,
-                               SimulationState* reply) override {
+                               const RegistrationInfo* request,
+                               SimulationInfo* reply) override {
         
         assert( configYaml_ != "" );
 
         if ( request->vehicle_state() == VehicleState::REGISTERING )
         {
             DLOG(INFO) << "got a registration update";
-
-            reply->set_state(State::NEW);
-            reply->set_tick_id(0);
 
             registration_mu_.Lock();
             reply->set_vehicle_index(numRegisteredVehicles_.load());
@@ -371,8 +358,6 @@ public:
         }
         else if ( request->vehicle_state() == VehicleState::CARLA_UPDATE )
         {            
-            reply->set_state(State::START); // # do we need a new state? like "registering"?
-            reply->set_tick_id(0);
             reply->set_vehicle_index(request->vehicle_index());
             
             DLOG(INFO) << "RegisterVehicle - CARLA_UPDATE - vehicle_index: " << request->vehicle_index() << " | actor_id: " << request->actor_id() << " | vid: " << request->vid();
@@ -397,7 +382,7 @@ public:
         LOG_IF(INFO, complete_ ) << "REGISTRATION COMPLETE";
         if ( complete_ )
         {
-            assert( simState_ == State::NEW || ( simState_ == State::NEW && replies_ == pendingReplies_.size() ) );
+            assert( vehState_ != VehicleState::REGISTERING || ( vehState_ == VehicleState::REGISTERING && replies_ == pendingReplies_.size() ) );
             std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, false);
             t.detach();
         }
@@ -409,10 +394,8 @@ public:
     }
 
     ServerUnaryReactor* Server_DoTick(CallbackServerContext* context,
-                               const SimulationState* request,
-                               EcloudResponse* reply) override {
-        simState_ = State::ACTIVE;
-
+                               const Tick* request,
+                               Empty* empty) override {
         for (int i = 0; i < numCars_; i++)
             repliedCars_[i] = false;
 
@@ -420,7 +403,6 @@ public:
         client_timestamps_.clear();
         assert(tickId_ == request->tick_id() - 1);
         tickId_++;
-        lastWorldTickTimeMS_.store(request->last_world_tick_time_ms());
         command_ = request->command();
         timestamp_ = request->sm_start_tstamp();
         
@@ -460,9 +442,9 @@ public:
     }
 
     ServerUnaryReactor* Server_StartScenario(CallbackServerContext* context,
-                               const SimulationState* request,
-                               EcloudResponse* reply) override {
-        simState_ = State::NEW;
+                               const SimulationInfo* request,
+                               Empty* empty) override {
+        vehState_ = VehicleState::REGISTERING;
 
         configYaml_ = request->test_scenario();
         application_ = request->application();
@@ -483,7 +465,7 @@ public:
     ServerUnaryReactor* Server_EndScenario(CallbackServerContext* context,
                                const Empty* request,
                                Empty* reply) override {
-        simState_ = State::ENDED;
+        command_ = Command::END;
 
         // need to collect debug info and then send back
 

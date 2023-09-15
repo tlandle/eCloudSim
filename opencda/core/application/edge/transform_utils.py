@@ -4,7 +4,7 @@ import sys
 
 from google.protobuf.json_format import MessageToJson
 import grpc
-import ecloud_pb2 as sim_state
+import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as rpc
 
 import carla
@@ -54,17 +54,17 @@ def get_scaling(waypoints):
 
 def serialize_waypoint(waypoint):
 
-    serialized_waypoint = sim_state.Waypoint()
+    serialized_waypoint = ecloud.Waypoint()
     serialized_waypoint.id = str(waypoint.id)
     
-    transform = sim_state.Transform()
+    transform = ecloud.Transform()
     
-    location   = sim_state.Location()
+    location   = ecloud.Location()
     location.x = waypoint.transform.location.x
     location.y = waypoint.transform.location.y
     location.z = waypoint.transform.location.z
 
-    rotation       = sim_state.Rotation()
+    rotation       = ecloud.Rotation()
     rotation.yaw   = waypoint.transform.rotation.yaw
     rotation.pitch = waypoint.transform.rotation.pitch
     rotation.roll  = waypoint.transform.rotation.roll

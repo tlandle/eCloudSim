@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 import opencda.core.plan.drive_profile_plotting as open_plt
 
-import ecloud_pb2 as sim_state
+import ecloud_pb2 as ecloud
 
 logger = logging.getLogger(__name__)
 

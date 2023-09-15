@@ -14,19 +14,11 @@ message Timestamps {
   google.protobuf.Timestamp ecloud_snd_tstamp = 6;
 }
 
-message Ping {
+message Tick {
   int32 tick_id = 1; // use as bool for server
   Command command = 2;
   google.protobuf.Timestamp sm_start_tstamp = 3;
   repeated Timestamps timestamps = 4;
-}
-
-enum State {
-  UNDEFINED = 0;
-  NEW = 1;
-  START = 2;
-  ACTIVE = 3;
-  ENDED = 4;
 }
 
 enum Command {
@@ -48,20 +40,14 @@ enum VehicleState {
   DEBUG_INFO_UPDATE = 8;
 }
 
-message SimulationState {
-  State state = 1;
-  int32 tick_id = 2;
-  int32 vehicle_index = 3; // vehicle_uid
-  string test_scenario = 4;
-  string application = 5;
-  string version = 6;
-  Command command = 7;
-  repeated WaypointBuffer all_waypoint_buffers = 8;
-  google.protobuf.Timestamp sm_start_tstamp = 9;
-  int32 last_world_tick_time_ms = 10;
-  bool is_edge = 11;
-  string vehicle_machine_ip = 12; // TODO: multiple
-  string sim_api_ip = 13;
+message SimulationInfo {
+  int32 vehicle_index = 1; // vehicle_uid
+  string test_scenario = 2;
+  string application = 3;
+  string version = 4;
+  bool is_edge = 5;
+  string vehicle_machine_ip = 6; // TODO: multiple
+  string carla_ip = 7;
 }
 
 message WaypointRequest {
@@ -155,22 +141,26 @@ message ClientDebugHelper {
     repeated float control_time_list = 9;
 }
 
-message VehicleUpdate {
-  int32 tick_id = 1;
+message RegistrationInfo {
+  VehicleState vehicle_state = 1;
   int32 vehicle_index = 2;
   string vid = 3;
   int32 actor_id = 4;
-  VehicleState vehicle_state = 5;
-  LocDebugHelper loc_debug_helper = 6;
-  PlanerDebugHelper planer_debug_helper = 7;
-  ClientDebugHelper client_debug_helper = 8;
-  google.protobuf.Timestamp sm_start_tstamp = 9;
-  google.protobuf.Timestamp client_start_tstamp = 10; 
-  google.protobuf.Timestamp client_end_tstamp = 11;
-  float step_time_ms = 12;
-  string container_name = 13;
-  Transform transform = 14;
-  Velocity velocity = 15;
+  string container_name = 5;
+}
+
+message VehicleUpdate {
+  int32 tick_id = 1;
+  int32 vehicle_index = 2;
+  VehicleState vehicle_state = 3;
+  LocDebugHelper loc_debug_helper = 4;
+  PlanerDebugHelper planer_debug_helper = 5;
+  ClientDebugHelper client_debug_helper = 6;
+  google.protobuf.Timestamp sm_start_tstamp = 7;
+  google.protobuf.Timestamp client_start_tstamp = 8; 
+  google.protobuf.Timestamp client_end_tstamp = 9;
+  Transform transform = 10;
+  Velocity velocity = 11;
 }
 
 message EcloudResponse {
@@ -179,17 +169,15 @@ message EcloudResponse {
 }
 
 service Ecloud {
-  // STREAM
-  rpc SimulationStateStream (Ping) returns (stream Ping); // DEPRECATED
   // PUSH
-  rpc PushTick(Ping) returns (Empty);
+  rpc PushTick(Tick) returns (Empty);
   // CLIENT
-  rpc Client_SendUpdate (VehicleUpdate) returns (SimulationState);
-  rpc Client_RegisterVehicle (VehicleUpdate) returns (SimulationState);
+  rpc Client_SendUpdate (VehicleUpdate) returns (Empty);
+  rpc Client_RegisterVehicle (RegistrationInfo) returns (SimulationInfo);
   rpc Client_GetWaypoints(WaypointRequest) returns (WaypointBuffer);
   // SERVER
-  rpc Server_DoTick(SimulationState) returns (EcloudResponse);
-  rpc Server_StartScenario(SimulationState) returns (EcloudResponse);
+  rpc Server_DoTick(Tick) returns (Empty);
+  rpc Server_StartScenario(SimulationInfo) returns (Empty);
   rpc Server_EndScenario(Empty) returns (Empty);
   rpc Server_GetVehicleUpdates(Empty) returns (EcloudResponse);
   rpc Server_PushEdgeWaypoints(EdgeWaypoints) returns (Empty);

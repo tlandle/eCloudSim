@@ -209,8 +209,6 @@ class ScenarioManager:
     debug_helper = SimDebugHelper(0)
 
     SPECTATOR_INDEX = 0
-    SERVER_PING_SLEEP = 0.005 # TODO: drive from config
-    last_world_tick_time_ms = 50
 
     async def server_unpack_debug_data(self, stub_):
         ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
@@ -245,12 +243,12 @@ class ScenarioManager:
                 vehicle_manager_proxy.vehicle.set_transform(t)
 
     async def server_push_waypoints(self, stub_, wps_):
-        response = await stub_.Server_PushEdgeWaypoints(wps_)
+        empty = await stub_.Server_PushEdgeWaypoints(wps_)
 
-        return response
+        return empty
 
     async def server_do_tick(self, stub_, update_):
-        response = await stub_.Server_DoTick(update_)
+        empty = await stub_.Server_DoTick(update_)
         
         assert(self.push_q.empty())
         ping = await self.push_q.get()
@@ -282,7 +280,7 @@ class ScenarioManager:
         else:
             await self.server_unpack_vehicle_updates(stub_)
         
-        return response
+        return empty
     
     async def server_start_scenario(self, stub_, update_):
         await stub_.Server_StartScenario(update_)
@@ -302,10 +300,10 @@ class ScenarioManager:
 
         return response
 
-    async def server_end_scenario(self, stub_, update_):
-        response = await stub_.Server_EndScenario(update_)
+    async def server_end_scenario(self, stub_):
+        empty = await stub_.Server_EndScenario(ecloud.Empty())
     
-        return response
+        return empty
 
     debug_helper = SimDebugHelper(0)
     
@@ -442,12 +440,10 @@ class ScenarioManager:
 
         await asyncio.sleep(1)
 
-        server_request = ecloud.SimulationState()
+        server_request = ecloud.SimulationInfo()
         server_request.test_scenario = self.scenario
         server_request.application = self.application[0]
         server_request.version = self.carla_version
-        server_request.state = ecloud.State.START
-        server_request.tick_id = self.tick_id
         server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
         server_request.is_edge = self.is_edge
         server_request.vehicle_machine_ip = VEHICLE_IP
@@ -988,7 +984,6 @@ class ScenarioManager:
         self.world.tick()
         post_world_tick_time = time.time()
         logger.info("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
-        self.last_world_tick_time_ms = int((post_world_tick_time - pre_world_tick_time)*1000)
         self.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
 
     def tick(self):
@@ -1007,21 +1002,17 @@ class ScenarioManager:
 
         returns bool
         """
-        #TODO change tick_id to msg_id
         pre_client_tick_time = time.time()
         self.tick_id = self.tick_id + 1
 
-        sim_state_update = ecloud.SimulationState()
-        sim_state_update.state = ecloud.State.ACTIVE
-        sim_state_update.tick_id = self.tick_id
-        sim_state_update.last_world_tick_time_ms = self.last_world_tick_time_ms
-        sim_state_update.command = message_type
+        tick = ecloud.Tick()
+        tick.tick_id = self.tick_id
         
         logger.debug(f"Getting timestamp")
-        sim_state_update.sm_start_tstamp.GetCurrentTime()
+        tick.sm_start_tstamp.GetCurrentTime()
         logger.debug(f"Added Timestamp") 
 
-        asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, sim_state_update))
+        asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, tick))
         
         post_client_tick_time = time.time()
         logger.info("Client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
@@ -1060,11 +1051,7 @@ class ScenarioManager:
         """
         broadcast end to all vehicles
         """
-        sim_state_update = ecloud.SimulationState()
-        sim_state_update.state = ecloud.State.ENDED
-        sim_state_update.command = ecloud.Command.END
-        
-        asyncio.get_event_loop().run_until_complete(self.server_end_scenario(self.ecloud_server, sim_state_update))
+        asyncio.get_event_loop().run_until_complete(self.server_end_scenario(self.ecloud_server))
 
         logger.debug(f"pushed END")
 

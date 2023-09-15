@@ -34,12 +34,6 @@ class EcloudClient:
 
     '''
     Wrapper Class around gRPC Vehicle Client Calls
-    
-    // CLIENT
-    rpc Client_SendUpdate (VehicleUpdate) returns (SimulationState);
-    rpc Client_RegisterVehicle (VehicleUpdate) returns (SimulationState);
-    rpc Client_Ping (Ping) returns (Ping);
-    rpc Client_GetWaypoints(WaypointRequest) returns (WaypointBuffer);
     '''
 
     retry_opts = json.dumps({
@@ -59,10 +53,10 @@ class EcloudClient:
         self.channel = channel
         self.stub = ecloud_rpc.EcloudStub(self.channel)     
 
-    async def run(self) -> ecloud.Ping:
+    async def run(self) -> ecloud.Tick:
         count = 0
         pong = None
-        async for ecloud_update in self.stub.SimulationStateStream(ecloud.Ping( tick_id = self.tick_id )):
+        async for ecloud_update in self.stub.SimulationStateStream(ecloud.Tick( tick_id = self.tick_id )):
             logger.debug(f"T{ecloud_update.tick_id}:C{ecloud_update.command}")
             assert(self.tick_id != ecloud_update.tick_id)
             self.tick_id = ecloud_update.tick_id
@@ -73,15 +67,15 @@ class EcloudClient:
         assert(count == 1)
         return pong
         
-    async def register_vehicle(self, update: ecloud.VehicleUpdate) -> ecloud.SimulationState:
-        sim_state = await self.stub.Client_RegisterVehicle(update)
+    async def register_vehicle(self, update: ecloud.VehicleUpdate) -> ecloud.SimulationInfo:
+        sim_info = await self.stub.Client_RegisterVehicle(update)
 
-        return sim_state
+        return sim_info
 
-    async def send_vehicle_update(self, update: ecloud.VehicleUpdate) -> ecloud.SimulationState:
-        sim_state = await self.stub.Client_SendUpdate(update)
+    async def send_vehicle_update(self, update: ecloud.VehicleUpdate) -> ecloud.Empty:
+        empty = await self.stub.Client_SendUpdate(update)
 
-        return sim_state
+        return empty
 
     async def get_waypoints(self, request: ecloud.WaypointRequest) -> ecloud.WaypointBuffer:
         buffer = await self.stub.Client_GetWaypoints(request)
@@ -101,12 +95,12 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
         self.q = q
 
     async def PushTick(self, 
-                       ping: ecloud.Ping, 
+                       tick: ecloud.Tick, 
                        context: grpc.aio.ServicerContext) -> ecloud.Empty:
 
         #logger.debug(f"PushTick(): ping - {ping.SerializeToString()}")
         assert(self.q.empty())
-        self.q.put_nowait(ping)
+        self.q.put_nowait(tick)
 
         return ecloud.Empty()     
 

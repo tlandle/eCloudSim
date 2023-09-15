@@ -31,7 +31,7 @@ from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.application.edge.transform_utils import *
 
 import grpc
-import ecloud_pb2 as sim_state
+import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as rpc
 
 class EdgeManager(object):
@@ -495,7 +495,7 @@ class EdgeManager(object):
         #   # for waypoints in waypoint_buffer:
         #   #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
         #   waypoint_buffer.clear() #EDIT MADE 16/03
-            waypoint_buffer_proto = sim_state.WaypointBuffer()
+            waypoint_buffer_proto = ecloud.WaypointBuffer()
             waypoint_buffer_proto.vehicle_index = idx
 
             for k in range(0,1):

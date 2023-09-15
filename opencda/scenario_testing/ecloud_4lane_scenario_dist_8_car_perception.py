@@ -29,7 +29,7 @@ from opencda.scenario_testing.evaluations.evaluate_manager import \
 # ONLY *required* for 2 Lane highway scenarios
 # import opencda.scenario_testing.utils.customized_map_api as map_api
 
-import ecloud_pb2 as sim_state
+import ecloud_pb2 as ecloud
 
 # Consts
 LOG_NAME = "ecloud_4lane.log" # data drive from file name?
@@ -95,7 +95,7 @@ def run_scenario(opt, config_yaml):
 
                 step = step + 1
                 if(step > 250):
-                    flag = scenario_manager.broadcast_message(sim_state.Command.REQUEST_DEBUG_INFO)
+                    flag = scenario_manager.broadcast_message(ecloud.Command.REQUEST_DEBUG_INFO)
                     break
             
             else:    

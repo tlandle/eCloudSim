@@ -84,7 +84,6 @@ async def send_registration_to_ecloud_server(stub_):
     response = await stub_.Client_RegisterVehicle(request)
 
     logger.info(f"vehicle ID {response.vehicle_index} received...")
-    assert response.state == ecloud.State.NEW
     
     return response
 
@@ -137,7 +136,6 @@ async def main():
     application = ["single"]
     version = "0.9.12"
     tick_id = 0
-    state = ecloud.State.UNDEFINED #do we need a global state?
     reported_done = False
     push_q = asyncio.Queue()
 
@@ -230,7 +228,7 @@ async def main():
 
     logger.info(f"vehicle {vehicle_index} beginning scenario tick flow")
     waypoint_proto = None
-    while state != ecloud.State.ENDED:   
+    while pong.command != ecloud.Command.END:   
         
         vehicle_update = ecloud.VehicleUpdate()
         if pong.command != ecloud.Command.TICK: # don't print tick message since there are too many
