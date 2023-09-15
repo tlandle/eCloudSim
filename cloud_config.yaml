@@ -8,4 +8,4 @@ ecloud_server_public_ip: "localhost"
 #vehicle_client_public_ip: "20.172.248.156" # ndm
 vehicle_client_public_ip: "localhost"
 
-log_level: "debug"
+log_level: "error"

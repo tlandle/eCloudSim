@@ -257,17 +257,24 @@ class ScenarioManager:
         snapshot_t = time.time_ns()
         self.push_q.task_done()
         
+        NSEC = 1/1000000
         logger.debug(f"unpacking timestamp data: {ping.timestamps}")
         for v in ping.timestamps:
-            client_time = (v.client_end_tstamp.ToNanoseconds() - v.client_start_tstamp.ToNanoseconds()) / 1000000
-            logger.debug(f"timestamps: client_end - {v.client_end_tstamp.ToDatetime().time()} client_start - {v.client_start_tstamp.ToDatetime().time()} ecloud_rcv - {v.ecloud_rcv_tstamp.ToDatetime().time()} ecloud_snd - {v.ecloud_snd_tstamp.ToDatetime().time()} Total client time: {client_time}")
+            client_time = (v.client_end_tstamp.ToNanoseconds() - v.client_start_tstamp.ToNanoseconds()) * NSEC
+            logger.debug(f"timestamps: client_end - {v.client_end_tstamp.ToDatetime().time()} client_start - {v.client_start_tstamp.ToDatetime().time()} ecloud_rcv - {v.ecloud_rcv_tstamp.ToDatetime().time()} ecloud_snd - {v.ecloud_snd_tstamp.ToDatetime().time()} client_process time: {client_time}")
             network_time = (( (snapshot_t - v.ecloud_snd_tstamp.ToNanoseconds()) \
-                               + (v.ecloud_rcv_tstamp.ToNanoseconds() - v.sm_start_tstamp.ToNanoseconds()) )/1000000) - client_time
+                               + (v.ecloud_rcv_tstamp.ToNanoseconds() - v.sm_start_tstamp.ToNanoseconds()) ) * NSEC) - client_time
+            idle_time = ((snapshot_t - v.sm_start_tstamp.ToNanoseconds()) * NSEC) - client_time
+            total_client_time = (snapshot_t - v.sm_start_tstamp.ToNanoseconds()) * NSEC
+            logger.debug(f'Client Process Time: {client_time}')
             logger.debug(f'Network Time: {network_time}')
+            logger.debug(f'Idle Time: {idle_time}')
+            logger.debug(f'Total Client Step Time: {total_client_time}')
             ScenarioManager.debug_helper.update_network_time_timestamp(v.vehicle_index, network_time)
-            logger.debug(f"Updated network")
-            ScenarioManager.debug_helper.update_individual_client_step_time(v.vehicle_index, (snapshot_t - v.sm_start_tstamp.ToNanoseconds())/1000000)
-            logger.debug(f"Updated network time for vehicle {v.vehicle_index}")
+            ScenarioManager.debug_helper.update_individual_client_step_time(v.vehicle_index, total_client_time)
+            ScenarioManager.debug_helper.update_idle_time_timestamp(v.vehicle_index, client_time)
+            ScenarioManager.debug_helper.update_client_process_time_timestamp(v.vehicle_index, idle_time)
+            logger.debug(f"Updated time stamp data for vehicle {v.vehicle_index}")
 
         if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
             await self.server_unpack_debug_data(stub_)
@@ -1121,6 +1128,16 @@ class ScenarioManager:
             all_network_data_list_flat = all_network_data_list_flat.flatten()
         data_key = f"network_latency"
         self.do_pickling(data_key, all_network_data_list_flat, cumulative_stats_folder_path)
+
+    def evaluate_idle_data(self, cumulative_stats_folder_path):
+        all_idle_data_lists = sum(ScenarioManager.debug_helper.idle_time_dict.values(), [])
+
+        # TODO
+
+    def evaluate_client_process_data(self, cumulative_stats_folder_path):
+        all_client_process_data_lists = sum(ScenarioManager.debug_helper.client_process_time_dict.values(), [])
+
+        # TODO
 
     def evaluate_individual_client_data(self, cumulative_stats_folder_path):
         all_client_data_lists = sum(ScenarioManager.debug_helper.client_tick_time_dict.values(), [])

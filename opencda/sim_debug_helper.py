@@ -33,7 +33,9 @@ class SimDebugHelper(PlanDebugHelper):
         self.client_tick_time_list = [[]]
         self.sim_start_timestamp = None
         self.network_time_dict = {}
-        self.client_tick_time_dict = {}       
+        self.client_tick_time_dict = {}   
+        self.idle_time_dict = {}
+        self.client_process_time_dict = {}    
 
     def update_world_tick(self, tick_time_step=None):
         """
@@ -68,7 +70,17 @@ class SimDebugHelper(PlanDebugHelper):
         """
         self.sim_start_timestamp = timestamp
 
-    def update_network_time_timestamp(self, vehicle_index, network_time_step=None):
+    def update_network_time_timestamp(self, vehicle_index, time_step=None):
         if vehicle_index not in self.network_time_dict:
           self.network_time_dict[vehicle_index] = []
-        self.network_time_dict[vehicle_index].append(network_time_step)
+        self.network_time_dict[vehicle_index].append(time_step)
+
+    def update_idle_time_timestamp(self, vehicle_index, time_step=None):
+        if vehicle_index not in self.network_time_dict:
+          self.network_time_dict[vehicle_index] = []
+        self.idle_time_dict[vehicle_index].append(time_step)
+
+    def update_client_process_time_timestamp(self, vehicle_index, time_step=None):
+        if vehicle_index not in self.network_time_dict:
+          self.network_time_dict[vehicle_index] = []
+        self.client_process_time_dict[vehicle_index].append(time_step)
