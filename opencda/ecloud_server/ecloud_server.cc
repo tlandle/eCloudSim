@@ -123,7 +123,7 @@ class PushClient
         explicit PushClient( std::shared_ptr<grpc::Channel> channel, std::string connection ) : 
                             stub_(Ecloud::NewStub(channel)), connection_(connection) {}
 
-        bool PushTick(int32_t tickId, Command command, bool sendTimestamps)
+        bool PushTick(int32_t tickId, Command command, bool sendTimestamps, google::protobuf::Timestamp s)
         {
             Tick tick;
             tick.set_tick_id(tickId);
@@ -133,8 +133,6 @@ class PushClient
 
             if ( sendTimestamps )
             {
-                google::protobuf::Timestamp s;
-                s = google::protobuf::util::TimeUtil::GetCurrentTime();
                 LOG(INFO) << "sending @ tstamp " << s.seconds();
                 for ( int i = 0; i < client_timestamps_.size(); i++ )
                 {
@@ -260,6 +258,7 @@ public:
 
         DLOG(INFO) << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id();
 
+        google::protobuf::Timestamp s;
         if ( request->vehicle_state() == VehicleState::TICK_DONE )
         {
             numCompletedVehicles_++;
@@ -267,11 +266,7 @@ public:
         }
         else if ( request->vehicle_state() == VehicleState::TICK_OK )
         {
-            google::protobuf::Timestamp t;
-            t = google::protobuf::util::TimeUtil::GetCurrentTime();
-            LOG(INFO) << "received @ tstamp " << t.seconds();
             Timestamps vehicle_timestamp;
-            vehicle_timestamp.mutable_ecloud_rcv_tstamp()->CopyFrom(t);
             vehicle_timestamp.set_vehicle_index(request->vehicle_index());
             vehicle_timestamp.mutable_sm_start_tstamp()->set_seconds(timestamp_.seconds());
             vehicle_timestamp.mutable_sm_start_tstamp()->set_nanos(timestamp_.nanos());
@@ -280,6 +275,8 @@ public:
             vehicle_timestamp.mutable_client_end_tstamp()->set_seconds(request->client_end_tstamp().seconds());
             vehicle_timestamp.mutable_client_end_tstamp()->set_nanos(request->client_end_tstamp().nanos());
             timestamp_mu_.Lock();
+            s = google::protobuf::util::TimeUtil::GetCurrentTime();
+            vehicle_timestamp.mutable_ecloud_rcv_tstamp()->CopyFrom(s); // needs to be here so we capture lock time
             client_timestamps_.push_back(vehicle_timestamp);
             timestamp_mu_.Unlock();
 
@@ -298,8 +295,8 @@ public:
 
         LOG_IF(INFO, complete_ ) << "tick " << request->tick_id() << " COMPLETE";
         if ( complete_ )
-        {    
-            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, true);
+        {   
+            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, true, s); // use lock time
             t.detach();
         }
         // END PUSH
@@ -387,8 +384,9 @@ public:
         LOG_IF(INFO, complete_ ) << "REGISTRATION COMPLETE";
         if ( complete_ )
         {
+            google::protobuf::Timestamp s;
             assert( vehState_ != VehicleState::REGISTERING || ( vehState_ == VehicleState::REGISTERING && replies_ == pendingReplies_.size() ) );
-            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, false);
+            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, false, s);
             t.detach();
         }
         // END PUSH   
@@ -419,7 +417,8 @@ public:
         const int32_t tickId = request->tick_id();
         for ( int i = 0; i < vehicleClients_.size(); i++ )
         {
-            std::thread t(&PushClient::PushTick, vehicleClients_[i], tickId, command_, false);
+            google::protobuf::Timestamp s;
+            std::thread t(&PushClient::PushTick, vehicleClients_[i], tickId, command_, false, s);
             t.detach();
         }
         // END PUSH
@@ -476,7 +475,10 @@ public:
         // TODO: define -1 --> TICK_ID_INVALID
         LOG(INFO) << "pushing END";   
         for ( int i = 0; i < vehicleClients_.size(); i++ )
-            vehicleClients_[i]->PushTick(-1, Command::END, false); // don't thread --> block
+        {
+            google::protobuf::Timestamp s;
+            vehicleClients_[i]->PushTick(-1, Command::END, false, s); // don't thread --> block
+        }
         // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
