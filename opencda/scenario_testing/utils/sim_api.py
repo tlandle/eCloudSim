@@ -992,7 +992,7 @@ class ScenarioManager:
 
     # just use tick logic here; need something smarter if we want per-vehicle data
     # could also just switch to a "broadcast message "
-    def broadcast_message(self, message_type = ecloud.Command.TICK):
+    def broadcast_message(self, command = ecloud.Command.TICK):
         """
         Request all clients send debug data - broadcasts a message to all vehicles
 
@@ -1005,6 +1005,7 @@ class ScenarioManager:
 
         tick = ecloud.Tick()
         tick.tick_id = self.tick_id
+        tick.command = command
         
         logger.debug(f"Getting timestamp")
         tick.sm_start_tstamp.GetCurrentTime()
