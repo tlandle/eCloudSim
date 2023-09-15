@@ -76,11 +76,11 @@ class SimDebugHelper(PlanDebugHelper):
         self.network_time_dict[vehicle_index].append(time_step)
 
     def update_idle_time_timestamp(self, vehicle_index, time_step=None):
-        if vehicle_index not in self.network_time_dict:
-          self.network_time_dict[vehicle_index] = []
+        if vehicle_index not in self.idle_time_dict:
+          self.idle_time_dict[vehicle_index] = []
         self.idle_time_dict[vehicle_index].append(time_step)
 
     def update_client_process_time_timestamp(self, vehicle_index, time_step=None):
-        if vehicle_index not in self.network_time_dict:
-          self.network_time_dict[vehicle_index] = []
+        if vehicle_index not in self.client_process_time_dict:
+          self.client_process_time_dict[vehicle_index] = []
         self.client_process_time_dict[vehicle_index].append(time_step)

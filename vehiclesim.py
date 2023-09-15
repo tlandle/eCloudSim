@@ -56,7 +56,7 @@ elif cloud_config["log_level"] == "warning":
 elif cloud_config["log_level"] == "info":
     logger.setLevel(logging.INFO)
 
-def serialize_debug_info(vehicle_update, vehicle_manager):
+def serialize_debug_info(vehicle_update, vehicle_manager) -> None:
     planer_debug_helper = vehicle_manager.agent.debug_helper
     planer_debug_helper_msg = ecloud.PlanerDebugHelper()
     planer_debug_helper.serialize_debug_info(planer_debug_helper_msg)
@@ -73,43 +73,42 @@ def serialize_debug_info(vehicle_update, vehicle_manager):
     client_debug_helper.serialize_debug_info(client_debug_helper_msg)
     vehicle_update.client_debug_helper.CopyFrom(client_debug_helper_msg)
 
-async def send_registration_to_ecloud_server(stub_):
-    request = ecloud.VehicleUpdate()
+async def send_registration_to_ecloud_server(stub_) -> ecloud.SimulationInfo:
+    request = ecloud.RegistrationInfo()
     request.vehicle_state = ecloud.VehicleState.REGISTERING
     try:
         request.container_name = os.environ["HOSTNAME"]
     except Exception as e:
         request.container_name = f"vehiclesim.py"    
     
-    response = await stub_.Client_RegisterVehicle(request)
+    sim_info = await stub_.Client_RegisterVehicle(request)
 
-    logger.info(f"vehicle ID {response.vehicle_index} received...")
+    logger.info(f"vehicle ID {sim_info.vehicle_index} received...")
     
-    return response
+    return sim_info
 
-async def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid):
+async def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid) -> ecloud.SimulationInfo:
     message = {"vehicle_index": vehicle_index, "actor_id": actor_id, "vid": vid}
     logger.info(f"Vehicle: Sending Carla rpc {message}")
 
     # send actor ID and vid to API
-    update = ecloud.VehicleUpdate()
+    update = ecloud.RegistrationInfo()
     update.vehicle_state = ecloud.VehicleState.CARLA_UPDATE
     update.vehicle_index = vehicle_index
     update.vid = vid
     update.actor_id = actor_id
     
-    response = await stub_.Client_RegisterVehicle(update)
+    sim_info = await stub_.Client_RegisterVehicle(update)
 
     logger.info(f"send_carla_data_to_opencda: response received")
 
-    return response
+    return sim_info
 
 async def send_vehicle_update(stub_, vehicle_update_):
-    response = await stub_.Client_SendUpdate(vehicle_update_)
-
-    #logger.info(f"send_vehicle_update: response received")
-
-    return response
+    logger.debug(f"send_vehicle_update: sending")
+    empty = await stub_.Client_SendUpdate(vehicle_update_)
+    logger.debug(f"send_vehicle_update: send complete")
+    return empty
 
 def arg_parse():
     parser = argparse.ArgumentParser(description="OpenCDA Vehicle Simulation.")
@@ -160,7 +159,6 @@ async def main():
     ecloud_server = ecloud_rpc.EcloudStub(channel)
     ecloud_update = await send_registration_to_ecloud_server(ecloud_server)
     vehicle_index = ecloud_update.vehicle_index
-    state = ecloud_update.state
     assert( vehicle_index != None )
 
     test_scenario = ecloud_update.test_scenario
@@ -236,8 +234,6 @@ async def main():
         
         # HANDLE DEBUG DATA REQUEST
         if pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
-            vehicle_update.tick_id = tick_id
-            vehicle_update.vehicle_index = vehicle_index
             vehicle_update.vehicle_state = ecloud.VehicleState.DEBUG_INFO_UPDATE            
             serialize_debug_info(vehicle_update, vehicle_manager)
   
@@ -312,9 +308,7 @@ async def main():
                 control = vehicle_manager.run_step(target_speed=target_speed)
                 logger.debug("run_step complete")
 
-            vehicle_update = ecloud.VehicleUpdate()
             vehicle_update.tick_id = tick_id
-            vehicle_update.vehicle_index = vehicle_index
             vehicle_update.client_start_tstamp.CopyFrom(client_start_timestamp)
             vehicle_update.sm_start_tstamp.CopyFrom(pong.sm_start_tstamp)
             
@@ -366,6 +360,9 @@ async def main():
         # block waiting for a response
         if not reported_done or done_behavior == eDoneBehavior.CONTROL:
             if not reported_done:
+                vehicle_update.tick_id = tick_id
+                vehicle_update.vehicle_index = vehicle_index
+                logger.debug(f'VEHICLE_UPDATE_DBG: \n vehicle_index: {vehicle_index} \n tick_id: {tick_id} \n {vehicle_update}')
                 ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
 
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
@@ -396,8 +393,7 @@ async def main():
 
     # end while    
     vehicle_manager.destroy()
-    push_server.cancel()
-    await asyncio.gather(*push_server, return_exceptions=True)  
+    push_server.cancel() 
     logger.info("scenario complete. exiting.")
     sys.exit(0)
 

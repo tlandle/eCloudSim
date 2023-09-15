@@ -114,19 +114,15 @@ class VehicleManagerProxy(object):
         self.application = application
         self.current_time = current_time
         self.vehicle_index = vehicle_index
+        self.vid = vehicle_index # needed for compatibility
 
-        # an unique uuid for this vehicle
-#        self.vid = str(uuid.uuid1())
         self.carla_map = carla_map
 
         # Use sockets for interprocess communication between OpenCDA and each vehicle
         #self._socket = conn
         self.debug_helper = ClientDebugHelper(0)
 
-    def start_vehicle(self, actor_id, vid):
-        # Send the START message to the vehicle with simulation parameters
-        self.vid = vid # message["vid"] # Vehicle sends back the uuid id we use as unique identifier
-
+    def start_vehicle(self):
         # print("eCloud debug | actor_id: " + str(actor_id))
         self.vehicle = ActorProxy(self.vehicle_index)
 
@@ -136,7 +132,7 @@ class VehicleManagerProxy(object):
         control_config = self.cav_config['controller']
         v2x_config = self.cav_config['v2x']
         # v2x module
-        self.v2x_manager = V2XManager(self.cav_world, v2x_config, self.vid)
+        self.v2x_manager = V2XManager(self.cav_world, v2x_config, self.vehicle_index)
         # localization module
         self.localizer = LocalizationManager(
             self.vehicle, sensing_config['localization'], self.carla_map)

@@ -25,6 +25,7 @@
 #include <grpcpp/health_check_service_interface.h>
 
 #include <google/protobuf/util/time_util.h>
+#include <google/protobuf/util/json_util.h>
 
 #include "ecloud.grpc.pb.h"
 #include "ecloud.pb.h"
@@ -62,6 +63,7 @@ using ecloud::Tick;
 using ecloud::Command;
 using ecloud::VehicleState;
 using ecloud::SimulationInfo;
+using ecloud::RegistrationInfo;
 using ecloud::WaypointBuffer;
 using ecloud::Waypoint;
 using ecloud::Transform;
@@ -127,12 +129,14 @@ class PushClient
             tick.set_tick_id(tickId);
             tick.set_command(command);
 
+            LOG_IF(INFO, command == Command::END) << "pushing END";
+
             if ( sendTimestamps )
             {
                 google::protobuf::Timestamp s;
                 s = google::protobuf::util::TimeUtil::GetCurrentTime();
                 LOG(INFO) << "sending @ tstamp " << s.seconds();
-                for (int i=0; i < client_timestamps_.size(); i++)
+                for ( int i = 0; i < client_timestamps_.size(); i++ )
                 {
                     Timestamps *t = tick.add_timestamps();
                     t->CopyFrom(client_timestamps_[i]);
@@ -226,6 +230,7 @@ public:
         {
             VehicleUpdate *update = reply->add_vehicle_update();
             update->ParseFromString(pendingReplies_[i]);
+            LOG(INFO) << "update: vehicle_index - " << update->vehicle_index();
         }
 
         DLOG(INFO) << "Server_GetVehicleUpdates - updates deserialized.";
@@ -396,7 +401,7 @@ public:
     ServerUnaryReactor* Server_DoTick(CallbackServerContext* context,
                                const Tick* request,
                                Empty* empty) override {
-        for (int i = 0; i < numCars_; i++)
+        for ( int i = 0; i < numCars_; i++ )
             repliedCars_[i] = false;
 
         numRepliedVehicles_ = 0;
@@ -412,7 +417,7 @@ public:
 
         // BEGIN PUSH
         const int32_t tickId = request->tick_id();
-        for ( int i; i < vehicleClients_.size(); i++ )
+        for ( int i = 0; i < vehicleClients_.size(); i++ )
         {
             std::thread t(&PushClient::PushTick, vehicleClients_[i], tickId, command_, false);
             t.detach();
@@ -467,7 +472,12 @@ public:
                                Empty* reply) override {
         command_ = Command::END;
 
-        // need to collect debug info and then send back
+        // BEGIN PUSH
+        // TODO: define -1 --> TICK_ID_INVALID
+        LOG(INFO) << "pushing END";   
+        for ( int i = 0; i < vehicleClients_.size(); i++ )
+            vehicleClients_[i]->PushTick(-1, Command::END, false); // don't thread --> block
+        // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);

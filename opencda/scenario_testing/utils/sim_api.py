@@ -219,28 +219,38 @@ class ScenarioManager:
             vehicle_manager_proxy.debug_helper.deserialize_debug_info(vehicle_update.client_debug_helper)
 
     async def server_unpack_vehicle_updates(self, stub_):
+        logger.debug("getting vehicle updates")
         ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
-        for vehicle_update in ecloud_update.vehicle_update:
-            if not self.is_edge and vehicle_update.vehicle_index != ScenarioManager.SPECTATOR_INDEX:
-                continue
-            
-            vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
-            if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ):
-                t = carla.Transform(
-                carla.Location(
-                    x=vehicle_update.transform.location.x,
-                    y=vehicle_update.transform.location.y,
-                    z=vehicle_update.transform.location.z),
-                carla.Rotation(
-                    yaw=vehicle_update.transform.rotation.yaw,
-                    roll=vehicle_update.transform.rotation.roll,
-                    pitch=vehicle_update.transform.rotation.pitch))
-                v = carla.Vector3D(
-                    x=vehicle_update.velocity.x, 
-                    y=vehicle_update.velocity.y, 
-                    z=vehicle_update.velocity.z)
-                vehicle_manager_proxy.vehicle.set_velocity(v)
-                vehicle_manager_proxy.vehicle.set_transform(t)
+        logger.debug("unpacking vehicle updates")
+        try:
+            for vehicle_update in ecloud_update.vehicle_update:
+                if not vehicle_update.HasField('transform') or not vehicle_update.HasField('velocity'):
+                    continue
+
+                if not self.is_edge and vehicle_update.vehicle_index != ScenarioManager.SPECTATOR_INDEX:
+                    continue
+                
+                vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
+                if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ):
+                    t = carla.Transform(
+                    carla.Location(
+                        x=vehicle_update.transform.location.x,
+                        y=vehicle_update.transform.location.y,
+                        z=vehicle_update.transform.location.z),
+                    carla.Rotation(
+                        yaw=vehicle_update.transform.rotation.yaw,
+                        roll=vehicle_update.transform.rotation.roll,
+                        pitch=vehicle_update.transform.rotation.pitch))
+                    v = carla.Vector3D(
+                        x=vehicle_update.velocity.x, 
+                        y=vehicle_update.velocity.y, 
+                        z=vehicle_update.velocity.z)
+                    vehicle_manager_proxy.vehicle.set_velocity(v)
+                    vehicle_manager_proxy.vehicle.set_transform(t)
+        except Exception as e:
+            logger.error(f'{e} \n {vehicle_update}')
+            raise
+        logger.debug("vehicle updates unpacked")
 
     async def server_push_waypoints(self, stub_, wps_):
         empty = await stub_.Server_PushEdgeWaypoints(wps_)
@@ -255,23 +265,27 @@ class ScenarioManager:
         snapshot_t = time.time_ns()
         self.push_q.task_done()
         
-        NSEC = 1/1000000
+        NSEC_TO_MSEC = 1/1000000
         logger.debug(f"unpacking timestamp data: {ping.timestamps}")
         for v in ping.timestamps:
-            client_time = (v.client_end_tstamp.ToNanoseconds() - v.client_start_tstamp.ToNanoseconds()) * NSEC
-            logger.debug(f"timestamps: client_end - {v.client_end_tstamp.ToDatetime().time()} client_start - {v.client_start_tstamp.ToDatetime().time()} ecloud_rcv - {v.ecloud_rcv_tstamp.ToDatetime().time()} ecloud_snd - {v.ecloud_snd_tstamp.ToDatetime().time()} client_process time: {client_time}")
+            client_time = (v.client_end_tstamp.ToNanoseconds() - v.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC
             network_time = (( (snapshot_t - v.ecloud_snd_tstamp.ToNanoseconds()) \
-                               + (v.ecloud_rcv_tstamp.ToNanoseconds() - v.sm_start_tstamp.ToNanoseconds()) ) * NSEC) - client_time
-            idle_time = ((snapshot_t - v.sm_start_tstamp.ToNanoseconds()) * NSEC) - client_time
-            total_client_time = (snapshot_t - v.sm_start_tstamp.ToNanoseconds()) * NSEC
-            logger.debug(f'Client Process Time: {client_time}')
-            logger.debug(f'Network Time: {network_time}')
-            logger.debug(f'Idle Time: {idle_time}')
-            logger.debug(f'Total Client Step Time: {total_client_time}')
+                               + (v.ecloud_rcv_tstamp.ToNanoseconds() - v.sm_start_tstamp.ToNanoseconds()) ) * NSEC_TO_MSEC) - client_time
+            idle_time = ((snapshot_t - v.sm_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC) - network_time - client_time
+            total_client_time = (snapshot_t - v.sm_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC
+            
+            logger.debug(f"timestamps: client_end - {v.client_end_tstamp.ToDatetime().time()} client_start - {v.client_start_tstamp.ToDatetime().time()} ecloud_rcv - {v.ecloud_rcv_tstamp.ToDatetime().time()} ecloud_snd - {v.ecloud_snd_tstamp.ToDatetime().time()} client_process time: {client_time}")
+
+            logger.info(f'Client Process Time: {round(client_time, 2)}ms')
+            logger.info(f'Network Time: {round(network_time, 2)}ms')
+            logger.info(f'Idle Time: {round(idle_time, 2)}ms')
+            logger.info(f'Total Client Step Time: {round(total_client_time, 2)}ms')
+            
             ScenarioManager.debug_helper.update_network_time_timestamp(v.vehicle_index, network_time)
             ScenarioManager.debug_helper.update_individual_client_step_time(v.vehicle_index, total_client_time)
             ScenarioManager.debug_helper.update_idle_time_timestamp(v.vehicle_index, client_time)
             ScenarioManager.debug_helper.update_client_process_time_timestamp(v.vehicle_index, idle_time)
+            
             logger.debug(f"Updated time stamp data for vehicle {v.vehicle_index}")
 
         if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
@@ -448,15 +462,7 @@ class ScenarioManager:
         server_request.is_edge = self.is_edge
         server_request.vehicle_machine_ip = VEHICLE_IP
 
-        ecloud_update = await self.server_start_scenario(self.ecloud_server, server_request)
-
-        logger.debug(f"unpacking ecloud_update...")
-
-        # unpack the update - which will contain a repeated list of updates from the indivudal containers
-        for vehicle_update in ecloud_update.vehicle_update:
-            logger.debug(f"vehicle {vehicle_update.vehicle_index} | actor_id: {vehicle_update.actor_id} & vid: {vehicle_update.vid}")
-            vehicle_tuple = ( vehicle_update.actor_id, vehicle_update.vid )
-            self.vehicles[f"vehicle_{vehicle_update.vehicle_index}"] = vehicle_tuple
+        await self.server_start_scenario(self.ecloud_server, server_request)
             
         self.world.tick()
 
@@ -882,15 +888,7 @@ class ScenarioManager:
             # send gRPC with START info
             self.application = application
 
-            # update the vehicle manager
-            # keep a tuple of actor_id and vid in a list based on vehicle_index
-
-            actor_id = self.vehicles[f"vehicle_{vehicle_index}"][0]
-            vid = self.vehicles[f"vehicle_{vehicle_index}"][1]
-
-            logger.debug(f"starting vehicle {vehicle_index} | actor_id: {actor_id} | vid: {vid}")
-
-            vehicle_manager_proxy.start_vehicle(actor_id, vid)
+            vehicle_manager_proxy.start_vehicle()
 
             vehicle_manager_proxy.v2x_manager.set_platoon(None)
             logger.debug("set platoon on vehicle manager")

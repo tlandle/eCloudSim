@@ -37,8 +37,10 @@ import ecloud_pb2 as ecloud
 LOG_NAME = "ecloud_4lane.log" # data drive from file name?
 SCENARIO_NAME = "ecloud_4lane_scenario" # data drive from file name?
 TOWN = 'Town06'
+STEP_COUNT = 50
 
 def run_scenario(opt, config_yaml):
+    step = 0
     try:
         scenario_params = load_yaml(config_yaml)
 
@@ -94,10 +96,7 @@ def run_scenario(opt, config_yaml):
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
-
-        # run steps
-        
-        step = 0 
+ 
         flag = True
         while flag:
             print("Step: %d" %step)
@@ -131,7 +130,7 @@ def run_scenario(opt, config_yaml):
                     pitch=world_pitch)))   
 
             step = step + 1
-            if step > 250:
+            if step > STEP_COUNT:
                 if run_distributed:
                     flag = scenario_manager.broadcast_message(ecloud.Command.REQUEST_DEBUG_INFO)
                 break             
@@ -140,7 +139,8 @@ def run_scenario(opt, config_yaml):
         if run_distributed:
             scenario_manager.end() # only dist requires explicit scenario end call
 
-        eval_manager.evaluate()
+        if step >= STEP_COUNT:
+            eval_manager.evaluate()
 
         if opt.record:
             scenario_manager.client.stop_recorder()
