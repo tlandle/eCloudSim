@@ -145,6 +145,7 @@ message RegistrationInfo {
   string vid = 3;
   int32 actor_id = 4;
   string container_name = 5;
+  string vehicle_ip = 6;
 }
 
 message VehicleUpdate {

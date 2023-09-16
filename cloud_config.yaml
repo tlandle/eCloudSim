@@ -4,7 +4,7 @@ carla_server_public_ip: "localhost"
 #ecloud_server_public_ip: "20.122.64.203" # server
 ecloud_server_public_ip: "localhost"
 
-# TODO: add suport for multiple vehicle client machines
+# *must* be set to public IP *on* client machine(s) so they can send to ecloud server 
 #vehicle_client_public_ip: "20.172.248.156" # ndm
 vehicle_client_public_ip: "localhost"
 

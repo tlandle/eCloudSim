@@ -28,9 +28,9 @@ from opencda.core.application.edge.transform_utils import *
 from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
-from opencda.core.common.ecloud_config import EcloudConfig, eDoneBehavior
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
+from opencda.core.common.ecloud_config import EcloudConfig, eDoneBehavior
 from opencda.ecloud_server.ecloud_comms import EcloudClient, EcloudPushServer, ecloud_run_push_server
 
 import grpc
@@ -44,9 +44,11 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
 logger.setLevel(logging.DEBUG)
 
+# TODO: move to eCloudConfig
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
 ECLOUD_IP = cloud_config["ecloud_server_public_ip"]
+VEHICLE_IP = cloud_config["vehicle_client_public_ip"]
 ECLOUD_PUSH_BASE_PORT = 50101 # TODO: config
 
 if cloud_config["log_level"] == "error":
@@ -56,6 +58,7 @@ elif cloud_config["log_level"] == "warning":
 elif cloud_config["log_level"] == "info":
     logger.setLevel(logging.INFO)
 
+#TODO: move to eCloudClient
 def serialize_debug_info(vehicle_update, vehicle_manager) -> None:
     planer_debug_helper = vehicle_manager.agent.debug_helper
     planer_debug_helper_msg = ecloud.PlanerDebugHelper()
@@ -73,13 +76,16 @@ def serialize_debug_info(vehicle_update, vehicle_manager) -> None:
     client_debug_helper.serialize_debug_info(client_debug_helper_msg)
     vehicle_update.client_debug_helper.CopyFrom(client_debug_helper_msg)
 
+#TODO: move to eCloudClient
 async def send_registration_to_ecloud_server(stub_) -> ecloud.SimulationInfo:
     request = ecloud.RegistrationInfo()
     request.vehicle_state = ecloud.VehicleState.REGISTERING
     try:
         request.container_name = os.environ["HOSTNAME"]
     except Exception as e:
-        request.container_name = f"vehiclesim.py"    
+        request.container_name = f"vehiclesim.py"
+
+    request.vehicle_ip = VEHICLE_IP
     
     sim_info = await stub_.Client_RegisterVehicle(request)
 
@@ -87,6 +93,7 @@ async def send_registration_to_ecloud_server(stub_) -> ecloud.SimulationInfo:
     
     return sim_info
 
+#TODO: move to eCloudClient
 async def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid) -> ecloud.SimulationInfo:
     message = {"vehicle_index": vehicle_index, "actor_id": actor_id, "vid": vid}
     logger.info(f"Vehicle: Sending Carla rpc {message}")
@@ -104,6 +111,7 @@ async def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid) -> ecl
 
     return sim_info
 
+#TODO: move to eCloudClient
 async def send_vehicle_update(stub_, vehicle_update_):
     logger.debug(f"send_vehicle_update: sending")
     empty = await stub_.Client_SendUpdate(vehicle_update_)
@@ -129,6 +137,7 @@ def arg_parse():
     return opt
 
 async def main():
+    #TODO: move to eCloudConfig
     # default params which can be over-written from the simulation controller
     SPECTATOR_INDEX = 0
 
@@ -147,6 +156,7 @@ async def main():
 
     logging.basicConfig()
 
+    # TODO: move to eCloudClient
     channel = grpc.aio.insecure_channel(
         target=f"{ECLOUD_IP}:{opt.port}",
         options=[
@@ -370,11 +380,9 @@ async def main():
                     # we were asked for debug data and provided it, so NOW we exit
                     # TODO: this is better handled by done
                     logger.info(f"pushed DEBUG_INFO_UPDATE")
-                    break
 
-                else:
-                    reported_done = True
-                    logger.info(f"reported_done")
+                reported_done = True
+                logger.info(f"reported_done")
 
             assert(push_q.empty())
             pong = await push_q.get()

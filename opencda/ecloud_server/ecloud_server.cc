@@ -340,7 +340,7 @@ public:
 
             registration_mu_.Lock();
             reply->set_vehicle_index(numRegisteredVehicles_.load());
-            std::string connection = absl::StrFormat("%s:%d", vehicleMachineIP_, ECLOUD_PUSH_BASE_PORT + numRegisteredVehicles_.load() );
+            std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), ECLOUD_PUSH_BASE_PORT + numRegisteredVehicles_.load() );
             PushClient *vehicleClient = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
             vehicleClients_.push_back(vehicleClient);
             numRegisteredVehicles_++;
