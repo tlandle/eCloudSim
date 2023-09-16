@@ -9,7 +9,7 @@ if [[ "$rebuild" = "Y" || "$rebuild" = "y" ]]; then
     sudo docker build -f Dockerfile -t vehicle-sim:latest .
 fi
 
-running_containers = $(docker ps | wc -l)
+running_containers = $((docker ps | wc -l))
 if (( running_containers > 1 )); then
     echo "stopping and removing all old containers..."
     sudo docker stop $(sudo docker ps -a -q)
@@ -20,7 +20,7 @@ fi
 echo "starting $count vehicle client vontainers..."
 
 gpu = 0
-num_gpus = $(nvidia-smi -L | wc -l)
+num_gpus = $((nvidia-smi -L | wc -l))
 for ((i=0; i<$count; i++))
 do
     if [[ "$use_ml" = "Y" || "$use_ml" = "y" ]]; then
