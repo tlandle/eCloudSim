@@ -273,7 +273,9 @@ class ScenarioManager:
         for v in tick.timestamps:
             client_process_time_ms = (v.client_end_tstamp.ToNanoseconds() - v.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
             idle_time_ms = overall_step_time_ms - step_latency_ms - client_process_time_ms # inferred rather than actual "idle" time
-
+            #if idle_time_ms < 0:
+            #    logger.warning(f"got a NEGATIVE inferred idle_time value of {round(idle_time_ms, 2)}ms for vehicle {v.vehicle_index}")
+            #idle_time_ms = idle_time_ms if idle_time_ms > 0 else 0 # TODO: confirm if we wantt to do this?
             logger.debug(f"timestamps: client_end - {v.client_end_tstamp.ToDatetime().time()} client_start - {v.client_start_tstamp.ToDatetime().time()}")
             logger.info(f'client process time: {round(client_process_time_ms, 2)}ms')
             logger.info(f'idle time: {round(idle_time_ms, 2)}ms')
