@@ -50,7 +50,7 @@ ABSL_FLAG(uint16_t, minloglevel, static_cast<uint16_t>(absl::LogSeverityAtLeast:
           "Messages logged at a lower level than this don't actually "
           "get logged anywhere");
 
-using google::protobuf::util;
+using google::protobuf::util::TimeUtil;
 
 using grpc::CallbackServerContext;
 using grpc::Server;
@@ -266,8 +266,6 @@ public:
         {
             Timestamps vehicle_timestamp;
             vehicle_timestamp.set_vehicle_index(request->vehicle_index());
-            vehicle_timestamp.mutable_sm_start_tstamp()->set_seconds(timestamp_.seconds());
-            vehicle_timestamp.mutable_sm_start_tstamp()->set_nanos(timestamp_.nanos());
             vehicle_timestamp.mutable_client_start_tstamp()->set_seconds(request->client_start_tstamp().seconds());
             vehicle_timestamp.mutable_client_start_tstamp()->set_nanos(request->client_start_tstamp().nanos());
             vehicle_timestamp.mutable_client_end_tstamp()->set_seconds(request->client_end_tstamp().seconds());
