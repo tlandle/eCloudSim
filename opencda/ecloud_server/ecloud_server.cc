@@ -37,6 +37,7 @@
 #define SPECTATOR_INDEX 0
 #define VERBOSE_PRINT_COUNT 5
 #define MAX_CARS 512
+#define INVALID_TIME 0
 
 #define ECLOUD_PUSH_BASE_PORT 50101
 #define ECLOUD_PUSH_API_PORT 50061
@@ -48,6 +49,8 @@ ABSL_FLAG(uint16_t, num_ports, 1, "Total number of ports to open - each vehicle 
 ABSL_FLAG(uint16_t, minloglevel, static_cast<uint16_t>(absl::LogSeverityAtLeast::kInfo),
           "Messages logged at a lower level than this don't actually "
           "get logged anywhere");
+
+using google::protobuf::util;
 
 using grpc::CallbackServerContext;
 using grpc::Server;
@@ -77,9 +80,9 @@ using ecloud::Timestamps;
 using ecloud::WaypointRequest;
 using ecloud::EdgeWaypoints;
 
-static void _sig_handler(int signo) 
+static void _sig_handler(int signo)
 {
-    if (signo == SIGTERM || signo == SIGINT) 
+    if (signo == SIGTERM || signo == SIGINT)
     {
         exit(signo);
     }
@@ -120,35 +123,31 @@ std::vector<Timestamps> client_timestamps_ ABSL_GUARDED_BY(timestamp_mu_);
 class PushClient
 {
     public:
-        explicit PushClient( std::shared_ptr<grpc::Channel> channel, std::string connection ) : 
+        explicit PushClient( std::shared_ptr<grpc::Channel> channel, std::string connection ) :
                             stub_(Ecloud::NewStub(channel)), connection_(connection) {}
 
-        bool PushTick(int32_t tickId, Command command, bool sendTimestamps, google::protobuf::Timestamp s)
+        bool PushTick(int32_t tickId, Command command, bool sendTimestamps, int64_t lastClientDurationNS)
         {
             Tick tick;
             tick.set_tick_id(tickId);
             tick.set_command(command);
+            tick.mutable_sm_start_tstamp()->CopyFrom(timestamp_);
 
             LOG_IF(INFO, command == Command::END) << "pushing END";
 
             if ( sendTimestamps )
             {
-                LOG(INFO) << "sending @ tstamp " << s.seconds();
+                tick.set_last_client_duration_ns(lastClientDurationNS);
                 for ( int i = 0; i < client_timestamps_.size(); i++ )
                 {
                     Timestamps *t = tick.add_timestamps();
                     t->CopyFrom(client_timestamps_[i]);
-                    t->mutable_ecloud_snd_tstamp()->CopyFrom(s);
                 }
-            }
-            else
-            {
-                tick.mutable_sm_start_tstamp()->CopyFrom(timestamp_);
             }
 
             grpc::ClientContext context;
             Empty empty;
-            
+
             // The actual RPC.
             std::mutex mu;
             std::condition_variable cv;
@@ -196,14 +195,14 @@ public:
 
             vehState_ = VehicleState::REGISTERING;
             command_ = Command::TICK;
-            
+
             numCars_ = 0;
             configYaml_ = "";
             isEdge_ = false;
 
             simIP_ = "localhost";
             vehicleMachineIP_ = "localhost";
-        
+
             std::string connection = absl::StrFormat("%s:%d", simIP_, ECLOUD_PUSH_API_PORT );
             simAPIClient_ = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
 
@@ -212,7 +211,7 @@ public:
             pendingReplies_.clear();
             client_timestamps_.clear();
 
-            timestamp_ = google::protobuf::util::TimeUtil::GetCurrentTime();
+            timestamp_ = TimeUtil::GetCurrentTime();
 
             init_ = true;
         }
@@ -221,9 +220,9 @@ public:
     ServerUnaryReactor* Server_GetVehicleUpdates(CallbackServerContext* context,
                                const Empty* empty,
                                EcloudResponse* reply) override {
-        
+
         DLOG(INFO) << "Server_GetVehicleUpdates - deserializing updates.";
-        
+
         for ( int i = 0; i < pendingReplies_.size(); i++ )
         {
             VehicleUpdate *update = reply->add_vehicle_update();
@@ -246,7 +245,7 @@ public:
                                Empty* empty) override {
 
         if ( isEdge_ || request->vehicle_index() == SPECTATOR_INDEX || request->vehicle_state() == VehicleState::TICK_DONE || request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
-        {   
+        {
             std::string msg;
             request->SerializeToString(&msg);
             mu_.Lock();
@@ -254,11 +253,10 @@ public:
             mu_.Unlock();
         }
 
-        repliedCars_[request->vehicle_index()] = true; 
+        repliedCars_[request->vehicle_index()] = true;
 
         DLOG(INFO) << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id();
 
-        google::protobuf::Timestamp s;
         if ( request->vehicle_state() == VehicleState::TICK_DONE )
         {
             numCompletedVehicles_++;
@@ -275,8 +273,6 @@ public:
             vehicle_timestamp.mutable_client_end_tstamp()->set_seconds(request->client_end_tstamp().seconds());
             vehicle_timestamp.mutable_client_end_tstamp()->set_nanos(request->client_end_tstamp().nanos());
             timestamp_mu_.Lock();
-            s = google::protobuf::util::TimeUtil::GetCurrentTime();
-            vehicle_timestamp.mutable_ecloud_rcv_tstamp()->CopyFrom(s); // needs to be here so we capture lock time
             client_timestamps_.push_back(vehicle_timestamp);
             timestamp_mu_.Unlock();
 
@@ -287,7 +283,7 @@ public:
             numCompletedVehicles_++;
             DLOG(INFO) << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
         }
-        
+
         // BEGIN PUSH
         const int16_t replies_ = numRepliedVehicles_.load();
         const int16_t completions_ = numCompletedVehicles_.load();
@@ -295,8 +291,9 @@ public:
 
         LOG_IF(INFO, complete_ ) << "tick " << request->tick_id() << " COMPLETE";
         if ( complete_ )
-        {   
-            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, true, s); // use lock time
+        {
+            int64_t lastClientDurationNS = ( TimeUtil::TimestampToNanoseconds( request->client_end_tstamp() ) - TimeUtil::TimestampToNanoseconds( request->client_start_tstamp() ) );
+            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, true, lastClientDurationNS);
             t.detach();
         }
         // END PUSH
@@ -310,7 +307,7 @@ public:
     ServerUnaryReactor* Client_GetWaypoints(CallbackServerContext* context,
                                const WaypointRequest* request,
                                WaypointBuffer* buffer) override {
-        
+
         for ( int i = 0; i < serializedEdgeWaypoints_.size(); i++ )
         {
             const std::pair<int16_t, std::string > wpPair = serializedEdgeWaypoints_[i];
@@ -327,7 +324,7 @@ public:
                 break;
             }
         }
-        
+
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
         return reactor;
@@ -336,7 +333,7 @@ public:
     ServerUnaryReactor* Client_RegisterVehicle(CallbackServerContext* context,
                                const RegistrationInfo* request,
                                SimulationInfo* reply) override {
-        
+
         assert( configYaml_ != "" );
 
         if ( request->vehicle_state() == VehicleState::REGISTERING )
@@ -354,16 +351,16 @@ public:
             reply->set_test_scenario(configYaml_);
             reply->set_application(application_);
             reply->set_version(version_);
-            
+
             DLOG(INFO) << "RegisterVehicle - REGISTERING - container " << request->container_name() << " got vehicle id: " << reply->vehicle_index();
             carNames_[reply->vehicle_index()] = request->container_name();
         }
         else if ( request->vehicle_state() == VehicleState::CARLA_UPDATE )
-        {            
+        {
             reply->set_vehicle_index(request->vehicle_index());
-            
+
             DLOG(INFO) << "RegisterVehicle - CARLA_UPDATE - vehicle_index: " << request->vehicle_index() << " | actor_id: " << request->actor_id() << " | vid: " << request->vid();
-            
+
             mu_.Lock();
             std::string msg;
             request->SerializeToString(&msg);
@@ -384,12 +381,11 @@ public:
         LOG_IF(INFO, complete_ ) << "REGISTRATION COMPLETE";
         if ( complete_ )
         {
-            google::protobuf::Timestamp s;
             assert( vehState_ != VehicleState::REGISTERING || ( vehState_ == VehicleState::REGISTERING && replies_ == pendingReplies_.size() ) );
-            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, false, s);
+            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, false, INVALID_TIME);
             t.detach();
         }
-        // END PUSH   
+        // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -408,7 +404,7 @@ public:
         tickId_++;
         command_ = request->command();
         timestamp_ = request->sm_start_tstamp();
-        
+
         const auto now = std::chrono::system_clock::now();
         DLOG(INFO) << "received new tick " << request->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
             now.time_since_epoch()).count();
@@ -417,8 +413,7 @@ public:
         const int32_t tickId = request->tick_id();
         for ( int i = 0; i < vehicleClients_.size(); i++ )
         {
-            google::protobuf::Timestamp s;
-            std::thread t(&PushClient::PushTick, vehicleClients_[i], tickId, command_, false, s);
+            std::thread t(&PushClient::PushTick, vehicleClients_[i], tickId, command_, false, INVALID_TIME);
             t.detach();
         }
         // END PUSH
@@ -473,11 +468,10 @@ public:
 
         // BEGIN PUSH
         // TODO: define -1 --> TICK_ID_INVALID
-        LOG(INFO) << "pushing END";   
+        LOG(INFO) << "pushing END";
         for ( int i = 0; i < vehicleClients_.size(); i++ )
         {
-            google::protobuf::Timestamp s;
-            vehicleClients_[i]->PushTick(-1, Command::END, false, s); // don't thread --> block
+            vehicleClients_[i]->PushTick(-1, Command::END, false, INVALID_TIME); // don't thread --> block
         }
         // END PUSH
 
