@@ -275,7 +275,7 @@ class ScenarioManager:
             idle_time_ms = overall_step_time_ms - step_latency_ms - client_process_time_ms # inferred rather than actual "idle" time
 
             logger.debug(f"timestamps: client_end - {v.client_end_tstamp.ToDatetime().time()} client_start - {v.client_start_tstamp.ToDatetime().time()}")
-            logger.info(f'client process rime: {round(client_process_time_ms, 2)}ms')
+            logger.info(f'client process time: {round(client_process_time_ms, 2)}ms')
             logger.info(f'idle time: {round(idle_time_ms, 2)}ms')
 
             ScenarioManager.debug_helper.update_network_time_timestamp(v.vehicle_index, step_latency_ms) # same for all vehicles *per tick*
