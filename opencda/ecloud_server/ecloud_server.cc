@@ -92,6 +92,7 @@ volatile std::atomic<int16_t> numCompletedVehicles_;
 volatile std::atomic<int16_t> numRepliedVehicles_;
 volatile std::atomic<int32_t> tickId_;
 volatile std::atomic<int32_t> lastWorldTickTimeMS_;
+volatile std::atomic<int32_t> workerThreads_;
 
 bool repliedCars_[MAX_CARS];
 std::string carNames_[MAX_CARS];
@@ -117,8 +118,10 @@ absl::Mutex timestamp_mu_;
 absl::Mutex registration_mu_;
 
 volatile std::atomic<int16_t> numRegisteredVehicles_ ABSL_GUARDED_BY(registration_mu_);
-std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // serialized protobuf
+std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // serialized protobuf allows differing message types in same vector
 std::vector<Timestamps> client_timestamps_ ABSL_GUARDED_BY(timestamp_mu_);
+
+static bool Working(void *b) { return ( workerThreads_.load() == 0 ); }
 
 class PushClient
 {
@@ -138,11 +141,14 @@ class PushClient
             if ( sendTimestamps )
             {
                 tick.set_last_client_duration_ns(lastClientDurationNS);
+                bool b = false;
+                timestamp_mu_.LockWhen(absl::Condition(Working, &b));
                 for ( int i = 0; i < client_timestamps_.size(); i++ )
                 {
                     Timestamps *t = tick.add_timestamps();
                     t->CopyFrom(client_timestamps_[i]);
                 }
+                timestamp_mu_.Unlock();
             }
 
             grpc::ClientContext context;
@@ -191,6 +197,8 @@ public:
             numRepliedVehicles_.store(0);
             numRegisteredVehicles_.store(0);
             tickId_.store(0);
+            workerThreads_.store(0);
+
             lastWorldTickTimeMS_.store(WORLD_TICK_DEFAULT_MS);
 
             vehState_ = VehicleState::REGISTERING;
@@ -223,12 +231,15 @@ public:
 
         DLOG(INFO) << "Server_GetVehicleUpdates - deserializing updates.";
 
+        bool b = false;
+        mu_.LockWhen(absl::Condition(Working, &b));
         for ( int i = 0; i < pendingReplies_.size(); i++ )
         {
             VehicleUpdate *update = reply->add_vehicle_update();
             update->ParseFromString(pendingReplies_[i]);
             LOG(INFO) << "update: vehicle_index - " << update->vehicle_index();
         }
+        mu_.Unlock();
 
         DLOG(INFO) << "Server_GetVehicleUpdates - updates deserialized.";
 
@@ -248,9 +259,22 @@ public:
         {
             std::string msg;
             request->SerializeToString(&msg);
-            mu_.Lock();
-            pendingReplies_.push_back(msg);
-            mu_.Unlock();
+            if ( isEdge_ || request->vehicle_state() == VehicleState::TICK_DONE || request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
+            {
+                workerThreads_++;
+                std::thread t([msg](){
+                                        timestamp_mu_.Lock();
+                                        pendingReplies_.push_back(msg);
+                                        workerThreads_--;
+                                        timestamp_mu_.Unlock();
+                                    });
+                t.detach();
+            }
+            else
+            {
+                assert( request->vehicle_index() == SPECTATOR_INDEX );
+                pendingReplies_.push_back(msg);
+            }
         }
 
         repliedCars_[request->vehicle_index()] = true;
@@ -270,10 +294,15 @@ public:
             vehicle_timestamp.mutable_client_start_tstamp()->set_nanos(request->client_start_tstamp().nanos());
             vehicle_timestamp.mutable_client_end_tstamp()->set_seconds(request->client_end_tstamp().seconds());
             vehicle_timestamp.mutable_client_end_tstamp()->set_nanos(request->client_end_tstamp().nanos());
-            timestamp_mu_.Lock();
-            client_timestamps_.push_back(vehicle_timestamp);
-            timestamp_mu_.Unlock();
-
+            
+            workerThreads_++;
+            std::thread t([vehicle_timestamp](){
+                                        timestamp_mu_.Lock();
+                                        client_timestamps_.push_back(vehicle_timestamp);
+                                        workerThreads_--;
+                                        timestamp_mu_.Unlock();
+                                    });
+            t.detach();
             numRepliedVehicles_++;
         }
         else if ( request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
