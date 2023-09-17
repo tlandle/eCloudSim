@@ -285,10 +285,10 @@ class ScenarioManager:
             logger.info(f'client process time: {round(client_process_time_ms, 2)}ms')
             logger.info(f'idle time: {round(idle_time_ms, 2)}ms')
 
-            ScenarioManager.debug_helper.update_network_time_timestamp(v.vehicle_index, step_latency_ms) # same for all vehicles *per tick*
-            ScenarioManager.debug_helper.update_individual_client_step_time(v.vehicle_index, overall_step_time_ms) # barrier sync means it's not actually individual
-            ScenarioManager.debug_helper.update_idle_time_timestamp(v.vehicle_index, idle_time_ms) # this inferred
-            ScenarioManager.debug_helper.update_client_process_time_timestamp(v.vehicle_index, client_process_time_ms) # how long client actually was active
+            self.debug_helper.update_network_time_timestamp(v.vehicle_index, step_latency_ms) # same for all vehicles *per tick*
+            self.debug_helper.update_individual_client_step_time(v.vehicle_index, overall_step_time_ms) # barrier sync means it's not actually individual
+            self.debug_helper.update_idle_time_timestamp(v.vehicle_index, idle_time_ms) # this inferred
+            self.debug_helper.update_client_process_time_timestamp(v.vehicle_index, client_process_time_ms) # how long client actually was active
 
             logger.debug(f"updated time stamp data for vehicle {v.vehicle_index}")
 
@@ -357,6 +357,8 @@ class ScenarioManager:
                 logger.info(f'killing exiting ecloud gRPC server process')
                 subprocess.run(['pkill','-9','ecloud_server'])
 
+            # PERF Profiling
+            # self.ecloud_server_process = subprocess.Popen(['sudo','perf','record','-g','./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}',f'--num_ports={self.ecloud_config.get_num_ports()}'], stderr=sys.stdout.buffer)
             self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}',f'--num_ports={self.ecloud_config.get_num_ports()}'], stderr=sys.stdout.buffer)
 
         cav_world.update_scenario_manager(self)
@@ -441,7 +443,7 @@ class ScenarioManager:
             )
             self.ecloud_server = ecloud_rpc.EcloudStub(channel)
 
-            ScenarioManager.debug_helper.update_sim_start_timestamp(time.time())
+            self.debug_helper.update_sim_start_timestamp(time.time())
 
             self.scenario = json.dumps(scenario_params) #self.config_file
             self.carla_version = self.carla_version
@@ -449,7 +451,7 @@ class ScenarioManager:
         # eCLOUD END
 
         else: # sequential
-            ScenarioManager.debug_helper.update_sim_start_timestamp(time.time())
+            self.debug_helper.update_sim_start_timestamp(time.time())
 
     async def run_comms(self):
         self.push_q = asyncio.Queue()
@@ -1017,7 +1019,7 @@ class ScenarioManager:
         post_client_tick_time = time.time()
         logger.info("Client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
         if self.tick_id > 1: # discard the first tick as startup is a major outlier
-            ScenarioManager.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
+            self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
         return True
 
@@ -1064,6 +1066,8 @@ class ScenarioManager:
         self.debug_helper.shutdown_time_ms = time.time() - start_time
 
     def do_pickling(self, column_key, flat_list, file_path):
+        logger.info(f"run stats for {column_key}:\nmean {column_key}: {np.mean(flat_list)} \nmedian {column_key}: {np.median(flat_list)} \n95% percentile {column_key} {np.percentile(flat_list, 95)}")
+
         data_df = pd.DataFrame(flat_list, columns = [f'{column_key}_ms'])
         data_df['num_cars'] = self.vehicle_count
         data_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
@@ -1082,7 +1086,7 @@ class ScenarioManager:
 
         # pickle the dataFrame
         pickle.dump(data_df, picklefile)
-        logger.info(data_df)
+        logger.debug(data_df)
         #close file
         picklefile.close()
 
@@ -1106,7 +1110,7 @@ class ScenarioManager:
             self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_network_data(self, cumulative_stats_folder_path):
-        all_network_data_lists = sum(ScenarioManager.debug_helper.network_time_dict.values(), [])
+        all_network_data_lists = sum(self.debug_helper.network_time_dict.values(), [])
 
         # logger.error(all_network_data_lists)
 
@@ -1114,37 +1118,34 @@ class ScenarioManager:
         if all_network_data_list_flat.any():
             all_network_data_list_flat = np.hstack(all_network_data_list_flat)
         else:
-            all_network_data_list_flat = all_network_data_list_flat.flatten()
-        logger.info(f"mean network: {np.mean(all_network_data_list_flat)} | median network: {np.median(all_network_data_list_flat)} | 95% percentile network {np.percentile(all_network_data_list_flat, 95)}")
+            all_network_data_list_flat = all_network_data_list_flat.flatten()        
         data_key = f"network_latency"
         self.do_pickling(data_key, all_network_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_idle_data(self, cumulative_stats_folder_path):
-        all_idle_data_lists = sum(ScenarioManager.debug_helper.idle_time_dict.values(), [])
+        all_idle_data_lists = sum(self.debug_helper.idle_time_dict.values(), [])
 
         all_idle_data_lists_flat = np.array(all_idle_data_lists)
         if all_idle_data_lists_flat.any():
             all_idle_data_lists_flat = np.hstack(all_idle_data_lists_flat)
         else:
-            all_idle_data_lists_flat = all_idle_data_lists_flat.flatten()
-        logger.info(f"mean idle: {np.mean(all_idle_data_lists_flat)} | median idle: {np.median(all_idle_data_lists_flat)} | 95% percentile idle {np.percentile(all_idle_data_lists_flat, 95)}")
+            all_idle_data_lists_flat = all_idle_data_lists_flat.flatten()    
         data_key = f"idle"
         self.do_pickling(data_key, all_idle_data_lists_flat, cumulative_stats_folder_path)
 
     def evaluate_client_process_data(self, cumulative_stats_folder_path):
-        all_client_process_data_lists = sum(ScenarioManager.debug_helper.client_process_time_dict.values(), [])
+        all_client_process_data_lists = sum(self.debug_helper.client_process_time_dict.values(), [])
 
         all_client_process_data_list_flat = np.array(all_client_process_data_lists)
         if all_client_process_data_list_flat.any():
             all_client_process_data_list_flat = np.hstack(all_client_process_data_list_flat)
         else:
-            all_client_process_data_list_flat = all_client_process_data_list_flat.flatten()
-        logger.info(f"mean client: {np.mean(all_client_process_data_list_flat)} | median client: {np.median(all_client_process_data_list_flat)} | 95% percentile client {np.percentile(all_client_process_data_list_flat, 95)}")
+            all_client_process_data_list_flat = all_client_process_data_list_flat.flatten()    
         data_key = f"client_process"
         self.do_pickling(data_key, all_client_process_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_individual_client_data(self, cumulative_stats_folder_path):
-        all_client_data_lists = sum(ScenarioManager.debug_helper.client_tick_time_dict.values(), [])
+        all_client_data_lists = sum(self.debug_helper.client_tick_time_dict.values(), [])
 
         # logger.error(all_network_data_lists)
 
@@ -1214,7 +1215,7 @@ class ScenarioManager:
                 self.evaluate_client_data(list_name, cumulative_stats_folder_path)
 
             # ___________Client Step time__________________________________
-            client_tick_time_list = ScenarioManager.debug_helper.client_tick_time_list
+            client_tick_time_list = self.debug_helper.client_tick_time_list
             client_tick_time_list_flat = np.concatenate(client_tick_time_list)
             if client_tick_time_list_flat.any():
                 client_tick_time_list_flat = np.hstack(client_tick_time_list_flat)
@@ -1224,7 +1225,7 @@ class ScenarioManager:
             self.do_pickling(client_step_time_key, client_tick_time_list_flat, cumulative_stats_folder_path)
 
             # ___________World Step time_________________________________
-            world_tick_time_list = ScenarioManager.debug_helper.world_tick_time_list
+            world_tick_time_list = self.debug_helper.world_tick_time_list
             world_tick_time_list_flat = np.concatenate(world_tick_time_list)
             if world_tick_time_list_flat.any():
                 world_tick_time_list_flat = np.hstack(world_tick_time_list_flat)
@@ -1234,7 +1235,7 @@ class ScenarioManager:
             self.do_pickling(world_step_time_key, world_tick_time_list_flat, cumulative_stats_folder_path)
 
             # ___________Total simulation time ___________________
-            sim_start_time = ScenarioManager.debug_helper.sim_start_timestamp
+            sim_start_time = self.debug_helper.sim_start_timestamp
             sim_end_time = time.time()
             total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
             perform_txt += f"Total Simulation Time: {total_sim_time} \n\t Registration Time: {self.debug_helper.startup_time_ms}ms \n\t Shutdown Time: {self.debug_helper.shutdown_time_ms}ms"
