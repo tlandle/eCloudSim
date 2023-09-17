@@ -32,6 +32,8 @@ class SimDebugHelper(PlanDebugHelper):
         self.world_tick_time_list = [[]]
         self.client_tick_time_list = [[]]
         self.sim_start_timestamp = None
+        self.startup_time_ms = 0
+        self.shutdown_time_ms = 0
         self.network_time_dict = {}
         self.client_tick_time_dict = {}   
         self.idle_time_dict = {}

@@ -9,7 +9,8 @@ class eLocationType(Enum):
 class eDoneBehavior(Enum):
     DESTROY = 0
     CONTROL = 1
-    COUNT = 2 
+    DRIVE = 2
+    COUNT = 3 
 
 class EcloudConfig(object):  
 
@@ -17,12 +18,14 @@ class EcloudConfig(object):
     EXPLICIT = "explicit"
     DESTROY = "destroy"
     CONTROL = "control"
+    DRIVE = "drive"
 
     location_types = { RANDOM : eLocationType.RANDOM, 
                        EXPLICIT : eLocationType.EXPLICIT }
     
     done_behavior_types = { DESTROY : eDoneBehavior.DESTROY,
-                            CONTROL : eDoneBehavior.CONTROL }
+                            CONTROL : eDoneBehavior.CONTROL,
+                            DRIVE   : eDoneBehavior.DRIVE }
 
 
     def __init__(self, config_json, logger=None):
@@ -43,7 +46,7 @@ class EcloudConfig(object):
         self.ecloud_scenario = {
            "num_cars" : 0,
            "location_type" : self.EXPLICIT,
-           "done_behavior" : self.DESTROY,
+           "done_behavior" : self.CONTROL,
            "step_count" : 250, # number of steps to take before breaking
         }
 

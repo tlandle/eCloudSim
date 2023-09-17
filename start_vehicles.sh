@@ -18,7 +18,7 @@ if (( running_containers > 1 )); then
     sudo docker container ls
 fi
 
-echo "starting $count vehicle client vontainers..."
+echo "starting $count vehicle client containers..."
 
 gpu=0
 num_gpus=$(nvidia-smi -L | wc -l)
@@ -28,15 +28,15 @@ do
     if [[ "$use_ml" = "Y" || "$use_ml" = "y" ]]; then
         echo "container $i pinned to gpu $gpu"
         sudo docker run --runtime=nvidia --gpus device=$gpu -d --network=host --name=container_$i -e "HOSTNAME=container_$i" -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim --apply_ml
+        ((gpu++))
+        #echo "$gpu % $num_gpus = $(( gpu % num_gpus ))"
+        if (( $(( gpu % num_gpus )) == 0 )); then
+            echo "resetting gpu round robin"
+            gpu=0
+        fi   
     else
         #sudo docker run --runtime=nvidia --gpus all -d --network=host --name=container_$i -e "HOSTNAME=container_$i" -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim
         sudo docker run -d --network=host --name=container_$i -e "HOSTNAME=container_$i" vehicle-sim
-    fi
-    ((gpu++))
-    #echo "$gpu % $num_gpus = $(( gpu % num_gpus ))"
-    if (( $(( gpu % num_gpus )) == 0 )); then
-        echo "resetting gpu round robin"
-        gpu=0
     fi
 done
 

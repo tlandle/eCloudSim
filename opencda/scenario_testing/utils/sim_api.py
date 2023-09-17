@@ -65,8 +65,9 @@ import opencda.core.plan.drive_profile_plotting as open_plt
 from opencda.core.common.ecloud_config import EcloudConfig
 from opencda.ecloud_server.ecloud_comms import EcloudClient, EcloudPushServer, ecloud_run_push_server
 
-logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
+TIMEOUT_S = 10
+TIMEOUT_MS = TIMEOUT_S * 1000
+NSEC_TO_MSEC = 1/1000000
 
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
@@ -74,15 +75,14 @@ ECLOUD_IP = cloud_config["ecloud_server_public_ip"]
 VEHICLE_IP = cloud_config["vehicle_client_public_ip"]
 ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', logger=logger)
 if cloud_config["log_level"] == "error":
     logger.setLevel(logging.ERROR)
 elif cloud_config["log_level"] == "warning":
     logger.setLevel(logging.WARNING)
 elif cloud_config["log_level"] == "info":
     logger.setLevel(logging.INFO)
-
-TIMEOUT_S = 10
-TIMEOUT_MS = TIMEOUT_S * 1000
 
 def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
     """
@@ -205,6 +205,7 @@ class ScenarioManager:
     scenario = None
     ecloud_server = None
     is_edge = False
+    vehicle_state = ecloud.VehicleState.REGISTERING
 
     debug_helper = SimDebugHelper(0)
 
@@ -265,7 +266,11 @@ class ScenarioManager:
         snapshot_t = time.time_ns()
         self.push_q.task_done()
 
-        NSEC_TO_MSEC = 1/1000000
+        # the first tick time is dramatically slower due to startup, so we don't want it to skew runtime data
+        if self.tick_id == 1:
+            self.debug_helper.startup_time_ms = ( snapshot_t - tick.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC
+            return empty
+
         logger.debug(f"unpacking timestamp data: {tick.timestamps}")
         overall_step_time_ms = ( snapshot_t - tick.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC # barrier sync means this is the same for ALL vehicles per tick
         step_latency_ms = overall_step_time_ms - ( tick.last_client_duration_ns * NSEC_TO_MSEC ) # we care about the worst case per tick - how much did we affect the final vehicle to report. This captures both delay in getting that vehicle started and in it reporting its completion
@@ -308,8 +313,9 @@ class ScenarioManager:
         logger.info(f"vehicle registration complete")
 
         response = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
-
+        
         logger.info(f"vehicle registration data received")
+
 
         return response
 
@@ -451,7 +457,7 @@ class ScenarioManager:
         #self.push_server = threading.Thread(target=ecloud_run_push_server, args=(ECLOUD_PUSH_API_PORT, self.push_q,))
         #self.push_server.start()
 
-        await asyncio.sleep(1)
+        await asyncio.sleep(1) # this yields CPU to allow the PushServer to start
 
         server_request = ecloud.SimulationInfo()
         server_request.test_scenario = self.scenario
@@ -948,14 +954,7 @@ class ScenarioManager:
                 # send gRPC with START info
                 self.application = application
 
-                # update the vehicle manager
-                # keep a tuple of actor_id and vid in a list based on vehicle_index
-                actor_id = self.vehicles[f"vehicle_{vehicle_index}"][0]
-                vid = self.vehicles[f"vehicle_{vehicle_index}"][1]
-
-                logger.debug(f"starting vehicle {vehicle_index} | actor_id: {actor_id} | vid: {vid}")
-
-                vehicle_manager.start_vehicle(actor_id, vid)
+                vehicle_manager.start_vehicle()
                 vehicle_manager.v2x_manager.set_platoon(None)
 
                 # add the vehicle manager to platoon
@@ -1002,6 +1001,9 @@ class ScenarioManager:
         pre_client_tick_time = time.time()
         self.tick_id = self.tick_id + 1
 
+        if command == ecloud.Command.REQUEST_DEBUG_INFO:
+            self.vehicle_state = ecloud.VehicleState.DEBUG_INFO_UPDATE
+
         tick = ecloud.Tick()
         tick.tick_id = self.tick_id
         tick.command = command
@@ -1025,6 +1027,7 @@ class ScenarioManager:
 
         returns bool
         """
+        self.vehicle_state = ecloud.VehicleState.TICK_OK
         return self.broadcast_message(ecloud.Command.TICK)
 
 
@@ -1049,15 +1052,16 @@ class ScenarioManager:
         """
         broadcast end to all vehicles
         """
+        start_time = time.time()
+        self.vehicle_state = ecloud.VehicleState.TICK_DONE
         asyncio.get_event_loop().run_until_complete(self.server_end_scenario(self.ecloud_server))
 
         logger.debug(f"pushed END")
 
-        # for i in range(0, 5):
-        #     time.sleep(1)
-        #     logger.debug("scenario ending in %d", 5 - i)
         if self.run_distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
             os.kill(self.ecloud_server_process.pid, signal.SIGTERM)
+        
+        self.debug_helper.shutdown_time_ms = time.time() - start_time
 
     def do_pickling(self, column_key, flat_list, file_path):
         data_df = pd.DataFrame(flat_list, columns = [f'{column_key}_ms'])
@@ -1233,7 +1237,7 @@ class ScenarioManager:
             sim_start_time = ScenarioManager.debug_helper.sim_start_timestamp
             sim_end_time = time.time()
             total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
-            perform_txt += f"Total Simulation Time: {total_sim_time}"
+            perform_txt += f"Total Simulation Time: {total_sim_time} \n\t Registration Time: {self.debug_helper.startup_time_ms}ms \n\t Shutdown Time: {self.debug_helper.shutdown_time_ms}ms"
 
             sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
             try:
@@ -1241,12 +1245,14 @@ class ScenarioManager:
                 sim_time_df = pickle.load(picklefile)  #unpickle the dataframe
             except:
                 picklefile = open(sim_time_df_path, 'wb+')
-                sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'run_timestamp'])
+                sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'startup_time_ms', 'shutdown_time_ms', 'run_timestamp'])
 
             picklefile = open(sim_time_df_path, 'wb+')
             sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records \
                 ([{"num_cars": self.vehicle_count, \
                     "time_s": total_sim_time, \
+                    "startup_time_ms": self.debug_helper.startup_time_ms, \
+                    "shutdown_time_ms": self.debug_helper.shutdown_time_ms, \
                     "run_timestamp": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
                     ignore_index=True)
 

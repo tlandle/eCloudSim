@@ -18,6 +18,7 @@ DO NOT USE for 2-Lane Free
 import os
 import time
 import asyncio
+import sys
 
 # 3rd Party
 import carla
@@ -31,19 +32,22 @@ from opencda.scenario_testing.evaluations.evaluate_manager import \
 # ONLY *required* for 2 Lane highway scenarios
 # import opencda.scenario_testing.utils.customized_map_api as map_api
 
+from opencda.core.common.ecloud_config import EcloudConfig
+
 import ecloud_pb2 as ecloud
 
 # Consts
-LOG_NAME = "ecloud_4lane.log" # data drive from file name?
-SCENARIO_NAME = "ecloud_4lane_scenario" # data drive from file name?
+LOG_NAME = f"{os.path.basename(__file__)}.log" # data drive from file name?
+SCENARIO_NAME = f"{os.path.basename(__file__)}" # data drive from file name?
 TOWN = 'Town06'
-STEP_COUNT = 50
 
 def run_scenario(opt, config_yaml):
+    step_count = 0
     step = 0
     try:
         scenario_params = load_yaml(config_yaml)
-
+        ecloud_config = EcloudConfig(scenario_params)
+        step_count = ecloud_config.get_step_count() if opt.steps == 0 else opt.steps
         # sanity checks...
         assert('edge_list' not in scenario_params['scenario']) # do NOT use this template for edge scenarios
         assert('sync_mode' in scenario_params['world'] and scenario_params['world']['sync_mode'] == True)
@@ -130,16 +134,19 @@ def run_scenario(opt, config_yaml):
                     pitch=world_pitch)))   
 
             step = step + 1
-            if step > STEP_COUNT:
+            if step > step_count:
                 if run_distributed:
                     flag = scenario_manager.broadcast_message(ecloud.Command.REQUEST_DEBUG_INFO)
-                break             
+                break            
+    
+    except Exception as e:
+        print(f'ERROR: {e}')
 
-    finally:
+    else:
         if run_distributed:
             scenario_manager.end() # only dist requires explicit scenario end call
 
-        if step >= STEP_COUNT:
+        if step > step_count:
             eval_manager.evaluate()
 
         if opt.record:
@@ -157,3 +164,6 @@ def run_scenario(opt, config_yaml):
                 v.destroy()
             except:
                 print("failed to destroy background vehicle")  
+
+    #finally:
+    

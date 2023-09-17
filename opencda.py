@@ -31,22 +31,23 @@ def arg_parse():
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                              'Set it to true only when you have installed the pytorch/sklearn package.')
-    parser.add_argument('-v', "--version", type=str, default='0.9.11',
+    parser.add_argument('-v', "--version", type=str, default='0.9.12',
                         help='Specify the CARLA simulator version, default'
-                             'is 0.9.11, 0.9.12 is also supported.')
+                             'is 0.9.12, 0.9.11 is also supported.')
     parser.add_argument("--verbose", action="store_true",
                             help="Make more noise")
     parser.add_argument('-q', "--quiet", action="store_true",
                             help="Make no noise")
     parser.add_argument('-b', "--build", action="store_true",
                             help="Rebuild gRPC proto files")
+    parser.add_argument('-s', "--steps", type=int, default=0,
+                            help="Number of scenario ticks to execute before exiting; if set, overrides scenario config")
     opt = parser.parse_args()
     return opt
 
-
 def main():
     opt = arg_parse()
-    print("OpenCDA Version: %s" % __version__)
+    print(f"OpenCDA Version: {__version__}")
 
     try:
         testing_scenario = importlib.import_module("opencda.scenario_testing.%s" % opt.test_scenario)
