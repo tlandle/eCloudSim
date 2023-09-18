@@ -104,7 +104,7 @@ async def send_vehicle_update(stub_, vehicle_update_):
     return empty
 
 def arg_parse():
-    parser = argparse.ArgumentParser(description="OpenCDA Vehicle Simulation.")
+    parser = argparse.ArgumentParser(description="eCloudSim Vehicle Simulation.")
     parser.add_argument("--apply_ml",
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '

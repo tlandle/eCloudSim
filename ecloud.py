@@ -67,13 +67,10 @@ def main():
     if not os.path.isfile(config_yaml):
         sys.exit("opencda/scenario_testing/config_yaml/%s.yaml not found!" % opt.test_scenario)
 
-    # eCLoud
     if opt.build:
         subprocess.run(['python','-m','grpc_tools.protoc','-I./opencda/protos','--python_out=.','--grpc_python_out=.','./opencda//protos/ecloud.proto'])
-    # ------
 
     scenario_runner = getattr(testing_scenario, 'run_scenario')
-    # run scenario testing
     scenario_runner(opt, config_yaml)
 
 
