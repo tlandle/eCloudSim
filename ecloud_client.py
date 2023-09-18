@@ -364,15 +364,11 @@ async def main():
                     vehicle_update.transform.CopyFrom(pt)
             
             else:
-                vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK # TODO: make a WP error status
+                vehicle_update.vehicle_state = ecloud.VehicleState.ERROR # TODO: handle error status
+                logger.error("ecloud_client error")
 
             #cur_location = vehicle_manager.vehicle.get_location()
             #logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")   
-
-        # HANDLE END
-        elif pong.command == ecloud.Command.END:
-            logger.info("END received")
-            break
         
         # block waiting for a response
         if not reported_done or done_behavior == eDoneBehavior.CONTROL:
@@ -402,8 +398,14 @@ async def main():
                 wp_request.vehicle_index = vehicle_index
                 waypoint_proto = await ecloud_server.Client_GetWaypoints(wp_request)
                 pong.command = ecloud.Command.TICK    
+            
+            # HANDLE END
+            elif pong.command == ecloud.Command.END:
+                logger.info("END received")
+                break
                 
         else: # done
+            logger.info("EXIT destroy-on-done vehicle actor")
             break
 
     # end while    
