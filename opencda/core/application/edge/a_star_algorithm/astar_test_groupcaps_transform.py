@@ -26,7 +26,7 @@ import carla
 from opencda.core.application.edge.tools.carla_data_provider import *
 show_animation = True
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ecloud")
 
 #class AStarPlannerClient:
 #

@@ -12,25 +12,13 @@ import weakref
 import carla
 import matplotlib.pyplot as plt
 import numpy as np
-import time 
-import opencda.logging_ecloud
-import coloredlogs, logging
+import time
+import logging
 import sys
 
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
-logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.DEBUG)
-
-cloud_config = load_yaml("cloud_config.yaml")
-
-if cloud_config["log_level"] == "error":
-    logger.setLevel(logging.ERROR)
-elif cloud_config["log_level"] == "warning":
-    logger.setLevel(logging.WARNING)
-elif cloud_config["log_level"] == "info":
-    logger.setLevel(logging.INFO)
+logger = logging.getLogger("ecloud")
 
 sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/") 
 

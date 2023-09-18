@@ -14,7 +14,6 @@ import carla
 
 import opencda.scenario_testing.utils.sim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
-import opencda.logging_ecloud
 
 from opencda.core.common.cav_world import CavWorld
 import opencda.scenario_testing.utils.sim_api as sim_api

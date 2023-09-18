@@ -8,18 +8,15 @@
 
 import uuid
 import weakref
+import time
+import logging
+import sys
 
 import carla
 import matplotlib.pyplot as plt
 import numpy as np
-import time 
-import opencda.logging_ecloud
-import coloredlogs, logging
-import sys
 
-logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.DEBUG)
+logger = logging.getLogger("ecloud")
 
 sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/") 
 

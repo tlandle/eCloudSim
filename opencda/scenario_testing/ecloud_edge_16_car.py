@@ -14,13 +14,13 @@ import carla
 
 import opencda.scenario_testing.utils.sim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
-import opencda.logging_ecloud
 
 from opencda.core.common.cav_world import CavWorld
 import opencda.scenario_testing.utils.sim_api as sim_api
 from opencda.scenario_testing.evaluations.evaluate_manager import \
     EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
+
 from opencda.core.common.ecloud_config import EcloudConfig
 
 import ecloud_pb2 as ecloud

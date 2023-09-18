@@ -19,7 +19,7 @@ from opencda.core.common.misc import distance_vehicle, draw_trajetory_points, \
     cal_distance_angle, compute_distance
 from opencda.core.plan.spline import Spline2D
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ecloud")
 
 class RoadOption(Enum):
     """

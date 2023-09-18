@@ -1,7 +1,6 @@
-from concurrent.futures import ThreadPoolExecutor
-import coloredlogs, logging
+
+import logging
 import time
-from typing import Iterator
 import os
 import sys
 import json
@@ -18,17 +17,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
 
-logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.DEBUG)
-
-cloud_config = load_yaml("cloud_config.yaml")
-if cloud_config["log_level"] == "error":
-    logger.setLevel(logging.ERROR)
-elif cloud_config["log_level"] == "warning":
-    logger.setLevel(logging.WARNING)
-elif cloud_config["log_level"] == "info":
-    logger.setLevel(logging.INFO)
+logger = logging.getLogger("ecloud")
 
 class EcloudClient:
 
@@ -110,9 +99,9 @@ async def ecloud_run_push_server(port,
     logger.info("spinning up eCloud push server")
     server = grpc.aio.server()
     ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(q), server)
-    listen_addr = f"[::]:{port}"
+    listen_addr = f"0.0.0.0:{port}"
     server.add_insecure_port(listen_addr)
-    print(f"starting eCloud push server on {listen_addr}")
+    print(f"starting eCloud push server on port {port}")
     
     await server.start()
     await server.wait_for_termination()

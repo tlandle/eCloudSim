@@ -14,7 +14,7 @@ import copy
 from sklearn.cluster import KMeans
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ecloud")
 
 # class Car():
 # 	def __init__(self, dt, numlanes, pos_x, pos_lane, velocity):
