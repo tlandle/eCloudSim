@@ -13,20 +13,15 @@ import json
 import asyncio
 import os
 import logging
-import threading
 import time
-import queue
 
 import carla
-import numpy as np
-import coloredlogs
 
 from opencda.version import __version__
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.application.edge.transform_utils import *
 from opencda.core.plan.local_planner_behavior import RoadOption
-from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
@@ -34,14 +29,12 @@ from opencda.core.common.ecloud_config import EcloudConfig, eDoneBehavior
 from opencda.ecloud_server.ecloud_comms import EcloudClient, ecloud_run_push_server
 
 import grpc
-from google.protobuf.json_format import MessageToJson
 from google.protobuf.timestamp_pb2 import Timestamp
 
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
 
 logger = logging.getLogger("ecloud")
-coloredlogs.install(logger=logger)
 
 # TODO: move to eCloudConfig
 cloud_config = load_yaml("cloud_config.yaml")
@@ -132,6 +125,7 @@ async def main():
     global CARLA_IP
     global ECLOUD_IP
     global VEHICLE_IP
+    global logger
 
     SPECTATOR_INDEX = 0
 

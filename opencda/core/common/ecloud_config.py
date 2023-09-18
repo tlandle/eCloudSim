@@ -23,6 +23,8 @@ class EcloudConfig(object):
     CONTROL = "control"
     DRIVE = "drive"
 
+    FORMAT_STRING = "%(asctime)s %(filename)s %(funcName)s %(lineno)d %(message)s"
+
     log_level = logging.INFO
     logger = None
     
@@ -110,7 +112,7 @@ class EcloudConfig(object):
         coloredlogs.install(level=EcloudConfig.log_level, 
                             logger=EcloudConfig.logger,
                             miliseconds=True,
-                            fmt="%(asctime)s %(filename)s %(funcName)s %(message)s",
+                            fmt=EcloudConfig.FORMAT_STRING,
                             datefmt='%H:%M:%S',
                             field_styles={'asctime': {'color': 'green'}, 
                                           'filename': {'bold': True, 'color': 'blue'}, 
@@ -135,7 +137,7 @@ class EcloudConfig(object):
         coloredlogs.install(level=EcloudConfig.log_level, 
                             logger=EcloudConfig.logger,
                             miliseconds=True,
-                            fmt="%(asctime)s %(filename)s %(funcName)s %(message)s",
+                            fmt=EcloudConfig.FORMAT_STRING,
                             datefmt='%H:%M:%S',
                             field_styles={'asctime': {'color': 'green'}, 
                                           'filename': {'bold': True, 'color': 'blue'}, 

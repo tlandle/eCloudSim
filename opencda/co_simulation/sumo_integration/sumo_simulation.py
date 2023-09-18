@@ -29,6 +29,8 @@ import lxml.etree as ET  # pylint: disable=import-error
 # ==================================================================================================
 
 
+logger = logging.getLogger("ecloud")
+
 # https://sumo.dlr.de/docs/Simulation/Traffic_Lights.html#signal_state_definitions
 class SumoSignalState(object):
     """
@@ -243,7 +245,7 @@ class SumoTLManager(object):
         if len(states) == 1:
             return states.pop()
         elif len(states) > 1:
-            logging.warning('Landmark %s is associated with signals with different states',
+            logger.warning('Landmark %s is associated with signals with different states',
                             landmark_id)
             return SumoSignalState.RED
         else:
@@ -299,7 +301,7 @@ def _get_sumo_net(cfg_file):
         return None
 
     net_file = os.path.join(os.path.dirname(cfg_file), tag.get('value'))
-    logging.debug('Reading net file: %s', net_file)
+    logger.debug('Reading net file: %s', net_file)
 
     sumo_net = traci.sumolib.net.readNet(net_file)
     return sumo_net
@@ -315,9 +317,9 @@ class SumoSimulation(object):
             sumo_binary = sumolib.checkBinary('sumo')
 
         if host is None or port is None:
-            logging.info('Starting new sumo server...')
+            logger.info('Starting new sumo server...')
             if sumo_gui is True:
-                logging.info('Remember to press the play button to start the simulation')
+                logger.info('Remember to press the play button to start the simulation')
 
             traci.start([sumo_binary,
                 '--configuration-file', cfg_file,
@@ -326,7 +328,7 @@ class SumoSimulation(object):
             ])
 
         else:
-            logging.info('Connection to sumo server. Host: %s Port: %s', host, port)
+            logger.info('Connection to sumo server. Host: %s Port: %s', host, port)
             traci.init(host=host, port=port)
 
         traci.setOrder(client_order)
@@ -425,7 +427,7 @@ class SumoSimulation(object):
         try:
             traci.vehicle.add(actor_id, 'carla_route', typeID=type_id)
         except traci.exceptions.TraCIException as error:
-            logging.error('Spawn sumo actor failed: %s', error)
+            logger.error('Spawn sumo actor failed: %s', error)
             return INVALID_ACTOR_ID
 
         if color is not None:

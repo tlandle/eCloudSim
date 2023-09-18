@@ -67,10 +67,6 @@ def spawn_helper_2lanefree(carla_version, coefficient):
 
     Parameters
     ----------
-    carla_version : str
-        The CARLA simulator version. We need this as the map for 0.9.11
-        and 0.9.12 are a little different
-
     coefficient : float
         A single scalar indicating where is the  spawn point, eg. 0.5
         represents the spawn position is in the middle of the merge lane.
@@ -109,10 +105,6 @@ def spawn_helper_2lanefree_complete(carla_version, coefficient):
 
     Parameters
     ----------
-    carla_version : str
-        The CARLA simulator version. We need this as the map for 0.9.11
-        and 0.9.12 are a little different
-
     coefficient : float
         A single scalar indicating where is the  spawn point, eg. 0.5
         represents the spawn position is in the middle of the merge lane.

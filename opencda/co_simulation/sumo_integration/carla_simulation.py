@@ -22,6 +22,7 @@ from opencda.scenario_testing.utils.customized_map_api import load_customized_wo
 # -- carla simulation ------------------------------------------------------------------------------
 # ==================================================================================================
 
+logger = logging.getLogger("ecloud")
 
 class CarlaSimulation(object):
     """
@@ -50,7 +51,7 @@ class CarlaSimulation(object):
                 if traffic_ligth is not None:
                     self._tls[landmark.id] = traffic_ligth
                 else:
-                    logging.warning('Landmark %s is not linked to any traffic light', landmark.id)
+                    logger.warning('Landmark %s is not linked to any traffic light', landmark.id)
 
     def get_actor(self, actor_id):
         """
@@ -115,7 +116,7 @@ class CarlaSimulation(object):
         ]
         response = self.client.apply_batch_sync(batch, False)[0]
         if response.error:
-            logging.error('Spawn carla actor failed. %s', response.error)
+            logger.error('Spawn carla actor failed. %s', response.error)
             return INVALID_ACTOR_ID
 
         return response.actor_id
@@ -156,7 +157,7 @@ class CarlaSimulation(object):
             :return: True if successfully updated. Otherwise, False.
         """
         if not landmark_id in self._tls:
-            logging.warning('Landmark %s not found in carla', landmark_id)
+            logger.warning('Landmark %s not found in carla', landmark_id)
             return False
 
         traffic_light = self._tls[landmark_id]

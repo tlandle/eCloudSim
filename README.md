@@ -105,7 +105,11 @@ ln -s <source> <destination>
 
   - assert location type is random
 
+- dump logs to file handler
 
+  - look at old `ecloud_logging` library
+
+- GLOBALS file
 
 Top Level
 

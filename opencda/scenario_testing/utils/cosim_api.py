@@ -24,6 +24,7 @@ from opencda.co_simulation.sumo_integration.sumo_simulation import \
     SumoSimulation
 from opencda.scenario_testing.utils.sim_api import ScenarioManager
 
+logger = logging.getLogger("ecloud")
 
 class CoScenarioManager(ScenarioManager):
     """
@@ -35,9 +36,6 @@ class CoScenarioManager(ScenarioManager):
     ----------
     scenario_params : dict
         The dictionary contains all simulation configurations.
-
-    carla_version : str
-        CARLA simulator version, it currently supports 0.9.11 and 0.9.12
 
     xodr_path : str
         The xodr file to the customized map, default: None.
@@ -78,7 +76,7 @@ class CoScenarioManager(ScenarioManager):
                 if traffic_ligth is not None:
                     self._tls[landmark.id] = traffic_ligth
                 else:
-                    logging.warning('Landmark %s is not linked to any '
+                    logger.warning('Landmark %s is not linked to any '
                                     'traffic light', landmark.id)
 
         # sumo side initialization
@@ -280,7 +278,7 @@ class CoScenarioManager(ScenarioManager):
         ]
         response = self.client.apply_batch_sync(batch, False)[0]
         if response.error:
-            logging.error('Spawn carla actor failed. %s', response.error)
+            logger.error('Spawn carla actor failed. %s', response.error)
             return INVALID_ACTOR_ID
 
         return response.actor_id

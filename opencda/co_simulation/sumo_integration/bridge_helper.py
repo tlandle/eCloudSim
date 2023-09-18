@@ -26,6 +26,7 @@ from opencda.co_simulation.sumo_integration.sumo_simulation import SumoSignalSta
 # -- Bridge helper (SUMO <=> CARLA) ----------------------------------------------------------------
 # ==================================================================================================
 
+logger = logging.getLogger("ecloud")
 
 class BridgeHelper(object):
     """
@@ -124,15 +125,15 @@ class BridgeHelper(object):
 
         if type_id in [bp.id for bp in blueprint_library]:
             blueprint = blueprint_library.filter(type_id)[0]
-            logging.debug('[BridgeHelper] sumo vtype %s found in carla blueprints', type_id)
+            logger.debug('[BridgeHelper] sumo vtype %s found in carla blueprints', type_id)
         else:
             blueprint = BridgeHelper._get_recommended_carla_blueprint(sumo_actor)
             if blueprint is not None:
-                logging.warning(
+                logger.warning(
                     'sumo vtype %s not found in carla. The following blueprint will be used: %s',
                     type_id, blueprint.id)
             else:
-                logging.error('sumo vtype %s not supported. No vehicle will be spawned in carla',
+                logger.error('sumo vtype %s not supported. No vehicle will be spawned in carla',
                               type_id)
                 return None
 
@@ -150,7 +151,7 @@ class BridgeHelper(object):
 
         blueprint.set_attribute('role_name', 'sumo_driver')
 
-        logging.debug(
+        logger.debug(
             '''[BridgeHelper] sumo vtype %s will be spawned in carla with the following attributes:
             \tblueprint: %s
             \tcolor: %s''', type_id, blueprint.id,
@@ -189,7 +190,7 @@ class BridgeHelper(object):
         traci.vehicletype.setWidth(type_id, 2.0 * extent.y)
         traci.vehicletype.setHeight(type_id, 2.0 * extent.z)
 
-        logging.debug(
+        logger.debug(
             '''[BridgeHelper] blueprint %s not found in sumo vtypes
             \tdefault vtype: %s
             \tvtype: %s
@@ -215,13 +216,13 @@ class BridgeHelper(object):
         type_id = carla_actor.type_id
 
         if not type_id.startswith('vehicle'):
-            logging.error(
+            logger.error(
                 '[BridgeHelper] Blueprint %s not supported. No vehicle will be spawned in sumo',
                 type_id)
             return None
 
         if type_id in traci.vehicletype.getIDList():
-            logging.debug('[BridgeHelper] blueprint %s found in sumo vtypes', type_id)
+            logger.debug('[BridgeHelper] blueprint %s found in sumo vtypes', type_id)
             return type_id
         return BridgeHelper._create_sumo_vtype(carla_actor)
 
