@@ -46,12 +46,15 @@ def arg_parse():
                             help="Number of scenario ticks to execute before exiting; if set, overrides scenario config")
     parser.add_argument('-e', "--environment", type=str, default="local",
                             help="Environment to run in: 'local' or 'azure'. [Default: 'local']")
+    parser.add_argument('-c', "--run_carla", type=str, nargs='?', default=False, const=" ",
+                            help="Run Carla with optional args: 'offscreen' --> -RenderOffscreen")
     parser.add_argument("--version", type=str, default="0.9.12") # only support version
     opt = parser.parse_args()
     return opt
 
 def main():
     opt = arg_parse()
+    print (opt)
     print(f"eCloudSim Version: {__version__}")
 
     try:

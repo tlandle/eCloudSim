@@ -280,7 +280,8 @@ class ScenarioManager:
                  distributed=False,
                  log_level=0,
                  ecloud_config=None,
-                 environment='local'):
+                 environment='local',
+                 run_carla=False):
 
         global CARLA_IP
         global ECLOUD_IP
@@ -316,13 +317,33 @@ class ScenarioManager:
                 if e.returncode > 1:
                     raise
                 ecloud_pid = None
-            if ecloud_pid != None:
-                logger.info(f'killing exiting ecloud gRPC server process')
+            if ecloud_pid is not None:
+                logger.info(f'killing existing ecloud gRPC server process')
                 subprocess.run(['pkill','-9','ecloud_server'])
 
             # PERF Profiling
             # self.ecloud_server_process = subprocess.Popen(['sudo','perf','record','-g','./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'], stderr=sys.stdout.buffer)
             self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'], stderr=sys.stdout.buffer)
+
+        if run_carla and ( CARLA_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
+            try:
+                carla_pid = subprocess.check_output(['pgrep','CarlaUE4'])
+            except subprocess.CalledProcessError as e:
+                if e.returncode > 1:
+                    raise
+                carla_pid = None
+            if carla_pid is not None:
+                logger.info(f'killing existing Carla instance')
+                subprocess.run(['pkill','-9','Carla'])
+
+            logger.info(f'spawning Carla')
+            render_options = "-RenderOffscreen" if run_carla == "offscreen" else ""
+            self.carla_process = subprocess.Popen(['./CarlaUE4.sh',f'{render_options}'], cwd='/opt/carla-simulator/', stderr=sys.stdout.buffer)
+            print("waiting for Carla to start up", end=' ')
+            for _ in range(5):
+                print('.', end=' ')
+                time.sleep(1)
+            print('')
 
         cav_world.update_scenario_manager(self)
 

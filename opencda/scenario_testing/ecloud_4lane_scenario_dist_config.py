@@ -76,7 +76,8 @@ def run_scenario(opt, config_yaml):
                                                    distributed=run_distributed,
                                                    log_level=opt.log_level,
                                                    ecloud_config=ecloud_config,
-                                                   environment=opt.environment)
+                                                   environment=opt.environment,
+                                                   run_carla=opt.run_carla)
 
         if opt.record:
             scenario_manager.client. \

@@ -117,6 +117,7 @@ class EcloudConfig(object):
                             field_styles={'asctime': {'color': 'green'}, 
                                           'filename': {'bold': True, 'color': 'blue'}, 
                                           'funcName': {'color': 'cyan'},
+                                          'lineno': {'color' : 'cyan'},
                                           'level': coloredlogs.DEFAULT_LEVEL_STYLES},
                             level_styles=coloredlogs.DEFAULT_LEVEL_STYLES,
                             reconfigure=True,
