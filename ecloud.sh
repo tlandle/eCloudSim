@@ -121,14 +121,16 @@ while ( (( loop == 1 )) );
 do
     for ((i=0; i<$count; i++))
     do
-        if test "$( docker logs ecloud_client_$i 2> >(grep -i "error") | wc -l )" -gt "0"; then
+        if test "$( docker logs ecloud_client_$i 2> >(grep -i "error") | wc -l )" -gt "1"; then
             echo "ERROR: ecloud_client_$i has crashed"
             docker logs ecloud_client_$i
             loop=2
+            break
         fi
-        if test "$( docker logs ecloud_client_$i 2> >(grep -i "end received") | wc -l )" -gt "0"; then
+        if test "$( docker logs ecloud_client_$i 2> >(grep -i "end received") | wc -l )" -gt "1"; then
             echo "OK: scenario has completed successfully"
             loop=0
+            break
         fi
     done
     if ( (( loop == 1 )) ); then
