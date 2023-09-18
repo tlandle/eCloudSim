@@ -311,14 +311,15 @@ async def main():
                 else:
                     vehicle_manager.apply_control(control)
                     logger.debug("apply_control complete")
-                    vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
                     
                     step_timestamps = ecloud.Timestamps()
                     step_timestamps.tick_id = tick_id
                     step_timestamps.client_end_tstamp.GetCurrentTime()
                     step_timestamps.client_start_tstamp.CopyFrom(client_start_timestamp)
                     vehicle_manager.debug_helper.update_timestamp(step_timestamps)
-                    #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
+                    
+                    vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
+                    vehicle_update.duration_ns = step_timestamps.client_end_tstamp.ToNanoseconds() - step_timestamps.client_start_tstamp.ToNanoseconds()
 
                 if is_edge or vehicle_index == SPECTATOR_INDEX:
                     velocity = vehicle_manager.vehicle.get_velocity()
