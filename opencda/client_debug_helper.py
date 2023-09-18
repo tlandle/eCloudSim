@@ -39,7 +39,7 @@ class ClientDebugHelper(PlanDebugHelper):
         self.controller_step_time_list = []
         self.vehicle_step_time_list = []
         self.control_time_list = []
-        self.timestamp_list = []
+        self.timestamps_list = []
 
         self.debug_data = {
             "client_control_time" : self.control_time_list,
@@ -150,7 +150,7 @@ class ClientDebugHelper(PlanDebugHelper):
         """
         t = ecloud.Timestamps()
         t.CopyFrom(timestamps)
-        self.timestamp_list.append(t)
+        self.timestamps_list.append(t)
 
 
     def serialize_debug_info(self, proto_debug_helper):
@@ -183,7 +183,7 @@ class ClientDebugHelper(PlanDebugHelper):
         for obj in self.control_time_list:
             proto_debug_helper.control_time_list.append(obj)
 
-        for obj in self.timestamp_list:
+        for obj in self.timestamps_list:
             t = ecloud.Timestamps()
             t.CopyFrom(obj)
             proto_debug_helper.timestamps_list.append(t)
@@ -228,8 +228,8 @@ class ClientDebugHelper(PlanDebugHelper):
         for obj in proto_debug_helper.control_time_list:
             self.control_time_list.append(obj)
 
-        self.timestamp_list.clear()
-        for obj in proto_debug_helper.timestamp_list:
+        self.timestamps_list.clear()
+        for obj in proto_debug_helper.timestamps_list:
             t = ecloud.Timestamps()
             t.CopyFrom(obj)
             self.timestamps_list.append(t)

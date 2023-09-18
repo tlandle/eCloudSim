@@ -377,7 +377,7 @@ async def main():
             
             # HANDLE END
             elif pong.command == ecloud.Command.END:
-                logger.info("END received")
+                logger.critical("END received")
                 break
                 
         else: # done

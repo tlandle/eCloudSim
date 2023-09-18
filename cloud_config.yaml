@@ -8,4 +8,5 @@ azure:
   ecloud_server_public_ip: "20.122.64.203" # server
   # *must* be set to public IP *on* client machine(s) so they can send to ecloud server 
   vehicle_client_public_ip: "20.172.248.156" # ndm
-log_level: "error" # TODO: DELETE ME - back compatibility
+
+log_level: "info" # TODO: DELETE ME - back compatibility

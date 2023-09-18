@@ -54,7 +54,7 @@ def arg_parse():
 
 def main():
     opt = arg_parse()
-    print (opt)
+    #print (opt)
     print(f"eCloudSim Version: {__version__}")
 
     try:

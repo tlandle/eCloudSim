@@ -156,7 +156,9 @@ class ScenarioManager:
     SPECTATOR_INDEX = 0
 
     async def server_unpack_debug_data(self, stub_):
+        logger.info("fetching vehicle updates")
         ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
+        #logger.debug(f"{ecloud_update}")
         for vehicle_update in ecloud_update.vehicle_update:
             vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
             vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( vehicle_update.loc_debug_helper )
@@ -166,18 +168,24 @@ class ScenarioManager:
             latencies_by_tick = self.debug_helper.network_time_dict
             overall_steps_by_tick = self.debug_helper.client_tick_time_dict
             for timestamps in vehicle_manager_proxy.debug_helper.timestamps_list:
-                client_process_time_ms = (timestamps.client_end_tstamp.ToNanoseconds() - timestamps.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
-                idle_time_ms = overall_steps_by_tick[timestamps.tick_id] - latencies_by_tick[timestamps.tick_id] - client_process_time_ms # inferred rather than actual "idle" time
-                #if idle_time_ms < 0:
-                #    logger.warning(f"got a NEGATIVE inferred idle_time value of {round(idle_time_ms, 2)}ms for vehicle {v.vehicle_index}")
-                #idle_time_ms = idle_time_ms if idle_time_ms > 0 else 0 # TODO: confirm if we wantt to do this?
-                logger.debug(f"timestamps: client_end - {timestamps.client_end_tstamp.ToDatetime().time()} client_start - {timestamps.client_start_tstamp.ToDatetime().time()}")
-                logger.info(f'client process time: {round(client_process_time_ms, 2)}ms')
-                logger.info(f'idle time: {round(idle_time_ms, 2)}ms')
-                self.debug_helper.update_idle_time_timestamp(vehicle_manager_proxy.vehicle_index, idle_time_ms) # this inferred
-                self.debug_helper.update_client_process_time_timestamp(vehicle_manager_proxy.vehicle_index, client_process_time_ms) # how long client actually was active
+                if timestamps.tick_id in overall_steps_by_tick:
+                    assert timestamps.tick_id in latencies_by_tick
+                    client_process_time_ms = (timestamps.client_end_tstamp.ToNanoseconds() - timestamps.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
+                    idle_time_ms = overall_steps_by_tick[timestamps.tick_id] - latencies_by_tick[timestamps.tick_id] - client_process_time_ms # inferred rather than actual "idle" time
+                    #if idle_time_ms < 0:
+                    #    logger.warning(f"got a NEGATIVE inferred idle_time value of {round(idle_time_ms, 2)}ms for vehicle {v.vehicle_index}")
+                    #idle_time_ms = idle_time_ms if idle_time_ms > 0 else 0 # TODO: confirm if we wantt to do this?
+                    logger.debug(f"timestamps: client_end - {timestamps.client_end_tstamp.ToDatetime().time()} client_start - {timestamps.client_start_tstamp.ToDatetime().time()}")
+                    logger.info(f'client process time: {round(client_process_time_ms, 2)}ms')
+                    logger.info(f'idle time: {round(idle_time_ms, 2)}ms')
+                    self.debug_helper.update_idle_time_timestamp(vehicle_manager_proxy.vehicle_index, idle_time_ms) # this inferred
+                    self.debug_helper.update_client_process_time_timestamp(vehicle_manager_proxy.vehicle_index, client_process_time_ms) # how long client actually was active
 
-                logger.debug(f"updated time stamp data for vehicle {vehicle_manager_proxy.vehicle_index}")
+                    # dupe the data since it makes evaluation simpler
+                    self.debug_helper.update_network_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, latencies_by_tick[timestamps.tick_id])
+                    self.debug_helper.update_overall_step_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, overall_steps_by_tick[timestamps.tick_id])
+
+                    logger.debug(f"updated time stamp data for vehicle {vehicle_manager_proxy.vehicle_index}")
 
     async def server_unpack_vehicle_updates(self, stub_):
         logger.debug("getting vehicle updates")
@@ -1094,15 +1102,14 @@ class ScenarioManager:
             self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_network_data(self, cumulative_stats_folder_path):
-        all_network_data_lists = sum(self.debug_helper.network_time_dict.values(), [])
+        all_network_data_list = sum(self.debug_helper.network_time_dict_per_client.values(), [])
 
-        # logger.error(all_network_data_lists)
-
-        all_network_data_list_flat = np.array(all_network_data_lists)
+        all_network_data_list_flat = np.array(all_network_data_list)
         if all_network_data_list_flat.any():
             all_network_data_list_flat = np.hstack(all_network_data_list_flat)
         else:
-            all_network_data_list_flat = all_network_data_list_flat.flatten()        
+            all_network_data_list_flat = all_network_data_list_flat.flatten()  
+
         data_key = f"network_latency"
         self.do_pickling(data_key, all_network_data_list_flat, cumulative_stats_folder_path)
 
@@ -1129,15 +1136,14 @@ class ScenarioManager:
         self.do_pickling(data_key, all_client_process_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_individual_client_data(self, cumulative_stats_folder_path):
-        all_client_data_lists = sum(self.debug_helper.client_tick_time_dict.values(), [])
-
-        # logger.error(all_network_data_lists)
+        all_client_data_lists = sum(self.debug_helper.client_tick_time_dict_per_client.values(), [])
 
         all_client_data_list_flat = np.array(all_client_data_lists)
         if all_client_data_list_flat.any():
             all_client_data_list_flat = np.hstack(all_client_data_list_flat)
         else:
-            all_client_data_list_flat = all_client_data_list_flat.flatten()
+            all_client_data_list_flat = all_client_data_list_flat.flatten()  
+
         data_key = f"client_individual_step_time"
         self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 

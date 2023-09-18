@@ -81,8 +81,6 @@ using ecloud::EdgeWaypoints;
 volatile std::atomic<int16_t> numCompletedVehicles_;
 volatile std::atomic<int16_t> numRepliedVehicles_;
 volatile std::atomic<int32_t> tickId_;
-volatile std::atomic<int32_t> lastWorldTickTimeMS_;
-volatile std::atomic<int32_t> workerThreads_;
 
 bool repliedCars_[MAX_CARS];
 std::string carNames_[MAX_CARS];
@@ -93,7 +91,6 @@ int16_t numCars_;
 std::string configYaml_;
 std::string application_;
 std::string version_;
-google::protobuf::Timestamp timestamp_;
 
 std::string simIP_;
 
@@ -118,7 +115,6 @@ class PushClient
             Tick tick;
             tick.set_tick_id(tickId);
             tick.set_command(command);
-            tick.mutable_sm_start_tstamp()->CopyFrom(timestamp_);
 
             LOG_IF(INFO, command == Command::END) << "pushing END";
 
@@ -170,9 +166,6 @@ public:
             numRepliedVehicles_.store(0);
             numRegisteredVehicles_.store(0);
             tickId_.store(0);
-            workerThreads_.store(0);
-
-            lastWorldTickTimeMS_.store(WORLD_TICK_DEFAULT_MS);
 
             vehState_ = VehicleState::REGISTERING;
             command_ = Command::TICK;
@@ -188,8 +181,6 @@ public:
 
             vehicleClients_.clear();
             pendingReplies_.clear();
-
-            timestamp_ = TimeUtil::GetCurrentTime();
 
             init_ = true;
         }
@@ -231,7 +222,6 @@ public:
                 // TODO: hashmap
                 mu_.Lock();
                 pendingReplies_.push_back(msg);
-                workerThreads_--;
                 mu_.Unlock();
             }
             else
@@ -268,7 +258,7 @@ public:
         LOG_IF(INFO, complete_ ) << "tick " << request->tick_id() << " COMPLETE";
         if ( complete_ )
         {
-            int64_t lastClientDurationNS = ( TimeUtil::TimestampToNanoseconds( request->client_end_tstamp() ) - TimeUtil::TimestampToNanoseconds( request->client_start_tstamp() ) );
+            const int64_t lastClientDurationNS = request->duration_ns();
             simAPIClient_->PushTick( request->tick_id(), command_, lastClientDurationNS );
         }
 
@@ -348,7 +338,6 @@ public:
             assert(false);
         }
 
-        // BEGIN PUSH
         const int16_t replies_ = numRepliedVehicles_.load();
         LOG(INFO) << "received " << replies_ << " replies";
         const bool complete_ = ( replies_ == numCars_ );
@@ -356,11 +345,9 @@ public:
         LOG_IF(INFO, complete_ ) << "REGISTRATION COMPLETE";
         if ( complete_ )
         {
-            assert( vehState_ != VehicleState::REGISTERING || ( vehState_ == VehicleState::REGISTERING && replies_ == pendingReplies_.size() ) );
-            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, false, INVALID_TIME);
-            t.detach();
+            assert( vehState_ == VehicleState::REGISTERING && replies_ == pendingReplies_.size() );
+            simAPIClient_->PushTick( TICK_ID_INVALID, command_, INVALID_TIME);
         }
-        // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -377,7 +364,6 @@ public:
         assert(tickId_ == request->tick_id() - 1);
         tickId_++;
         command_ = request->command();
-        timestamp_ = request->sm_start_tstamp();
 
         const auto now = std::chrono::system_clock::now();
         DLOG(INFO) << "received new tick " << request->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(

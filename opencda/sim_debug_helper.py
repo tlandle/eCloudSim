@@ -35,7 +35,9 @@ class SimDebugHelper(PlanDebugHelper):
         self.startup_time_ms = 0
         self.shutdown_time_ms = 0
         self.network_time_dict = {}
-        self.client_tick_time_dict = {}   
+        self.client_tick_time_dict = {}
+        self.network_time_dict_per_client = {}
+        self.client_tick_time_dict_per_client = {}   
         self.idle_time_dict = {}
         self.client_process_time_dict = {}    
 
@@ -53,6 +55,16 @@ class SimDebugHelper(PlanDebugHelper):
 
     def update_network_time_timestamp(self, tick_id: int, network_time_ms=None):
         self.network_time_dict[tick_id] = network_time_ms
+
+    def update_network_time_per_client_timestamp(self, vehicle_index, time_step=None):
+        if vehicle_index not in self.network_time_dict_per_client:
+          self.network_time_dict_per_client[vehicle_index] = []
+        self.network_time_dict_per_client[vehicle_index].append(time_step)
+
+    def update_overall_step_time_per_client_timestamp(self, vehicle_index, time_step=None):
+        if vehicle_index not in self.client_tick_time_dict_per_client:
+          self.client_tick_time_dict_per_client[vehicle_index] = []
+        self.client_tick_time_dict_per_client[vehicle_index].append(time_step)
 
     def update_idle_time_timestamp(self, vehicle_index, time_step=None):
         if vehicle_index not in self.idle_time_dict:

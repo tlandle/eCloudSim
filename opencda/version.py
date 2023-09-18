@@ -1,3 +1,3 @@
-"""Specifies the current version number of OpenCDA."""
+"""Specifies the current version number of eCloudSim."""
 
-__version__ = "0.1.1"
+__version__ = "0.0.3" # 3: CPP server
