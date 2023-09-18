@@ -1,5 +1,8 @@
 from enum import Enum
 import logging
+import sys
+
+import coloredlogs
 
 class eLocationType(Enum):
     RANDOM = 0
@@ -20,6 +23,9 @@ class EcloudConfig(object):
     CONTROL = "control"
     DRIVE = "drive"
 
+    log_level = logging.INFO
+    logger = None
+    
     location_types = { RANDOM : eLocationType.RANDOM, 
                        EXPLICIT : eLocationType.EXPLICIT }
     
@@ -28,73 +34,42 @@ class EcloudConfig(object):
                             DRIVE   : eDoneBehavior.DRIVE }
 
 
-    def __init__(self, config_json, logger=None):
+    # TODO: move actual inits to @staticmethod
+    def __init__(self, config_json):
 
         # logger.debug(f"main - test_scenario: {config_json}") # VERY verbose
-
+        EcloudConfig.init_logging()
+        
         self.config_json = config_json
-        self.logger = logger if logger is not None else logging.getLogger(__name__)
-        self.ecloud_base = {
-            "num_servers" : 2, # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 ) - really # of server THREADS
-            "num_ports" : 32,
-            "server_ping_time_s" : 0.005, # 5ms
-            "client_world_time_factor" : 0.9, # what percentage of last world time to wait initially
-            "client_ping_spawn_s" : 0.05, # sleep to wait between pings after spawn
-            "client_ping_tick_s" : 0.01, # minimum sleep to wait between pings after spawn
-        }
+        self.ecloud_base = {}
 
         self.ecloud_scenario = {
            "num_cars" : 0,
            "location_type" : self.EXPLICIT,
            "done_behavior" : self.CONTROL,
            "step_count" : 250, # number of steps to take before breaking
+           "log_level" : EcloudConfig.log_level,
         }
 
         if 'ecloud' in config_json:
-            self.logger.info("'ecloud' found in config_base")
+            self.logger.debug("'ecloud' found in config_base")
             for k in self.ecloud_base.keys():
-                self.logger.info(f"looking for key {k} in config_base")
                 if k in config_json['ecloud']:
-                    self.logger.debug(f"overriding base_config {k} with {config_json['ecloud'][k]}")
+                    self.logger.info(f"overriding base_config {k} with {config_json['ecloud'][k]}")
                     self.ecloud_base[k] = config_json['ecloud'][k]
         else:
-            self.logger.info("'ecloud' not found in config_base")
+            self.logger.warning("'ecloud' not found in config_base")
 
         if 'ecloud' in config_json['scenario']:
-            self.logger.info("'ecloud' found in config_scenario")
+            self.logger.debug("'ecloud' found in config_scenario")
             for k in self.ecloud_scenario.keys():
-                self.logger.info(f"looking for key {k} in config_scenario")
                 if k in config_json['scenario']['ecloud']:
-                    self.logger.debug(f"overriding scenario_config {k} with {config_json['scenario']['ecloud'][k]}")
+                    self.logger.info(f"overriding scenario_config {k} with {config_json['scenario']['ecloud'][k]}")
                     self.ecloud_scenario[k] = config_json['scenario']['ecloud'][k] 
         else:
-            self.logger.info("'ecloud' not found in config_scenario")
+            self.logger.warning("'ecloud' not found in config_scenario")
 
-        return                       
-                
-    def get_num_servers(self):
-        self.logger.debug(f"num_servers: {self.ecloud_base['num_servers']}")
-        return self.ecloud_base['num_servers']
-    
-    def get_num_ports(self):
-        self.logger.debug(f"num_ports: {self.ecloud_base['num_ports']}")
-        return self.ecloud_base['num_ports']
-        
-    def get_server_ping_time_s(self):
-        self.logger.debug(f"server_ping_time_s: {self.ecloud_base['server_ping_time_s']}")
-        return self.ecloud_base['server_ping_time_s']       
-    
-    def get_client_tick_ping_time_s(self):
-        self.logger.debug(f"client_ping_tick_s: {self.ecloud_base['client_ping_tick_s']}")
-        return self.ecloud_base['client_ping_tick_s']  
-
-    def get_client_spawn_ping_time_s(self):
-        self.logger.debug(f"client_ping_spawn_s: {self.ecloud_base['client_ping_spawn_s']}")
-        return self.ecloud_base['client_ping_spawn_s']  
-
-    def get_client_world_tick_factor(self):
-        self.logger.debug(f"client_world_time_factor: {self.ecloud_base['client_world_time_factor']}")
-        return self.ecloud_base['client_world_time_factor']
+        return               
     
     def get_num_cars(self):
         self.logger.debug(f"num_cars: {self.ecloud_scenario['num_cars'] if self.ecloud_scenario['num_cars'] != 0 else len(self.config_json['scenario']['single_cav_list'])}")
@@ -112,3 +87,35 @@ class EcloudConfig(object):
     def get_step_count(self):
         self.logger.debug(f"step_count: {self.ecloud_scenario['step_count']}")
         return self.ecloud_scenario['step_count']
+    
+    @staticmethod
+    def get_log_level():
+        return EcloudConfig.log_level
+        
+    @staticmethod    
+    def set_log_level(log_level: int):
+        # TODO: make these global consts
+        if log_level == 3:
+            EcloudConfig.log_level = logging.ERROR
+        elif log_level == 2:
+            EcloudConfig.log_level = logging.WARNING
+        elif log_level == 1:
+            EcloudConfig.log_level = logging.INFO
+ 
+        EcloudConfig.logger.setLevel(EcloudConfig.log_level)
+
+    @staticmethod
+    def get_logger():
+        return EcloudConfig.logger
+    
+    @staticmethod
+    def init_logging():
+        EcloudConfig.logger = logging.getLogger("ecloud")
+        coloredlogs.install(level=EcloudConfig.log_level, 
+                            logger=EcloudConfig.logger,
+                            miliseconds=True,
+                            fmt="%(asctime)s %(filename)s %(funcName)s %(message)s",
+                            datefmt='%H:%M:%S',
+                            field_styles={'asctime': {'color': 'green'}, 
+                                          'filename': {'bold': True, 'color': 'blue'}, 
+                                          'funcName': {'color': 'cyan'}})

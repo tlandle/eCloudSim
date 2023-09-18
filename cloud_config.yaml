@@ -1,11 +1,11 @@
-#carla_server_public_ip: "20.122.64.203" # server
-carla_server_public_ip: "localhost"
+local:
+  carla_server_public_ip: "localhost"
+  vehicle_client_public_ip: "localhost"
+  ecloud_server_public_ip: "localhost"
 
-#ecloud_server_public_ip: "20.122.64.203" # server
-ecloud_server_public_ip: "localhost"
-
-# *must* be set to public IP *on* client machine(s) so they can send to ecloud server 
-#vehicle_client_public_ip: "20.172.248.156" # ndm
-vehicle_client_public_ip: "localhost"
-
-log_level: "debug"
+azure:
+  carla_server_public_ip: "20.122.64.203" # server
+  ecloud_server_public_ip: "20.122.64.203" # server
+  # *must* be set to public IP *on* client machine(s) so they can send to ecloud server 
+  vehicle_client_public_ip: "20.172.248.156" # ndm
+log_level: "error" # TODO: DELETE ME - back compatibility

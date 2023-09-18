@@ -73,7 +73,10 @@ def run_scenario(opt, config_yaml):
                                                    town=TOWN,
                                                    cav_world=cav_world,
                                                    config_file=config_yaml,
-                                                   distributed=run_distributed)
+                                                   distributed=run_distributed,
+                                                   log_level=opt.log_level,
+                                                   ecloud_config=ecloud_config,
+                                                   environment=opt.environment)
 
         if opt.record:
             scenario_manager.client. \

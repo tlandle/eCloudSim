@@ -8,42 +8,22 @@ please use cosim_api.py.
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import math
-from queue import Queue
-import random
-from sqlite3 import connect
 import sys
-from random import shuffle
-import socket
 import time
 import json
 import random
-import copy
-import hashlib
 import os
 import asyncio
 import subprocess
 import signal
+import logging
+import pickle
 
-from concurrent.futures import ThreadPoolExecutor, thread
-import coloredlogs, logging
-import threading
-import time
-from typing import Iterable
-from queue import Queue
-import heapq
-from google.protobuf.timestamp_pb2 import Timestamp
-
-from google.protobuf.json_format import MessageToJson
 import grpc
-
-import ecloud_pb2 as ecloud
-import ecloud_pb2_grpc as ecloud_rpc
-
 import carla
 import numpy as np
 import pandas as pd
-import pickle
-
+import coloredlogs
 import matplotlib.pyplot as plt
 #import k_means_constrained
 
@@ -63,26 +43,22 @@ import opencda.core.plan.drive_profile_plotting as open_plt
 
 # TODO: make base ecloud folder
 from opencda.core.common.ecloud_config import EcloudConfig
-from opencda.ecloud_server.ecloud_comms import EcloudClient, EcloudPushServer, ecloud_run_push_server
+from opencda.ecloud_server.ecloud_comms import EcloudClient, ecloud_run_push_server
+
+import ecloud_pb2 as ecloud
+import ecloud_pb2_grpc as ecloud_rpc
 
 TIMEOUT_S = 10
 TIMEOUT_MS = TIMEOUT_S * 1000
 NSEC_TO_MSEC = 1/1000000
-
-cloud_config = load_yaml("cloud_config.yaml")
-CARLA_IP = cloud_config["carla_server_public_ip"]
-ECLOUD_IP = cloud_config["ecloud_server_public_ip"]
-VEHICLE_IP = cloud_config["vehicle_client_public_ip"]
 ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 
-logger = logging.getLogger(__name__)
+CARLA_IP = None
+ECLOUD_IP = None
+VEHICLE_IP = None
+
+logger = logging.getLogger("ecloud")
 coloredlogs.install(level='DEBUG', logger=logger)
-if cloud_config["log_level"] == "error":
-    logger.setLevel(logging.ERROR)
-elif cloud_config["log_level"] == "warning":
-    logger.setLevel(logging.WARNING)
-elif cloud_config["log_level"] == "info":
-    logger.setLevel(logging.INFO)
 
 def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
     """
@@ -103,31 +79,7 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
     blueprints : list
         The list of suitable blueprints for vehicles.
     """
-
-    if carla_version == '0.9.11':
-        logger.debug('old version')
-        blueprints = [
-            blueprint_library.find('vehicle.audi.a2'),
-            blueprint_library.find('vehicle.audi.tt'),
-            blueprint_library.find('vehicle.dodge_charger.police'),
-            blueprint_library.find('vehicle.jeep.wrangler_rubicon'),
-            blueprint_library.find('vehicle.chevrolet.impala'),
-            blueprint_library.find('vehicle.mini.cooperst'),
-            blueprint_library.find('vehicle.audi.etron'),
-            blueprint_library.find('vehicle.mercedes-benz.coupe'),
-            blueprint_library.find('vehicle.bmw.grandtourer'),
-            blueprint_library.find('vehicle.toyota.prius'),
-            blueprint_library.find('vehicle.citroen.c3'),
-            blueprint_library.find('vehicle.mustang.mustang'),
-            blueprint_library.find('vehicle.tesla.model3'),
-            blueprint_library.find('vehicle.lincoln.mkz2017'),
-            blueprint_library.find('vehicle.seat.leon'),
-            blueprint_library.find('vehicle.nissan.patrol'),
-            blueprint_library.find('vehicle.nissan.micra'),
-        ]
-
-    else:
-        blueprints = [
+    blueprints = [
             blueprint_library.find('vehicle.audi.a2'),
             blueprint_library.find('vehicle.audi.tt'),
             blueprint_library.find('vehicle.dodge.charger_police'),
@@ -333,13 +285,32 @@ class ScenarioManager:
                  town=None,
                  cav_world=None,
                  config_file=None,
-                 distributed=False):
+                 distributed=False,
+                 log_level=0,
+                 ecloud_config=None,
+                 environment='local'):
 
+        global CARLA_IP
+        global ECLOUD_IP
+        global VEHICLE_IP
+
+        cloud_config = load_yaml("cloud_config.yaml")
+        CARLA_IP = cloud_config[environment]["carla_server_public_ip"]
+        ECLOUD_IP = cloud_config[environment]["ecloud_server_public_ip"]
+        VEHICLE_IP = cloud_config[environment]["vehicle_client_public_ip"]
+
+        # TODO: move these to EcloudConfig
         self.config_file = config_file
-        self.ecloud_config = EcloudConfig(load_yaml(self.config_file), logger)
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.perception = scenario_params['perception_active'] if 'perception_active' in scenario_params else False
+
+        if ecloud_config is None:
+            self.ecloud_config = EcloudConfig(load_yaml(self.config_file))
+        else:
+            self.ecloud_config = ecloud_config
+        self.ecloud_config.set_log_level(log_level)
+        self.scenario_params['scenario']['log_level'] = self.ecloud_config.get_log_level()
 
         simulation_config = scenario_params['world']
 
@@ -358,8 +329,8 @@ class ScenarioManager:
                 subprocess.run(['pkill','-9','ecloud_server'])
 
             # PERF Profiling
-            # self.ecloud_server_process = subprocess.Popen(['sudo','perf','record','-g','./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}',f'--num_ports={self.ecloud_config.get_num_ports()}'], stderr=sys.stdout.buffer)
-            self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}',f'--num_ports={self.ecloud_config.get_num_ports()}'], stderr=sys.stdout.buffer)
+            # self.ecloud_server_process = subprocess.Popen(['sudo','perf','record','-g','./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'], stderr=sys.stdout.buffer)
+            self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'], stderr=sys.stdout.buffer)
 
         cav_world.update_scenario_manager(self)
 
@@ -741,7 +712,7 @@ class ScenarioManager:
                                    way_point.rotation.pitch))
         count = 0
         spawn_list = list(spawn_set)
-        shuffle(spawn_list)
+        random.shuffle(spawn_list)
 
         while count < spawn_num:
             if len(spawn_list) == 0:

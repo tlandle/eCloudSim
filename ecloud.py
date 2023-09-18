@@ -11,12 +11,11 @@ import importlib
 import os
 import sys
 import subprocess
+import logging
 
 from opencda.version import __version__
-import coloredlogs, logging
 
-logger = logging.getLogger(__name__)
-coloredlogs.install(level='INFO', logger=logger)
+logger = logging.getLogger("ecloud")
 
 def arg_parse():
     parser = argparse.ArgumentParser(description="OpenCDA scenario runner.")
@@ -36,12 +35,16 @@ def arg_parse():
                              'is 0.9.12, 0.9.11 is also supported.')
     parser.add_argument("--verbose", action="store_true",
                             help="Make more noise")
+    parser.add_argument('-l', "--log_level", type=int, default=0,
+                            help="0: DEBUG | 1: INFO | WARNING: 2 | ERROR: 3")
     parser.add_argument('-q', "--quiet", action="store_true",
                             help="Make no noise")
     parser.add_argument('-b', "--build", action="store_true",
                             help="Rebuild gRPC proto files")
     parser.add_argument('-s', "--steps", type=int, default=0,
                             help="Number of scenario ticks to execute before exiting; if set, overrides scenario config")
+    parser.add_argument('-e', "--environment", type=str, default="local",
+                            help="Environment to run in: 'local' or 'azure'. [Default: 'local']")
     opt = parser.parse_args()
     return opt
 

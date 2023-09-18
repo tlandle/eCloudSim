@@ -31,7 +31,7 @@ from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
 from opencda.core.common.ecloud_config import EcloudConfig, eDoneBehavior
-from opencda.ecloud_server.ecloud_comms import EcloudClient, EcloudPushServer, ecloud_run_push_server
+from opencda.ecloud_server.ecloud_comms import EcloudClient, ecloud_run_push_server
 
 import grpc
 from google.protobuf.json_format import MessageToJson
@@ -40,23 +40,25 @@ from google.protobuf.timestamp_pb2 import Timestamp
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ecloud")
 coloredlogs.install(level='DEBUG', logger=logger)
 logger.setLevel(logging.DEBUG)
 
 # TODO: move to eCloudConfig
 cloud_config = load_yaml("cloud_config.yaml")
-CARLA_IP = cloud_config["carla_server_public_ip"]
-ECLOUD_IP = cloud_config["ecloud_server_public_ip"]
-VEHICLE_IP = cloud_config["vehicle_client_public_ip"]
-ECLOUD_PUSH_BASE_PORT = 50101 # TODO: config
 
-if cloud_config["log_level"] == "error":
-    logger.setLevel(logging.ERROR)
-elif cloud_config["log_level"] == "warning":
-    logger.setLevel(logging.WARNING)
-elif cloud_config["log_level"] == "info":
-    logger.setLevel(logging.INFO)
+ECLOUD_PUSH_BASE_PORT = 50101 # TODO: config
+LOCAL = "local"
+AZURE = "azure"
+
+# TODO: pull down from scenario
+if "log_level" in cloud_config:
+    if cloud_config["log_level"] == "error":
+        logger.setLevel(logging.ERROR)
+    elif cloud_config["log_level"] == "warning":
+        logger.setLevel(logging.WARNING)
+    elif cloud_config["log_level"] == "info":
+        logger.setLevel(logging.INFO)
 
 #TODO: move to eCloudClient
 def serialize_debug_info(vehicle_update, vehicle_manager) -> None:
@@ -124,7 +126,7 @@ def arg_parse():
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                              'Set it to true only when you have installed the pytorch/sklearn package.')
-    parser.add_argument('-i', "--ipaddress", type=str, default=CARLA_IP,
+    parser.add_argument('-i', "--ipaddress", type=str, default='localhost',
                         help="Specifies the ip address of the server to connect to. [Default: localhost]")
     parser.add_argument('-p', "--port", type=int, default=50051,
                         help="Specifies the port to connect to. [Default: 50051]")
@@ -132,6 +134,8 @@ def arg_parse():
                             help="Make more noise")
     parser.add_argument('-q', "--quiet", action="store_true",
                             help="Make no noise")
+    parser.add_argument('-e', "--environment", type=str, default="local",
+                            help="Environment to run in: 'local' or 'azure'. [Default: 'local']")
 
     opt = parser.parse_args()
     return opt
@@ -139,6 +143,10 @@ def arg_parse():
 async def main():
     #TODO: move to eCloudConfig
     # default params which can be over-written from the simulation controller
+    global CARLA_IP
+    global ECLOUD_IP
+    global VEHICLE_IP
+
     SPECTATOR_INDEX = 0
 
     application = ["single"]
@@ -153,6 +161,11 @@ async def main():
     elif opt.quiet:
         logger.setLevel(logging.WARNING)
     logger.info(f"OpenCDA Version: {version}")
+
+    assert opt.environment == LOCAL or opt.environment == AZURE
+    CARLA_IP = cloud_config[opt.environment]["carla_server_public_ip"]
+    ECLOUD_IP = cloud_config[opt.environment]["ecloud_server_public_ip"]
+    VEHICLE_IP = cloud_config[opt.environment]["vehicle_client_public_ip"]
 
     logging.basicConfig()
 
@@ -193,13 +206,7 @@ async def main():
 
     await asyncio.sleep(1)
 
-    ecloud_config = EcloudConfig(scenario_yaml, logger)
-    SPAWN_SLEEP_TIME = ecloud_config.get_client_spawn_ping_time_s()
-    TICK_SLEEP_TIME = ecloud_config.get_client_tick_ping_time_s()
-    WORLD_TIME_SLEEP_FACTOR = ecloud_config.get_client_world_tick_factor()
-    NUM_SERVERS = ecloud_config.get_num_servers()
-    NUM_PORTS = ecloud_config.get_num_ports()
-
+    ecloud_config = EcloudConfig(scenario_yaml)
     location_type = ecloud_config.get_location_type()
     done_behavior = ecloud_config.get_done_behavior()
 

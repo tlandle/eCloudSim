@@ -36,8 +36,7 @@ RESULT_SUCCESS = 0 # Step ran ok
 RESULT_ERROR = 1 # Step resulted in an error
 RESULT_END = 2 # Step resulted in the vehicle simulation ending
 
-cloud_config = load_yaml("cloud_config.yaml")
-CARLA_IP = cloud_config["carla_server_public_ip"]
+CARLA_IP = 'localhost'
 
 # once we have all methods, we no longer need any reference to the actual actor in ecloud
 class ActorProxy(object):

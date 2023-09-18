@@ -7,10 +7,10 @@ Basic class of CAV
 
 import random
 import uuid
-import opencda.logging_ecloud
 import logging
 import time
 import random
+import logging
 
 import carla
 import numpy as np
@@ -34,12 +34,8 @@ from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from opencda.client_debug_helper import ClientDebugHelper
 from opencda.core.common.ecloud_config import eLocationType
 
-import coloredlogs, logging
-logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
+logger = logging.getLogger("ecloud")
 
-cloud_config = load_yaml("cloud_config.yaml")
-CARLA_IP = cloud_config["carla_server_public_ip"]
 MIN_DESTINATION_DISTANCE_M = 500 # TODO: config?
 COLLISION_ERROR = "Spawn failed because of collision at spawn position"
 
@@ -107,7 +103,8 @@ class VehicleManager(object):
             location_type=eLocationType.EXPLICIT,
             run_distributed=False,
             map_helper=None,
-            is_edge=False):
+            is_edge=False,
+            carla_ip='localhost'):
 
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
@@ -117,6 +114,7 @@ class VehicleManager(object):
         self.run_distributed = run_distributed
         self.scenario_params = config_yaml
         self.carla_version = carla_version
+        self.carla_ip = carla_ip
 
         # set random seed if stated
         seed = time.time()
@@ -312,7 +310,7 @@ class VehicleManager(object):
         simulation_config = self.scenario_params['world']
 
         self.client = \
-            carla.Client(CARLA_IP, simulation_config['client_port'])
+            carla.Client(self.carla_ip, simulation_config['client_port'])
         self.client.set_timeout(10.0)
         self.world = self.client.get_world()
         self.carla_map = self.world.get_map()

@@ -31,12 +31,7 @@ world:
     wetness: 0
 
 ecloud:
-  num_servers: 1 # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 )
-  num_ports: 1
-  server_ping_time_s: 0.005 # 5ms
-  client_world_time_factor: 0.9 # what percentage of last world time to wait initially
-  client_ping_spawn_s: 0.05 # sleep to wait between pings after spawn
-  client_ping_tick_s: 0.005 # minimum sleep to wait between pings after tick
+  log_level: 10 # DEBUG - uses logging.LEVEL enums
 
 # First define the basic parameters of the vehicles
 vehicle_base: &vehicle_base
@@ -132,9 +127,9 @@ carla_traffic_manager:
 # define scenario. In this scenario, a 4-vehicle platoon already exists.
 scenario:
   ecloud: 
-    num_cars: 24
+    num_cars: 1
     location_type: random # random || explicit - applies to spawn & destination
-    done_behavior: control # destroy || control
+    done_behavior: control # destroy || control - stop || drive - new destination
   single_cav_list: # this is for merging vehicle or single cav without v2x
     - <<: *vehicle_base
       sensing:
