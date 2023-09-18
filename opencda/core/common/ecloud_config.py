@@ -69,8 +69,8 @@ class EcloudConfig(object):
         else:
             self.logger.warning("'ecloud' not found in config_scenario")
 
-        return               
-    
+        EcloudConfig.set_log_level(self.ecloud_scenario['log_level'])            
+   
     def get_num_cars(self):
         self.logger.debug(f"num_cars: {self.ecloud_scenario['num_cars'] if self.ecloud_scenario['num_cars'] != 0 else len(self.config_json['scenario']['single_cav_list'])}")
         return self.ecloud_scenario['num_cars'] if self.ecloud_scenario['num_cars'] != 0 else \
@@ -93,7 +93,7 @@ class EcloudConfig(object):
         return EcloudConfig.log_level
         
     @staticmethod    
-    def set_log_level(log_level: int):
+    def set_log_level(log_level: int, debug=False):
         # TODO: make these global consts
         if log_level == 3:
             EcloudConfig.log_level = logging.ERROR
@@ -101,8 +101,29 @@ class EcloudConfig(object):
             EcloudConfig.log_level = logging.WARNING
         elif log_level == 1:
             EcloudConfig.log_level = logging.INFO
- 
-        EcloudConfig.logger.setLevel(EcloudConfig.log_level)
+        elif log_level == 0:
+            EcloudConfig.log_level = logging.DEBUG
+        else:
+            EcloudConfig.log_level = log_level
+
+        EcloudConfig.logger = logging.getLogger("ecloud")
+        coloredlogs.install(level=EcloudConfig.log_level, 
+                            logger=EcloudConfig.logger,
+                            miliseconds=True,
+                            fmt="%(asctime)s %(filename)s %(funcName)s %(message)s",
+                            datefmt='%H:%M:%S',
+                            field_styles={'asctime': {'color': 'green'}, 
+                                          'filename': {'bold': True, 'color': 'blue'}, 
+                                          'funcName': {'color': 'cyan'},
+                                          'level': coloredlogs.DEFAULT_LEVEL_STYLES},
+                            level_styles=coloredlogs.DEFAULT_LEVEL_STYLES,
+                            reconfigure=True,
+                            )
+        if debug:
+            EcloudConfig.logger.error("ERROR")
+            EcloudConfig.logger.warning("WARNING")
+            EcloudConfig.logger.info("INFO")
+            EcloudConfig.logger.debug("DEBUG")
 
     @staticmethod
     def get_logger():
@@ -118,4 +139,7 @@ class EcloudConfig(object):
                             datefmt='%H:%M:%S',
                             field_styles={'asctime': {'color': 'green'}, 
                                           'filename': {'bold': True, 'color': 'blue'}, 
-                                          'funcName': {'color': 'cyan'}})
+                                          'funcName': {'color': 'cyan'}},
+                            level_styles=coloredlogs.DEFAULT_LEVEL_STYLES,
+                            reconfigure=True,
+                            )

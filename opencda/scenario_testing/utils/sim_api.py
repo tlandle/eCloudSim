@@ -58,9 +58,8 @@ ECLOUD_IP = None
 VEHICLE_IP = None
 
 logger = logging.getLogger("ecloud")
-coloredlogs.install(level='DEBUG', logger=logger)
 
-def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
+def car_blueprint_filter(blueprint_library, _='0.9.12'):
     """
     Exclude the uncommon vehicles from the default CARLA blueprint library
     (i.e., isetta, carlacola, cybertruck, t2).
@@ -69,10 +68,6 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
     ----------
     blueprint_library : carla.blueprint_library
         The blueprint library that contains all models.
-
-    carla_version : str
-        CARLA simulator version, currently support 0.9.11 and 0.9.12. We need
-        this as since CARLA 0.9.12 the blueprint name has been changed a lot.
 
     Returns
     -------
@@ -114,9 +109,6 @@ class ScenarioManager:
     ----------
     scenario_params : dict
         The dictionary contains all simulation configurations.
-
-    carla_version : str
-        CARLA simulator version, it currently supports 0.9.11 and 0.9.12
 
     xodr_path : str
         The xodr file to the customized map, default: None.
@@ -280,7 +272,7 @@ class ScenarioManager:
 
     def __init__(self, scenario_params,
                  apply_ml,
-                 carla_version,
+                 carla_version='0.9.12',
                  xodr_path=None,
                  town=None,
                  cav_world=None,
@@ -310,7 +302,7 @@ class ScenarioManager:
         else:
             self.ecloud_config = ecloud_config
         self.ecloud_config.set_log_level(log_level)
-        self.scenario_params['scenario']['log_level'] = self.ecloud_config.get_log_level()
+        self.scenario_params['scenario']['ecloud']['log_level'] = self.ecloud_config.get_log_level()
 
         simulation_config = scenario_params['world']
 
@@ -544,8 +536,7 @@ class ScenarioManager:
 
         # we use lincoln as default choice since our UCLA mobility lab use the
         # same car
-        default_model = 'vehicle.lincoln.mkz2017' \
-            if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
+        default_model = 'vehicle.lincoln.mkz_2017'
 
         cav_vehicle_bp = \
             self.world.get_blueprint_library().find(default_model)
@@ -623,8 +614,7 @@ class ScenarioManager:
         ego_vehicle_random_list = car_blueprint_filter(blueprint_library,
                                                        self.carla_version)
         # if not random select, we always choose lincoln.mkz with green color
-        default_model = 'vehicle.lincoln.mkz2017' \
-            if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
+        default_model = 'vehicle.lincoln.mkz_2017'
         ego_vehicle_bp = blueprint_library.find(default_model)
 
         for i, vehicle_config in enumerate(traffic_config['vehicle_list']):
@@ -685,8 +675,7 @@ class ScenarioManager:
         ego_vehicle_random_list = car_blueprint_filter(blueprint_library,
                                                        self.carla_version)
         # if not random select, we always choose lincoln.mkz with green color
-        default_model = 'vehicle.lincoln.mkz2017' \
-            if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
+        default_model = 'vehicle.lincoln.mkz_2017'
         ego_vehicle_bp = blueprint_library.find(default_model)
 
         spawn_ranges = traffic_config['range']
@@ -1029,7 +1018,7 @@ class ScenarioManager:
         self.vehicle_state = ecloud.VehicleState.TICK_DONE
         asyncio.get_event_loop().run_until_complete(self.server_end_scenario(self.ecloud_server))
 
-        logger.debug(f"pushed END")
+        logger.info(f"pushed END")
 
         if self.run_distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
             os.kill(self.ecloud_server_process.pid, signal.SIGTERM)

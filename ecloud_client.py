@@ -41,8 +41,7 @@ import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
 
 logger = logging.getLogger("ecloud")
-coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.DEBUG)
+coloredlogs.install(logger=logger)
 
 # TODO: move to eCloudConfig
 cloud_config = load_yaml("cloud_config.yaml")
@@ -50,15 +49,6 @@ cloud_config = load_yaml("cloud_config.yaml")
 ECLOUD_PUSH_BASE_PORT = 50101 # TODO: config
 LOCAL = "local"
 AZURE = "azure"
-
-# TODO: pull down from scenario
-if "log_level" in cloud_config:
-    if cloud_config["log_level"] == "error":
-        logger.setLevel(logging.ERROR)
-    elif cloud_config["log_level"] == "warning":
-        logger.setLevel(logging.WARNING)
-    elif cloud_config["log_level"] == "info":
-        logger.setLevel(logging.INFO)
 
 #TODO: move to eCloudClient
 def serialize_debug_info(vehicle_update, vehicle_manager) -> None:
@@ -130,10 +120,6 @@ def arg_parse():
                         help="Specifies the ip address of the server to connect to. [Default: localhost]")
     parser.add_argument('-p', "--port", type=int, default=50051,
                         help="Specifies the port to connect to. [Default: 50051]")
-    parser.add_argument('-v', "--verbose", action="store_true",
-                            help="Make more noise")
-    parser.add_argument('-q', "--quiet", action="store_true",
-                            help="Make no noise")
     parser.add_argument('-e', "--environment", type=str, default="local",
                             help="Environment to run in: 'local' or 'azure'. [Default: 'local']")
 
@@ -156,18 +142,10 @@ async def main():
     push_q = asyncio.Queue()
 
     opt = arg_parse()
-    if opt.verbose:
-        logger.setLevel(logging.DEBUG)
-    elif opt.quiet:
-        logger.setLevel(logging.WARNING)
-    logger.info(f"OpenCDA Version: {version}")
-
     assert opt.environment == LOCAL or opt.environment == AZURE
     CARLA_IP = cloud_config[opt.environment]["carla_server_public_ip"]
     ECLOUD_IP = cloud_config[opt.environment]["ecloud_server_public_ip"]
     VEHICLE_IP = cloud_config[opt.environment]["vehicle_client_public_ip"]
-
-    logging.basicConfig()
 
     # TODO: move to eCloudClient
     channel = grpc.aio.insecure_channel(
