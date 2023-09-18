@@ -257,7 +257,7 @@ class ScenarioManager:
         await stub_.Server_StartScenario(update_)
 
         print(f"pushed scenario start")
-        print("start vehicle containers")
+        print(f"start {self.vehicle_count} vehicle containers")
 
         assert(self.push_q.empty())
         await self.push_q.get()
