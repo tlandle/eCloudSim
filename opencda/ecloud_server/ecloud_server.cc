@@ -43,9 +43,6 @@
 #define ECLOUD_PUSH_API_PORT 50061
 
 ABSL_FLAG(uint16_t, port, 50051, "Sim API server port for the service");
-//ABSL_FLAG(uint16_t, vehicle_one_port, 50052, "Vehicle client server port one for the server");
-//ABSL_FLAG(uint16_t, vehicle_two_port, 50053, "Vehicle client server port for the service");
-ABSL_FLAG(uint16_t, num_ports, 1, "Total number of ports to open - each vehicle client thread will open half this number");
 ABSL_FLAG(uint16_t, minloglevel, static_cast<uint16_t>(absl::LogSeverityAtLeast::kInfo),
           "Messages logged at a lower level than this don't actually "
           "get logged anywhere");
@@ -520,12 +517,9 @@ void RunServer(uint16_t port) {
     grpc::reflection::InitProtoReflectionServerBuilderPlugin();
     ServerBuilder builder;
     // Listen on the given address without any authentication mechanism.
-    for ( int i = 0; i < absl::GetFlag(FLAGS_num_ports); i += 2 )
-    {
-        std::string server_address = absl::StrFormat("0.0.0.0:%d", port + i );
-        builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-        std::cout << "Server listening on " << server_address << std::endl;
-    }
+    std::string server_address = absl::StrFormat("0.0.0.0:%d", port );
+    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    std::cout << "server listening on port " << port << std::endl;
     // Register "service" as the instance through which we'll communicate with
     // clients. In this case it corresponds to an *synchronous* service.
     builder.RegisterService(&service);
@@ -569,14 +563,10 @@ int main(int argc, char* argv[]) {
     absl::ParseCommandLine(argc, argv);
     //absl::InitializeLog();
 
-    //std::thread vehicle_one_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_one_port));
-    //std::thread vehicle_two_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_two_port));
     std::thread server = std::thread(&RunServer,absl::GetFlag(FLAGS_port));
-
+    
     absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(absl::GetFlag(FLAGS_minloglevel)));
 
-    //vehicle_one_server.join();
-    //vehicle_two_server.join();
     server.join();
 
     return 0;
