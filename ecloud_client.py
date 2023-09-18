@@ -104,7 +104,7 @@ async def send_vehicle_update(stub_, vehicle_update_):
     return empty
 
 def arg_parse():
-    parser = argparse.ArgumentParser(description="eCloudSim Vehicle Simulation.")
+    parser = argparse.ArgumentParser(description="eCloud Vehicle Simulation.")
     parser.add_argument("--apply_ml",
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
@@ -298,8 +298,6 @@ async def main():
                 logger.debug("run_step complete")
 
             vehicle_update.tick_id = tick_id
-            vehicle_update.client_start_tstamp.CopyFrom(client_start_timestamp)
-            vehicle_update.sm_start_tstamp.CopyFrom(pong.sm_start_tstamp)
             
             if should_run_step:
                 if control is None or vehicle_manager.is_close_to_scenario_destination():
@@ -314,7 +312,12 @@ async def main():
                     vehicle_manager.apply_control(control)
                     logger.debug("apply_control complete")
                     vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
-                    vehicle_update.client_end_tstamp.GetCurrentTime()
+                    
+                    step_timestamps = ecloud.Timestamps()
+                    step_timestamps.tick_id = tick_id
+                    step_timestamps.client_end_tstamp.GetCurrentTime()
+                    step_timestamps.client_start_tstamp.CopyFrom(client_start_timestamp)
+                    vehicle_manager.debug_helper.update_timestamp(step_timestamps)
                     #_socket.send(json.dumps({"resp": "OK"}).encode('utf-8'))
 
                 if is_edge or vehicle_index == SPECTATOR_INDEX:

@@ -23,9 +23,9 @@ import grpc
 import carla
 import numpy as np
 import pandas as pd
-import coloredlogs
 import matplotlib.pyplot as plt
 #import k_means_constrained
+from google.protobuf.timestamp_pb2 import Timestamp
 
 from opencda.core.common.vehicle_manager_proxy import VehicleManagerProxy
 from opencda.core.common.vehicle_manager import VehicleManager
@@ -152,7 +152,7 @@ class ScenarioManager:
     vehicle_state = ecloud.VehicleState.REGISTERING
 
     debug_helper = SimDebugHelper(0)
-
+    sm_start_tstamp = Timestamp()
     SPECTATOR_INDEX = 0
 
     async def server_unpack_debug_data(self, stub_):
@@ -162,6 +162,22 @@ class ScenarioManager:
             vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( vehicle_update.loc_debug_helper )
             vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( vehicle_update.planer_debug_helper )
             vehicle_manager_proxy.debug_helper.deserialize_debug_info(vehicle_update.client_debug_helper)
+
+            latencies_by_tick = self.debug_helper.network_time_dict
+            overall_steps_by_tick = self.debug_helper.client_tick_time_dict
+            for timestamps in vehicle_manager_proxy.debug_helper.timestamps_list:
+                client_process_time_ms = (timestamps.client_end_tstamp.ToNanoseconds() - timestamps.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
+                idle_time_ms = overall_steps_by_tick[timestamps.tick_id] - latencies_by_tick[timestamps.tick_id] - client_process_time_ms # inferred rather than actual "idle" time
+                #if idle_time_ms < 0:
+                #    logger.warning(f"got a NEGATIVE inferred idle_time value of {round(idle_time_ms, 2)}ms for vehicle {v.vehicle_index}")
+                #idle_time_ms = idle_time_ms if idle_time_ms > 0 else 0 # TODO: confirm if we wantt to do this?
+                logger.debug(f"timestamps: client_end - {timestamps.client_end_tstamp.ToDatetime().time()} client_start - {timestamps.client_start_tstamp.ToDatetime().time()}")
+                logger.info(f'client process time: {round(client_process_time_ms, 2)}ms')
+                logger.info(f'idle time: {round(idle_time_ms, 2)}ms')
+                self.debug_helper.update_idle_time_timestamp(vehicle_manager_proxy.vehicle_index, idle_time_ms) # this inferred
+                self.debug_helper.update_client_process_time_timestamp(vehicle_manager_proxy.vehicle_index, client_process_time_ms) # how long client actually was active
+
+                logger.debug(f"updated time stamp data for vehicle {vehicle_manager_proxy.vehicle_index}")
 
     async def server_unpack_vehicle_updates(self, stub_):
         logger.debug("getting vehicle updates")
@@ -212,29 +228,14 @@ class ScenarioManager:
 
         # the first tick time is dramatically slower due to startup, so we don't want it to skew runtime data
         if self.tick_id == 1:
-            self.debug_helper.startup_time_ms = ( snapshot_t - tick.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC
+            self.debug_helper.startup_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC
             return empty
 
-        logger.debug(f"unpacking timestamp data: {tick.timestamps}")
-        overall_step_time_ms = ( snapshot_t - tick.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC # barrier sync means this is the same for ALL vehicles per tick
+        overall_step_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC # barrier sync means this is the same for ALL vehicles per tick
         step_latency_ms = overall_step_time_ms - ( tick.last_client_duration_ns * NSEC_TO_MSEC ) # we care about the worst case per tick - how much did we affect the final vehicle to report. This captures both delay in getting that vehicle started and in it reporting its completion
-        logger.debug(f"timestamps: overall_step_time_ms - {round(overall_step_time_ms, 2)}ms | step_latency_ms - {round(step_latency_ms, 2)}ms")
-        for v in tick.timestamps:
-            client_process_time_ms = (v.client_end_tstamp.ToNanoseconds() - v.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
-            idle_time_ms = overall_step_time_ms - step_latency_ms - client_process_time_ms # inferred rather than actual "idle" time
-            #if idle_time_ms < 0:
-            #    logger.warning(f"got a NEGATIVE inferred idle_time value of {round(idle_time_ms, 2)}ms for vehicle {v.vehicle_index}")
-            #idle_time_ms = idle_time_ms if idle_time_ms > 0 else 0 # TODO: confirm if we wantt to do this?
-            logger.debug(f"timestamps: client_end - {v.client_end_tstamp.ToDatetime().time()} client_start - {v.client_start_tstamp.ToDatetime().time()}")
-            logger.info(f'client process time: {round(client_process_time_ms, 2)}ms')
-            logger.info(f'idle time: {round(idle_time_ms, 2)}ms')
-
-            self.debug_helper.update_network_time_timestamp(v.vehicle_index, step_latency_ms) # same for all vehicles *per tick*
-            self.debug_helper.update_individual_client_step_time(v.vehicle_index, overall_step_time_ms) # barrier sync means it's not actually individual
-            self.debug_helper.update_idle_time_timestamp(v.vehicle_index, idle_time_ms) # this inferred
-            self.debug_helper.update_client_process_time_timestamp(v.vehicle_index, client_process_time_ms) # how long client actually was active
-
-            logger.debug(f"updated time stamp data for vehicle {v.vehicle_index}")
+        logger.debug(f"timestamps: overall_step_time_ms - {round(overall_step_time_ms, 2)}ms | step_latency_ms - {round(step_latency_ms, 2)}ms")        
+        self.debug_helper.update_network_time_timestamp(tick.tick_id, step_latency_ms) # same for all vehicles *per tick*
+        self.debug_helper.update_overall_step_time_timestamp(tick.tick_id, overall_step_time_ms)
 
         if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
             await self.server_unpack_debug_data(stub_)
@@ -286,6 +287,8 @@ class ScenarioManager:
         global CARLA_IP
         global ECLOUD_IP
         global VEHICLE_IP
+
+        self.sm_start_tstamp.GetCurrentTime()
 
         cloud_config = load_yaml("cloud_config.yaml")
         CARLA_IP = cloud_config[environment]["carla_server_public_ip"]
@@ -992,7 +995,7 @@ class ScenarioManager:
         tick.command = command
 
         logger.debug(f"Getting timestamp")
-        tick.sm_start_tstamp.GetCurrentTime()
+        self.sm_start_tstamp.GetCurrentTime()
         logger.debug(f"Added Timestamp")
 
         asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, tick))
