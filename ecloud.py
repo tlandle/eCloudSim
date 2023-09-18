@@ -4,6 +4,7 @@ Script to run different scenarios.
 """
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
+#       : Jordan Rapp <jrapp7@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import argparse
@@ -15,30 +16,30 @@ import logging
 
 from opencda.version import __version__
 
+DEFAULT_SCENARIO="ecloud_4lane_scenario_dist_config"
 logger = logging.getLogger("ecloud")
 
 def arg_parse():
-    parser = argparse.ArgumentParser(description="OpenCDA scenario runner.")
-    parser.add_argument('-t', "--test_scenario", required=True, type=str,
+    parser = argparse.ArgumentParser(description="eCloudSim scenario runner.")
+    parser.add_argument('-t', "--test_scenario", type=str, default=DEFAULT_SCENARIO,
                         help='Define the name of the scenario you want to test. The given name must'
                              'match one of the testing scripts(e.g. single_2lanefree_carla) in '
                              'opencda/scenario_testing/ folder'
-                             ' as well as the corresponding yaml file in opencda/scenario_testing/config_yaml.')
+                             f' as well as the corresponding yaml file in opencda/scenario_testing/config_yaml. [Default: {DEFAULT_SCENARIO}]')
     parser.add_argument("--record", action='store_true', help='whether to record and save the simulation process to'
                                                               '.log file')
+    parser.add_argument('-n', "--num_cars", type=int, default=0,
+                        help="number of vehicles to run."
+                             "forces RANDOM spawning behavior")
+    parser.add_argument('-d', "--distributed", type=int, default=1,
+                        help="run a distributed scenario.")
     parser.add_argument("--apply_ml",
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
-                             'Set it to true only when you have installed the pytorch/sklearn package.')
-    parser.add_argument('-v', "--version", type=str, default='0.9.12',
-                        help='Specify the CARLA simulator version, default'
-                             'is 0.9.12, 0.9.11 is also supported.')
-    parser.add_argument("--verbose", action="store_true",
-                            help="Make more noise")
+                             'Set it to true only when you have installed the pytorch/sklearn package.'
+                             'NOT compatible with distributed scenarios: containers must be started at runtime with perception enabled.')
     parser.add_argument('-l', "--log_level", type=int, default=0,
                             help="0: DEBUG | 1: INFO | WARNING: 2 | ERROR: 3")
-    parser.add_argument('-q', "--quiet", action="store_true",
-                            help="Make no noise")
     parser.add_argument('-b', "--build", action="store_true",
                             help="Rebuild gRPC proto files")
     parser.add_argument('-s', "--steps", type=int, default=0,
@@ -50,7 +51,7 @@ def arg_parse():
 
 def main():
     opt = arg_parse()
-    print(f"OpenCDA Version: {__version__}")
+    print(f"eCloudSim Version: {__version__}")
 
     try:
         testing_scenario = importlib.import_module("opencda.scenario_testing.%s" % opt.test_scenario)

@@ -51,7 +51,10 @@ shift "$(($OPTIND -1))"
 
 if (( rebuild == 1 )); then
     echo "rebuilding container image"
-    sudo docker build -f Dockerfile -t vehicle-sim:latest .
+    sudo docker build -f Dockerfile -t ecloud-client:latest .
+    if (( count == 0 && kill == 0 )); then
+        exit 1
+    fi
 fi
 
 if (( kill == 1 )); then
@@ -98,7 +101,7 @@ for ((i=0; i<$count; i++))
 do
     if (( use_ml == 1 )); then
         echo "container $i pinned to gpu $gpu"
-        sudo docker run --runtime=nvidia --gpus device=$gpu -d --network=host --name=container_$i -e "HOSTNAME=container_$i" -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim --apply_ml --environment $environment
+        sudo docker run --runtime=nvidia --gpus device=$gpu -d --network=host --name=ecloud_client_$i -e "HOSTNAME=ecloud_client_$i" -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY ecloud-client --apply_ml --environment $environment
         ((gpu++))
         #echo "$gpu % $num_gpus = $(( gpu % num_gpus ))"
         if (( $(( gpu % num_gpus )) == 0 )); then
@@ -106,8 +109,8 @@ do
             gpu=0
         fi   
     else
-        #sudo docker run --runtime=nvidia --gpus all -d --network=host --name=container_$i -e "HOSTNAME=container_$i" -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim
-        sudo docker run -d --network=host --name=container_$i -e "HOSTNAME=container_$i" vehicle-sim --environment $environment
+        #sudo docker run --runtime=nvidia --gpus all -d --network=host --name=ecloud_client_$i -e "HOSTNAME=ecloud_client_$i" -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY ecloud-client
+        sudo docker run -d --network=host --name=ecloud_client_$i -e "HOSTNAME=ecloud_client_$i" ecloud-client --environment $environment
     fi
 done
 
@@ -118,12 +121,12 @@ while ( (( loop == 1 )) );
 do
     for ((i=0; i<$count; i++))
     do
-        if test "$( docker logs container_$i 2> >(grep -i "error") | wc -l )" -gt "0"; then
-            echo "ERROR: container_$i has crashed"
-            docker logs container_$i
+        if test "$( docker logs ecloud_client_$i 2> >(grep -i "error") | wc -l )" -gt "0"; then
+            echo "ERROR: ecloud_client_$i has crashed"
+            docker logs ecloud_client_$i
             loop=2
         fi
-        if test "$( docker logs container_$i 2> >(grep -i "end received") | wc -l )" -gt "0"; then
+        if test "$( docker logs ecloud_client_$i 2> >(grep -i "end received") | wc -l )" -gt "0"; then
             echo "OK: scenario has completed successfully"
             loop=0
         fi

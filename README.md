@@ -97,9 +97,15 @@ ln -s <source> <destination>
 
 - use `CHECK` in logs more to simplify and optimize logging logic for perf
 
-- move to completion queue & threadpool with servers on client & sim API
+- add option to launch Carla
 
-- is maphelper required for 2 Lane Free?
+  - option to  `-RenderOffscreen` or not
+
+- support option for `num_cars`
+
+  - assert location type is random
+
+
 
 Top Level
 
