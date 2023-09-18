@@ -156,6 +156,7 @@ message VehicleUpdate {
   ClientDebugHelper client_debug_helper = 6;
   Transform transform = 7;
   Velocity velocity = 8;
+  int64 duration_ns = 9;
 }
 
 message EcloudResponse {
