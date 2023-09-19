@@ -34,8 +34,7 @@ def run_scenario(opt, config_yaml):
                                                    opt.apply_ml,
                                                    opt.version,
                                                    xodr_path=xodr_path,
-                                                   cav_world=cav_world,
-                                                   config_file=config_yaml)
+                                                   cav_world=cav_world,)
 
         if opt.record:
             scenario_manager.client. \

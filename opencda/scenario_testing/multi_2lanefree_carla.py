@@ -49,7 +49,6 @@ def run_scenario(opt, config_yaml):
                                                    opt.version,
                                                    xodr_path=xodr_path,
                                                    cav_world=cav_world,
-                                                   config_file=config_yaml,
                                                    distributed=run_distributed)                                         
 
         if opt.record:

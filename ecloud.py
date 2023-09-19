@@ -57,15 +57,28 @@ def main():
     #print (opt)
     print(f"eCloudSim Version: {__version__}")
 
+    error = None
     try:
         testing_scenario = importlib.import_module("opencda.scenario_testing.%s" % opt.test_scenario)
     except ModuleNotFoundError:
-        sys.exit("ERROR: %s.py not found under opencda/scenario_testing" % opt.test_scenario)
+        error = format("ERROR: %s.py not found under opencda/scenario_testing" % opt.test_scenario)
+
+    if error is not None:
+        try:
+            testing_scenario = importlib.import_module("opencda.scenario_testing.archived.%s" % opt.test_scenario)
+        except ModuleNotFoundError:
+            error = format("ERROR: %s.py not found under opencda/scenario_testing[/archived]" % opt.test_scenario)
 
     config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                'opencda/scenario_testing/config_yaml/%s.yaml' % opt.test_scenario)
     if not os.path.isfile(config_yaml):
-        sys.exit("opencda/scenario_testing/config_yaml/%s.yaml not found!" % opt.test_scenario)
+        config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                               'opencda/scenario_testing/config_yaml/archived/%s.yaml' % opt.test_scenario)
+        if not os.path.isfile(config_yaml):
+            error = format("opencda/scenario_testing/config_yaml/[archived/]%s.yaml not found!" % opt.test_scenario)
+
+    if error is not None:
+        sys.exit(error)
 
     if opt.build:
         subprocess.run(['python','-m','grpc_tools.protoc','-I./opencda/protos','--python_out=.','--grpc_python_out=.','./opencda//protos/ecloud.proto'])
@@ -78,4 +91,4 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        logger.info(' - Exited by user.')
+        logger.info('exited by user.')
