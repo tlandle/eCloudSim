@@ -346,8 +346,7 @@ class ScenarioManager:
                 subprocess.run(['pkill','-9','Carla'])
 
             logger.info(f'spawning Carla')
-            render_options = "-RenderOffscreen" if run_carla == "offscreen" else ""
-            self.carla_process = subprocess.Popen(['./CarlaUE4.sh',f'{render_options}'], cwd='/opt/carla-simulator/', stderr=sys.stdout.buffer)
+            self.carla_process = subprocess.Popen(['./CarlaUE4.sh',f'{run_carla}'], cwd='/opt/carla-simulator/', stderr=sys.stdout.buffer)
             print("waiting for Carla to start up", end=' ')
             for _ in range(5):
                 print('.', end=' ')
