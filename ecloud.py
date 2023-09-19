@@ -15,10 +15,10 @@ import subprocess
 import logging
 import re
 
-from ecloud.version import __version__
+from ecloud.version import __version__, __ecloud__
 
 DEFAULT_SCENARIO="ecloud_4lane_scenario_dist_config"
-logger = logging.getLogger("ecloud")
+logger = logging.getLogger(__ecloud__)
 
 import_module = re.compile(r'import ([\.A-Za-z0-9_-]+) ')
 import_class = re.compile(r'from ([\.A-Za-z0-9_-]+) import')
@@ -56,33 +56,8 @@ def arg_parse():
     opt = parser.parse_args()
     return opt
 
-def main():
-    opt = arg_parse()
-    #print (opt)
-    print(f"eCloudSim Version: {__version__}")
-
-    error = None
-    try:
-        testing_scenario = importlib.import_module("ecloud.scenario_testing.%s" % opt.test_scenario)
-    except ModuleNotFoundError:
-        error = format("ERROR: %s.py not found under ecloud/scenario_testing" % opt.test_scenario)
-
-    if error is not None:
-        try:
-            testing_scenario = importlib.import_module("ecloud.scenario_testing.archived.%s" % opt.test_scenario)
-        except ModuleNotFoundError:
-            error = format("ERROR: %s.py not found under ecloud/scenario_testing[/archived]" % opt.test_scenario)
-
-    config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                               'ecloud/scenario_testing/config_yaml/%s.yaml' % opt.test_scenario)
-    if not os.path.isfile(config_yaml):
-        config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                               'ecloud/scenario_testing/config_yaml/archived/%s.yaml' % opt.test_scenario)
-        if not os.path.isfile(config_yaml):
-            error = format("ecloud/scenario_testing/config_yaml/[archived/]%s.yaml not found!" % opt.test_scenario)
-
-    if error is not None:
-        for (root,_,files) in os.walk('ecloud', topdown=True):
+def check_imports():
+    for (root,_,files) in os.walk(__ecloud__, topdown=True):
             for file in files:
                 if file.endswith('.py'):
                     # print(f"{file}")
@@ -94,21 +69,54 @@ def main():
                                 try:
                                     importlib.import_module(x.group(1))
                                 except Exception as e:
-                                    print(f"ERROR importing {x.group(1)} - {e}")
+                                    logger.error(f"ERROR importing {x.group(1)} - {e}")
                                     continue
-                                #else:
-                                #    print(f"MODULE {x.group(1)} imported OK")
+                                else:
+                                    logger.debug(f"MODULE {x.group(1)} imported OK")
                             
                             x = re.search(import_class, l)
                             if x:
                                 try:
                                     importlib.import_module(x.group(1))
                                 except Exception as e:
-                                    print(f"ERROR importing {x.group(1)} - {e}")
+                                    logger.error(f"ERROR importing {x.group(1)} - {e}")
                                     continue
-                                #else:
-                                #    print(f"MODULE {x.group(1)} imported OK")
+                                else:
+                                    logger.debug(f"MODULE {x.group(1)} imported OK")
 
+def get_scenario(opt):
+    testing_scenario = None
+    config_yaml = None
+    error = None
+    try:
+        testing_scenario = importlib.import_module("ecloud.scenario_testing.%s" % opt.test_scenario)
+    except ModuleNotFoundError:
+        error = format("%s.py not found under ecloud/scenario_testing" % opt.test_scenario)
+
+    if error is not None:
+        try:
+            testing_scenario = importlib.import_module("ecloud.scenario_testing.archived.%s" % opt.test_scenario)
+        except ModuleNotFoundError:
+            error = format("%s.py not found under ecloud/scenario_testing[/archived]" % opt.test_scenario)
+
+    config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                               'ecloud/scenario_testing/config_yaml/%s.yaml' % opt.test_scenario)
+    if not os.path.isfile(config_yaml):
+        config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                               'ecloud/scenario_testing/config_yaml/archived/%s.yaml' % opt.test_scenario)
+        if not os.path.isfile(config_yaml):
+            error = format("ecloud/scenario_testing/config_yaml/[archived/]%s.yaml not found!" % opt.test_scenario)
+
+    return testing_scenario, config_yaml, error
+
+def main():
+    opt = arg_parse()
+    logger.debug(opt)
+    print(f"eCloudSim Version: {__version__}")
+
+    testing_scenario, config_yaml, error = get_scenario(opt)
+    if error is not None:
+        check_imports()
         sys.exit(error)
 
     if opt.build:
@@ -121,5 +129,9 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except KeyboardInterrupt:
-        logger.info('exited by user.')
+    except Exception as e:
+        if type(e) == KeyboardInterrupt:
+            logger.info('exited by user.')
+        else:
+            logger.critical(e)
+            raise

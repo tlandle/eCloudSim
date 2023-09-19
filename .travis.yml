@@ -19,6 +19,6 @@ after_success:
 notifications:
   email:
     recipients:
-      - jordanrapp@gmail.com
+      - jrapp7@gatech.edu
   on_success: never # default: change
   on_failure: always # default: always
