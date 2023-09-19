@@ -1,4 +1,4 @@
-name: opencda
+name: ecloud
 channels:
   - defaults
 dependencies:
