@@ -332,7 +332,7 @@ class ScenarioManager:
 
             # PERF Profiling
             # self.ecloud_server_process = subprocess.Popen(['sudo','perf','record','-g','./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'], stderr=sys.stdout.buffer)
-            self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'], stderr=sys.stdout.buffer)
+            self.ecloud_server_process = subprocess.Popen(['./ecloud/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'], stderr=sys.stdout.buffer)
 
         if run_carla and ( CARLA_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
             try:
