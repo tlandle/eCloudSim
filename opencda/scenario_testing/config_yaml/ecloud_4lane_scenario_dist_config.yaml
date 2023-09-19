@@ -1,7 +1,7 @@
 description: |-
   Copyright 2023 <GATech EPL>
   Author: Jordan Rapp <jrapp7@gatech.edu>
-  Content: This is the scenario testing configuration file for platooning joining and cooperative merge
+  Content: This is the scenario testing configuration file for distributed random spawn
            at the Town06 using  CARLA only.
 
 # eCloudSim
@@ -132,7 +132,7 @@ carla_traffic_manager:
 # define scenario. In this scenario, a 4-vehicle platoon already exists.
 scenario:
   ecloud: 
-    num_cars: 24
+    num_cars: 32
     location_type: random # random || explicit - applies to spawn & destination
     done_behavior: control # destroy || control
   single_cav_list: # this is for merging vehicle or single cav without v2x

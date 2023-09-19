@@ -31,6 +31,8 @@ class MLManager(object):
     def __init__(self):
 
         #self.object_detector = torch.hub.load('ultralytics/yolov5', 'yolov5m', force_reload=True)
+        torch.cuda.empty_cache()
+        torch.cuda.memory_summary(device=None, abbreviated=False)
         if os.path.exists(os.path.join(YOLO_PATH, YOLO_FILE)):
             self.object_detector = torch.hub.load(YOLO_PATH, model='yolov5m', source='local')
         else:

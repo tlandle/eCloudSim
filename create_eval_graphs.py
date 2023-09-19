@@ -64,6 +64,7 @@ def create_box_plot(data, x, y, labels):
     Axes: The axis object containing the box plot.
     """
     ax = sns.boxplot(data=data, x=x, y=y)
+    plt.yscale('log')
     ax.set(xlabel=labels['xlabel'],
            ylabel=labels['ylabel'],
            title=labels['title'])
@@ -147,6 +148,7 @@ def create_stacked_bar_chart(data,  y, labels):
     ax = data.plot(y=y, kind='bar', stacked=True, color=colors, figsize=(11, 8))
     plt.xlabel(labels['xlabel'])
     plt.ylabel(labels['ylabel'])
+    plt.yscale('log')
     plt.title(labels['title'])
     ax.legend(labels=labels_legend)
     return ax
@@ -251,6 +253,7 @@ def plot_client_step_time():
     # Box plot
     plt.figure(figsize=(10, 6))
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_step_time_ms', labels=labels)
+    ax.set(ylim=(0,3000))
     save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_step_time_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
@@ -400,6 +403,15 @@ def plot_client_stacked_barchart():
             "client_control_time_list",
             "network_latency",
     ]
+
+    plt.figure(figsize=(10, 6))
+    ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_perception_time_ms', labels=labels)
+    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_perception_time_boxplot.png'
+    save_ax(ax, save_file_path)
+    if SHOULD_SHOW:
+        plt.show()
+    plt.clf()
+
     for list_name in client_debug_data:
         step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_{list_name}'
         sim_stats_df = get_stats_df(step_time_df_path)
@@ -461,7 +473,32 @@ def plot_simple_client_stacked_barchart():
       plt.show()
     plt.clf()
 
+def plot_individual_client_boxplot():
 
+    agent_df = pd.DataFrame()
+    y_columns = []
+
+    labels = {"xlabel": 'Car_Index',
+              "ylabel": f' Step Time',
+              "title": f'eCloudSim: Individual Client Step Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+
+    
+    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_individual_step_times_dict'
+    sim_stats_df = get_stats_df(step_time_df_path)
+    num_cars = sim_stats_df['num_cars'][0]
+
+    ax = sns.boxplot(data=sim_stats_df)
+    plt.yscale('log')
+    ax.set(xlabel=labels['xlabel'],
+           ylabel=labels['ylabel'],
+           title=labels['title'])
+ 
+
+    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/individual_client_time_dict_boxplot.png'
+    save_ax(ax, save_file_path)
+    if SHOULD_SHOW:
+        plt.show()
+    plt.clf()
 # In[276]:
 
 
@@ -547,6 +584,9 @@ if __name__ == '__main__':
     #plot_agent_step_times()
 
     plot_simple_client_stacked_barchart()
+    
+    plot_individual_client_boxplot()
+
 
    # Example DataFrame for comparison chart
     comparison_data = pd.DataFrame({
