@@ -176,7 +176,7 @@ public:
 
             simIP_ = "localhost";
 
-            std::string connection = absl::StrFormat("%s:%d", simIP_, ECLOUD_PUSH_API_PORT );
+            const std::string connection = absl::StrFormat("%s:%d", simIP_, ECLOUD_PUSH_API_PORT );
             simAPIClient_ = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
 
             vehicleClients_.clear();
@@ -306,7 +306,7 @@ public:
 
             mu_.Lock();
             reply->set_vehicle_index(numRegisteredVehicles_.load());
-            std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), ECLOUD_PUSH_BASE_PORT + numRegisteredVehicles_.load() );
+            const std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), ECLOUD_PUSH_BASE_PORT + numRegisteredVehicles_.load() );
             PushClient *vehicleClient = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
             vehicleClients_.push_back(vehicleClient);
             numRegisteredVehicles_++;
@@ -447,7 +447,7 @@ void RunServer(uint16_t port) {
     grpc::reflection::InitProtoReflectionServerBuilderPlugin();
     ServerBuilder builder;
     // Listen on the given address without any authentication mechanism.
-    std::string server_address = absl::StrFormat("0.0.0.0:%d", port );
+    const std::string server_address = absl::StrFormat("0.0.0.0:%d", port );
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     std::cout << "server listening on port " << port << std::endl;
     // Register "service" as the instance through which we'll communicate with
