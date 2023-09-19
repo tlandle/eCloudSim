@@ -17,16 +17,16 @@ import time
 
 import carla
 
-from opencda.version import __version__
-from opencda.core.common.cav_world import CavWorld
-from opencda.core.common.vehicle_manager import VehicleManager
-from opencda.core.application.edge.transform_utils import *
-from opencda.core.plan.local_planner_behavior import RoadOption
-from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
-from opencda.scenario_testing.utils.yaml_utils import load_yaml
+from ecloud.version import __version__
+from ecloud.core.common.cav_world import CavWorld
+from ecloud.core.common.vehicle_manager import VehicleManager
+from ecloud.core.application.edge.transform_utils import *
+from ecloud.core.plan.local_planner_behavior import RoadOption
+from ecloud.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
+from ecloud.scenario_testing.utils.yaml_utils import load_yaml
 
-from opencda.core.common.ecloud_config import EcloudConfig, eDoneBehavior
-from opencda.ecloud_server.ecloud_comms import EcloudClient, ecloud_run_push_server
+from ecloud.core.common.ecloud_config import EcloudConfig, eDoneBehavior
+from ecloud.ecloud_server.ecloud_comms import EcloudClient, ecloud_run_push_server
 
 import grpc
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -79,7 +79,7 @@ async def send_registration_to_ecloud_server(stub_) -> ecloud.SimulationInfo:
     return sim_info
 
 #TODO: move to eCloudClient
-async def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid) -> ecloud.SimulationInfo:
+async def send_carla_data_to_ecloud(stub_, vehicle_index, actor_id, vid) -> ecloud.SimulationInfo:
     message = {"vehicle_index": vehicle_index, "actor_id": actor_id, "vid": vid}
     logger.info(f"Vehicle: Sending Carla rpc {message}")
 
@@ -92,7 +92,7 @@ async def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid) -> ecl
     
     sim_info = await stub_.Client_RegisterVehicle(update)
 
-    logger.info(f"send_carla_data_to_opencda: response received")
+    logger.info(f"send_carla_data_to_ecloud: response received")
 
     return sim_info
 
@@ -201,7 +201,7 @@ async def main():
     actor_id = vehicle_manager.vehicle.id
     vid = vehicle_manager.vid
 
-    await send_carla_data_to_opencda(ecloud_server, vehicle_index, actor_id, vid)
+    await send_carla_data_to_ecloud(ecloud_server, vehicle_index, actor_id, vid)
 
     assert(push_q.empty())
     pong = await push_q.get()

@@ -17,8 +17,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
 import mocked_carla as mcarla
-from opencda.core.sensing.localization.kalman_filter import KalmanFilter
-from opencda.core.sensing.localization.coordinate_transform import geo_to_transform
+from ecloud.core.sensing.localization.kalman_filter import KalmanFilter
+from ecloud.core.sensing.localization.coordinate_transform import geo_to_transform
 
 
 class testKalmanFilter(unittest.TestCase):

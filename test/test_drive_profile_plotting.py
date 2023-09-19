@@ -18,7 +18,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
 import mocked_carla as mcarla
 
-from opencda.core.plan.drive_profile_plotting import *
+from ecloud.core.plan.drive_profile_plotting import *
 
 
 class TestDriveProfile(unittest.TestCase):

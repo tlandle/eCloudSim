@@ -17,7 +17,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
 import mocked_carla as mcarla
-from opencda.core.sensing.perception.sensor_transformation import *
+from ecloud.core.sensing.perception.sensor_transformation import *
 
 
 class TestSensorTransformation(unittest.TestCase):

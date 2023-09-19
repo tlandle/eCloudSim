@@ -14,7 +14,7 @@ import unittest
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
-from opencda.customize.core.sensing.localization.extented_kalman_filter import ExtentedKalmanFilter
+from ecloud.customize.core.sensing.localization.extented_kalman_filter import ExtentedKalmanFilter
 
 
 class testKalmanFilter(unittest.TestCase):

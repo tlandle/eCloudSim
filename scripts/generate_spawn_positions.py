@@ -3,7 +3,7 @@ import random
 import os
 from agents.navigation.global_route_planner import GlobalRoutePlanner
 from jinja2 import FileSystemLoader, Environment
-from opencda.scenario_testing.utils.yaml_utils import load_yaml
+from ecloud.scenario_testing.utils.yaml_utils import load_yaml
 
 # Add a seed value for random number generation
 random.seed(42)

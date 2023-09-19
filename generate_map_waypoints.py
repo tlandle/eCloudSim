@@ -2,7 +2,7 @@ import carla
 import numpy as np
 
 from agents.navigation.global_route_planner import GlobalRoutePlanner
-from opencda.scenario_testing.utils.yaml_utils import load_yaml
+from ecloud.scenario_testing.utils.yaml_utils import load_yaml
 # from agents.navigation.global_route_planner_dao import GlobalRoutePlannerDAO
 
 def check_if_within_dist(waypoint, x, y, ncars=4):

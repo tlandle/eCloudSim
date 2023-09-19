@@ -17,7 +17,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
 import mocked_carla as mcarla
-from opencda.core.application.platooning.platoon_debug_helper import PlatoonDebugHelper
+from ecloud.core.application.platooning.platoon_debug_helper import PlatoonDebugHelper
 
 
 class TestPlanDebugHelper(unittest.TestCase):

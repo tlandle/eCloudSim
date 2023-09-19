@@ -14,7 +14,7 @@ import sys
 import subprocess
 import logging
 
-from opencda.version import __version__
+from ecloud.version import __version__
 
 DEFAULT_SCENARIO="ecloud_4lane_scenario_dist_config"
 logger = logging.getLogger("ecloud")
@@ -24,8 +24,8 @@ def arg_parse():
     parser.add_argument('-t', "--test_scenario", type=str, default=DEFAULT_SCENARIO,
                         help='Define the name of the scenario you want to test. The given name must'
                              'match one of the testing scripts(e.g. single_2lanefree_carla) in '
-                             'opencda/scenario_testing/ folder'
-                             f' as well as the corresponding yaml file in opencda/scenario_testing/config_yaml. [Default: {DEFAULT_SCENARIO}]')
+                             'ecloud/scenario_testing/ folder'
+                             f' as well as the corresponding yaml file in ecloud/scenario_testing/config_yaml. [Default: {DEFAULT_SCENARIO}]')
     parser.add_argument("--record", action='store_true', help='whether to record and save the simulation process to'
                                                               '.log file')
     parser.add_argument('-n', "--num_cars", type=int, default=0,
@@ -59,29 +59,29 @@ def main():
 
     error = None
     try:
-        testing_scenario = importlib.import_module("opencda.scenario_testing.%s" % opt.test_scenario)
+        testing_scenario = importlib.import_module("ecloud.scenario_testing.%s" % opt.test_scenario)
     except ModuleNotFoundError:
-        error = format("ERROR: %s.py not found under opencda/scenario_testing" % opt.test_scenario)
+        error = format("ERROR: %s.py not found under ecloud/scenario_testing" % opt.test_scenario)
 
     if error is not None:
         try:
-            testing_scenario = importlib.import_module("opencda.scenario_testing.archived.%s" % opt.test_scenario)
+            testing_scenario = importlib.import_module("ecloud.scenario_testing.archived.%s" % opt.test_scenario)
         except ModuleNotFoundError:
-            error = format("ERROR: %s.py not found under opencda/scenario_testing[/archived]" % opt.test_scenario)
+            error = format("ERROR: %s.py not found under ecloud/scenario_testing[/archived]" % opt.test_scenario)
 
     config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                               'opencda/scenario_testing/config_yaml/%s.yaml' % opt.test_scenario)
+                               'ecloud/scenario_testing/config_yaml/%s.yaml' % opt.test_scenario)
     if not os.path.isfile(config_yaml):
         config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                               'opencda/scenario_testing/config_yaml/archived/%s.yaml' % opt.test_scenario)
+                               'ecloud/scenario_testing/config_yaml/archived/%s.yaml' % opt.test_scenario)
         if not os.path.isfile(config_yaml):
-            error = format("opencda/scenario_testing/config_yaml/[archived/]%s.yaml not found!" % opt.test_scenario)
+            error = format("ecloud/scenario_testing/config_yaml/[archived/]%s.yaml not found!" % opt.test_scenario)
 
     if error is not None:
         sys.exit(error)
 
     if opt.build:
-        subprocess.run(['python','-m','grpc_tools.protoc','-I./opencda/protos','--python_out=.','--grpc_python_out=.','./opencda//protos/ecloud.proto'])
+        subprocess.run(['python','-m','grpc_tools.protoc','-I./ecloud/protos','--python_out=.','--grpc_python_out=.','./ecloud//protos/ecloud.proto'])
 
     scenario_runner = getattr(testing_scenario, 'run_scenario')
     scenario_runner(opt, config_yaml)

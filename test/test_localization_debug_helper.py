@@ -17,7 +17,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
 import mocked_carla as mcarla
-from opencda.core.sensing.localization.localization_debug_helper import LocDebugHelper
+from ecloud.core.sensing.localization.localization_debug_helper import LocDebugHelper
 
 
 class TestLocDebugHelper(unittest.TestCase):
