@@ -15,7 +15,7 @@ import subprocess
 import logging
 import re
 
-from ecloud.version import __version__, __ecloud__
+from ecloud.globals import __version__, __ecloud__
 
 DEFAULT_SCENARIO="ecloud_4lane_scenario_dist_config"
 logger = logging.getLogger(__ecloud__)

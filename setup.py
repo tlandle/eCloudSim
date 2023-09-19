@@ -1,6 +1,6 @@
 from os.path import dirname, realpath
 from setuptools import setup, find_packages, Distribution
-from ecloud.version import __version__
+from ecloud.globals import __version__
 
 
 def _read_requirements_file():

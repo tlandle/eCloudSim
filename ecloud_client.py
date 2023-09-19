@@ -17,7 +17,7 @@ import time
 
 import carla
 
-from ecloud.version import __version__
+from ecloud.globals import __version__
 from ecloud.core.common.cav_world import CavWorld
 from ecloud.core.common.vehicle_manager import VehicleManager
 from ecloud.core.application.edge.transform_utils import *
