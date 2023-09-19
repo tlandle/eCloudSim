@@ -285,7 +285,6 @@ class ScenarioManager:
                  xodr_path=None,
                  town=None,
                  cav_world=None,
-                 config_file=None,
                  distributed=False,
                  log_level=0,
                  ecloud_config=None,
@@ -304,13 +303,12 @@ class ScenarioManager:
         VEHICLE_IP = cloud_config[environment]["vehicle_client_public_ip"]
 
         # TODO: move these to EcloudConfig
-        self.config_file = config_file
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.perception = scenario_params['perception_active'] if 'perception_active' in scenario_params else False
 
         if ecloud_config is None:
-            self.ecloud_config = EcloudConfig(load_yaml(self.config_file))
+            self.ecloud_config = EcloudConfig(scenario_params)
         else:
             self.ecloud_config = ecloud_config
         self.ecloud_config.set_log_level(log_level)
@@ -440,7 +438,7 @@ class ScenarioManager:
 
             self.debug_helper.update_sim_start_timestamp(time.time())
 
-            self.scenario = json.dumps(scenario_params) #self.config_file
+            self.scenario = json.dumps(scenario_params)
             self.carla_version = self.carla_version
 
         # eCLOUD END
@@ -870,7 +868,7 @@ class ScenarioManager:
         logger.info('Creating single CAVs.')
         single_cav_list = []
 
-        config_yaml = load_yaml(self.config_file)
+        config_yaml = self.scenario_params
         for vehicle_index in range(self.vehicle_count):
             logger.debug(f"Creating VehiceManagerProxy for vehicle {vehicle_index}")
 
@@ -926,7 +924,7 @@ class ScenarioManager:
         logger.info('Creating edge CAVs.')
         edge_list = []
 
-        config_yaml = load_yaml(self.config_file)
+        config_yaml = self.scenario_params
         # create edges
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):

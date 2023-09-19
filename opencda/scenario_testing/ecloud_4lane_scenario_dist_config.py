@@ -44,8 +44,16 @@ TOWN = 'Town06'
 def run_scenario(opt, config_yaml):
     step_count = 0
     step = 0
+    run_distributed = opt.distributed
+
     try:
         scenario_params = load_yaml(config_yaml)
+
+        if opt.num_cars != 0:
+            assert 'ecloud' in scenario_params['scenario']
+            scenario_params['scenario']['ecloud']['num_cars'] = opt.num_cars
+            scenario_params['scenario']['ecloud']['location_type'] = 'random'
+
         ecloud_config = EcloudConfig(scenario_params)
         step_count = ecloud_config.get_step_count() if opt.steps == 0 else opt.steps
         # sanity checks...
@@ -61,10 +69,6 @@ def run_scenario(opt, config_yaml):
         world_pitch = scenario_params['world']['pitch'] if 'pitch' in scenario_params['world'] else -90
         world_yaw = scenario_params['world']['yaw'] if 'yaw' in scenario_params['world'] else 0
 
-        run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else \
-                          True if 'ecloud' in scenario_params else \
-                          False
-
         cav_world = CavWorld(opt.apply_ml)
         # create scenario manager
         scenario_manager = sim_api.ScenarioManager(scenario_params,
@@ -72,7 +76,6 @@ def run_scenario(opt, config_yaml):
                                                    opt.version,
                                                    town=TOWN,
                                                    cav_world=cav_world,
-                                                   config_file=config_yaml,
                                                    distributed=run_distributed,
                                                    log_level=opt.log_level,
                                                    ecloud_config=ecloud_config,
