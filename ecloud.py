@@ -13,11 +13,15 @@ import os
 import sys
 import subprocess
 import logging
+import re
 
 from ecloud.version import __version__
 
 DEFAULT_SCENARIO="ecloud_4lane_scenario_dist_config"
 logger = logging.getLogger("ecloud")
+
+import_module = re.compile(r'import ([\.A-Za-z0-9_-]+) ')
+import_class = re.compile(r'from ([\.A-Za-z0-9_-]+) import')
 
 def arg_parse():
     parser = argparse.ArgumentParser(description="eCloudSim scenario runner.")
@@ -78,6 +82,33 @@ def main():
             error = format("ecloud/scenario_testing/config_yaml/[archived/]%s.yaml not found!" % opt.test_scenario)
 
     if error is not None:
+        for (root,_,files) in os.walk('ecloud', topdown=True):
+            for file in files:
+                if file.endswith('.py'):
+                    # print(f"{file}")
+                    with open(os.path.join(root, file), 'r', encoding='utf-8') as f:
+                        s = f.read()
+                        for l in s.splitlines():
+                            x = re.search(import_module, l)
+                            if x:
+                                try:
+                                    importlib.import_module(x.group(1))
+                                except Exception as e:
+                                    print(f"ERROR importing {x.group(1)} - {e}")
+                                    continue
+                                #else:
+                                #    print(f"MODULE {x.group(1)} imported OK")
+                            
+                            x = re.search(import_class, l)
+                            if x:
+                                try:
+                                    importlib.import_module(x.group(1))
+                                except Exception as e:
+                                    print(f"ERROR importing {x.group(1)} - {e}")
+                                    continue
+                                #else:
+                                #    print(f"MODULE {x.group(1)} imported OK")
+
         sys.exit(error)
 
     if opt.build:
