@@ -57,6 +57,7 @@ def arg_parse():
     return opt
 
 def check_imports():
+    missing_imports = {}
     for (root,_,files) in os.walk(__ecloud__, topdown=True):
             for file in files:
                 if file.endswith('.py'):
@@ -66,10 +67,13 @@ def check_imports():
                         for l in s.splitlines():
                             x = re.search(import_module, l)
                             if x:
+                                module = x.group(1)
                                 try:
-                                    importlib.import_module(x.group(1))
+                                    importlib.import_module(module)
                                 except Exception as e:
-                                    logger.error(f"ERROR importing {x.group(1)} - {e}")
+                                    if module not in missing_imports.keys() and f"{e}" not in missing_imports.values():
+                                        missing_imports[module] = f"{e}"
+                                        logger.error(f"ERROR importing {module} - {e}")
                                     continue
                                 else:
                                     logger.debug(f"MODULE {x.group(1)} imported OK")
@@ -77,12 +81,15 @@ def check_imports():
                             x = re.search(import_class, l)
                             if x:
                                 try:
-                                    importlib.import_module(x.group(1))
+                                    module = x.group(1)
+                                    importlib.import_module(module)
                                 except Exception as e:
-                                    logger.error(f"ERROR importing {x.group(1)} - {e}")
+                                    if module not in missing_imports.keys() and f"{e}" not in missing_imports.values():
+                                        missing_imports[module] = f"{e}"
+                                        logger.error(f"ERROR importing {module} - {e}")
                                     continue
                                 else:
-                                    logger.debug(f"MODULE {x.group(1)} imported OK")
+                                    logger.debug(f"MODULE {module} imported OK")
 
 def get_scenario(opt):
     testing_scenario = None
