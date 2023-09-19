@@ -24,6 +24,12 @@ class EcloudConfig(object):
     DRIVE = "drive"
 
     FORMAT_STRING = "%(asctime)s %(filename)s %(funcName)s %(lineno)d %(message)s"
+    LOGGING_FIELD_STYLES = {'asctime': {'color': 'green'}, 
+                            'filename': {'bold': True, 'color': 'blue'}, 
+                            'funcName': {'color': 'cyan'},
+                            'lineno': {'color' : 'cyan'},
+                            'level': coloredlogs.DEFAULT_LEVEL_STYLES}
+    DATE_FORMAT_STRING = '%H:%M:%S'
 
     log_level = logging.INFO
     logger = None
@@ -113,12 +119,8 @@ class EcloudConfig(object):
                             logger=EcloudConfig.logger,
                             miliseconds=True,
                             fmt=EcloudConfig.FORMAT_STRING,
-                            datefmt='%H:%M:%S',
-                            field_styles={'asctime': {'color': 'green'}, 
-                                          'filename': {'bold': True, 'color': 'blue'}, 
-                                          'funcName': {'color': 'cyan'},
-                                          'lineno': {'color' : 'cyan'},
-                                          'level': coloredlogs.DEFAULT_LEVEL_STYLES},
+                            datefmt=EcloudConfig.DATE_FORMAT_STRING,
+                            field_styles=EcloudConfig.LOGGING_FIELD_STYLES,
                             level_styles=coloredlogs.DEFAULT_LEVEL_STYLES,
                             reconfigure=True,
                             )
@@ -139,10 +141,8 @@ class EcloudConfig(object):
                             logger=EcloudConfig.logger,
                             miliseconds=True,
                             fmt=EcloudConfig.FORMAT_STRING,
-                            datefmt='%H:%M:%S',
-                            field_styles={'asctime': {'color': 'green'}, 
-                                          'filename': {'bold': True, 'color': 'blue'}, 
-                                          'funcName': {'color': 'cyan'}},
+                            datefmt=EcloudConfig.DATE_FORMAT_STRING,
+                            field_styles=EcloudConfig.LOGGING_FIELD_STYLES,
                             level_styles=coloredlogs.DEFAULT_LEVEL_STYLES,
                             reconfigure=True,
                             )
