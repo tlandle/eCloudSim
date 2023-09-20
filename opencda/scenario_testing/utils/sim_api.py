@@ -1206,9 +1206,9 @@ class ScenarioManager:
 
             num_clients = len(VEHICLE_IP.split(","))
             if(self.run_distributed):
-              cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_no_perception'
+              cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_no_perception'
               if self.perception:
-                  cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_with_perception'
+                  cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_with_perception'
             else:
               cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_no_perception'
               if self.perception:
