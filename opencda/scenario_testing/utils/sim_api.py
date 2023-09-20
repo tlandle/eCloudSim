@@ -1172,22 +1172,6 @@ class ScenarioManager:
         data_key = f"client_individual_step_time"
         self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
-        
-        data_key = f"client_individual_step_times_dict"
-
-        data_df = pd.DataFrame.from_dict(ScenarioManager.debug_helper.client_tick_time_dict)
-        data_df['num_cars'] = self.vehicle_count
-        data_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
-
-        data_df_path = f'./{cumulative_stats_folder_path}/df_{data_key}'
-        picklefile = open(data_df_path, 'wb')
-        
-        # pickle the dataFrame
-        pickle.dump(data_df, picklefile)
-        print(data_df)
-        #close file
-        picklefile.close()
-
     def evaluate_client_data(self, client_data_key, cumulative_stats_folder_path):
         all_client_data_list = []
         for _, vehicle_manager_proxy in self.vehicle_managers.items():
