@@ -39,6 +39,7 @@
 #define MAX_CARS 512
 #define INVALID_TIME 0
 #define TICK_ID_INVALID -1
+#define VEHICLE_UPDATE_BATCH_SIZE 32
 
 #define ECLOUD_PUSH_BASE_PORT 50101
 #define ECLOUD_PUSH_API_PORT 50061
@@ -192,18 +193,24 @@ public:
 
         DLOG(INFO) << "Server_GetVehicleUpdates - deserializing updates.";
 
-        for ( int i = 0; i < pendingReplies_.size(); i++ )
+        const int16_t replies = pendingReplies_.size();
+        for ( int i = 0; i < replies; i++ )
         {
             VehicleUpdate *update = reply->add_vehicle_update();
-            update->ParseFromString(pendingReplies_[i]);
+            const std::string msg = pendingReplies_.back();
+            pendingReplies_.pop_back();
+            update->ParseFromString(msg);
             LOG(INFO) << "update: vehicle_index - " << update->vehicle_index();
+
+            if ( i == VEHICLE_UPDATE_BATCH_SIZE ) // keep from exhausting resources
+                break;
         }
 
         DLOG(INFO) << "Server_GetVehicleUpdates - updates deserialized.";
 
-        numRepliedVehicles_ = 0;
-        pendingReplies_.clear();
-
+        if ( pendingReplies_.size() == 0 )
+            numRepliedVehicles_ = 0;
+    
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
         return reactor;
@@ -308,7 +315,7 @@ public:
             reply->set_vehicle_index(numRegisteredVehicles_.load());
             const std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), ECLOUD_PUSH_BASE_PORT + numRegisteredVehicles_.load() );
             PushClient *vehicleClient = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
-            vehicleClients_.push_back(vehicleClient);
+            vehicleClients_.push_back(std::move(vehicleClient));
             numRegisteredVehicles_++;
             mu_.Unlock();
 
@@ -371,10 +378,7 @@ public:
 
         const int32_t tickId = request->tick_id();
         for ( int i = 0; i < vehicleClients_.size(); i++ )
-        {
-            std::thread t(&PushClient::PushTick, vehicleClients_[i], tickId, command_, INVALID_TIME);
-            t.detach();
-        }
+            vehicleClients_[i]->PushTick( tickId, command_, INVALID_TIME ); // don't thread --> block
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -425,9 +429,7 @@ public:
 
         LOG(INFO) << "pushing END";
         for ( int i = 0; i < vehicleClients_.size(); i++ )
-        {
             vehicleClients_[i]->PushTick(TICK_ID_INVALID, Command::END, INVALID_TIME); // don't thread --> block
-        }
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
