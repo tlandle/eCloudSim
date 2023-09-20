@@ -215,9 +215,18 @@ class ScenarioManager:
 
     async def server_unpack_debug_data(self, stub_):
         logger.info("fetching vehicle updates")
-        ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
+        vehicle_updates_list = []
+        while True:
+            ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
+            if len(ecloud_update.vehicle_update) == 0:
+                break
+            for v in ecloud_update.vehicle_update:
+                u = ecloud.VehicleUpdate()
+                u.CopyFrom(v)
+                vehicle_updates_list.append(u)
+            await asyncio.sleep(0.1)
         #logger.debug(f"{ecloud_update}")
-        for vehicle_update in ecloud_update.vehicle_update:
+        for vehicle_update in vehicle_updates_list:
             vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
             vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( vehicle_update.loc_debug_helper )
             vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( vehicle_update.planer_debug_helper )
