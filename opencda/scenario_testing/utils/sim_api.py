@@ -299,7 +299,7 @@ class ScenarioManager:
 
         overall_step_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC # barrier sync means this is the same for ALL vehicles per tick
         step_latency_ms = overall_step_time_ms - ( tick.last_client_duration_ns * NSEC_TO_MSEC ) # we care about the worst case per tick - how much did we affect the final vehicle to report. This captures both delay in getting that vehicle started and in it reporting its completion
-        logger.debug(f"timestamps: overall_step_time_ms - {round(overall_step_time_ms, 2)}ms | step_latency_ms - {round(step_latency_ms, 2)}ms")        
+        logger.info(f"timestamps: overall_step_time_ms - {round(overall_step_time_ms, 2)}ms | step_latency_ms - {round(step_latency_ms, 2)}ms")        
         self.debug_helper.update_network_time_timestamp(tick.tick_id, step_latency_ms) # same for all vehicles *per tick*
         self.debug_helper.update_overall_step_time_timestamp(tick.tick_id, overall_step_time_ms)
 
