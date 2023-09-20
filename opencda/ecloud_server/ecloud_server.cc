@@ -378,7 +378,11 @@ public:
 
         const int32_t tickId = request->tick_id();
         for ( int i = 0; i < vehicleClients_.size(); i++ )
-            vehicleClients_[i]->PushTick( tickId, command_, INVALID_TIME ); // don't thread --> block
+        {
+            PushClient *v = vehicleClients_[i];
+            std::thread t( &PushClient::PushTick, v, tickId, command_, INVALID_TIME );
+            t.detach();
+        }
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
