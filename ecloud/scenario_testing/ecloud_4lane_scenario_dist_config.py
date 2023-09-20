@@ -86,10 +86,10 @@ def run_scenario(opt, config_yaml):
             scenario_manager.client. \
                 start_recorder(LOG_NAME, True)
 
-        asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
-
+        
         # create single cavs        
         if run_distributed:
+            asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
             single_cav_list = \
                 scenario_manager.create_distributed_vehicle_manager(application=['single']) 
         else:    

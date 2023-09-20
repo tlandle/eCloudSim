@@ -233,4 +233,3 @@ class ClientDebugHelper(PlanDebugHelper):
             t = ecloud.Timestamps()
             t.CopyFrom(obj)
             self.timestamps_list.append(t)
-  

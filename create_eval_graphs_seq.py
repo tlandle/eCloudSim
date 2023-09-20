@@ -64,6 +64,7 @@ def create_box_plot(data, x, y, labels):
     Axes: The axis object containing the box plot.
     """
     ax = sns.boxplot(data=data, x=x, y=y)
+    plt.yscale('log')
     ax.set(xlabel=labels['xlabel'],
            ylabel=labels['ylabel'],
            title=labels['title'])
@@ -249,6 +250,7 @@ def plot_client_step_time():
     # Box plot
     plt.figure(figsize=(10, 6))
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_step_time_ms', labels=labels)
+    ax.set(ylim=(0,3000))
     save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_step_time_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:

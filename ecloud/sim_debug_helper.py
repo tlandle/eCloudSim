@@ -75,3 +75,4 @@ class SimDebugHelper(PlanDebugHelper):
         if vehicle_index not in self.client_process_time_dict:
           self.client_process_time_dict[vehicle_index] = []
         self.client_process_time_dict[vehicle_index].append(time_step)
+        

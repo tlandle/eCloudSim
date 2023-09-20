@@ -157,9 +157,18 @@ class ScenarioManager:
 
     async def server_unpack_debug_data(self, stub_):
         logger.info("fetching vehicle updates")
-        ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
+        vehicle_updates_list = []
+        while True:
+            ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
+            if len(ecloud_update.vehicle_update) == 0:
+                break
+            for v in ecloud_update.vehicle_update:
+                u = ecloud.VehicleUpdate()
+                u.CopyFrom(v)
+                vehicle_updates_list.append(u)
+            await asyncio.sleep(0.1)
         #logger.debug(f"{ecloud_update}")
-        for vehicle_update in ecloud_update.vehicle_update:
+        for vehicle_update in vehicle_updates_list:
             vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
             vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( vehicle_update.loc_debug_helper )
             vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( vehicle_update.planer_debug_helper )
@@ -241,7 +250,7 @@ class ScenarioManager:
 
         overall_step_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC # barrier sync means this is the same for ALL vehicles per tick
         step_latency_ms = overall_step_time_ms - ( tick.last_client_duration_ns * NSEC_TO_MSEC ) # we care about the worst case per tick - how much did we affect the final vehicle to report. This captures both delay in getting that vehicle started and in it reporting its completion
-        logger.debug(f"timestamps: overall_step_time_ms - {round(overall_step_time_ms, 2)}ms | step_latency_ms - {round(step_latency_ms, 2)}ms")        
+        logger.info(f"timestamps: overall_step_time_ms - {round(overall_step_time_ms, 2)}ms | step_latency_ms - {round(step_latency_ms, 2)}ms")        
         self.debug_helper.update_network_time_timestamp(tick.tick_id, step_latency_ms) # same for all vehicles *per tick*
         self.debug_helper.update_overall_step_time_timestamp(tick.tick_id, overall_step_time_ms)
 
@@ -1175,24 +1184,26 @@ class ScenarioManager:
 
             perform_txt = ''
 
+            num_clients = len(VEHICLE_IP.split(",")) #TODO: fix from YAML
             if(self.run_distributed):
-              cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_dist_no_perception'
+              cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_no_perception'
               if self.perception:
-                  cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_dist_with_perception'
+                  cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_with_perception'
             else:
-              cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_seq_no_perception'
+              cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_no_perception'
               if self.perception:
-                cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_seq_with_perception'
+                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_with_perception'
 
 
             if not os.path.exists(cumulative_stats_folder_path):
                 os.makedirs(cumulative_stats_folder_path)
 
             self.evaluate_agent_data(cumulative_stats_folder_path)
-            self.evaluate_network_data(cumulative_stats_folder_path)
-            self.evaluate_idle_data(cumulative_stats_folder_path)
-            self.evaluate_client_process_data(cumulative_stats_folder_path)
-            self.evaluate_individual_client_data(cumulative_stats_folder_path)
+            if(self.run_distributed):
+              self.evaluate_network_data(cumulative_stats_folder_path)
+              self.evaluate_idle_data(cumulative_stats_folder_path)
+              self.evaluate_client_process_data(cumulative_stats_folder_path)
+              self.evaluate_individual_client_data(cumulative_stats_folder_path)
 
             client_helper = ClientDebugHelper(0)
             debug_data_lists = client_helper.get_debug_data().keys()
