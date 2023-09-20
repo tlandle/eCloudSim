@@ -93,14 +93,24 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
         
         logger.info("eCloud push server initialized")
         self.q = q
+        self.last_tick = 0
 
     async def PushTick(self, 
                        tick: ecloud.Tick, 
                        context: grpc.aio.ServicerContext) -> ecloud.Empty:
 
+        if tick.tick_id != ( self.last_tick + 1 ):
+            logger.error(f'received an out of sync tick. had {self.last_tick} | received {tick.tick_id}')
+        else:
+            self.last_tick = tick.tick_id
+
         logger.debug(f"PushTick(): tick - {tick}")
-        assert(self.q.empty())
-        self.q.put_nowait(tick)
+        #assert(self.q.empty())
+        if not self.q.empty():
+            t = self.q.get_nowait()
+            logger.error(f'received tick {tick} while {t} was already present')
+        else:
+            self.q.put_nowait(tick)
 
         return ecloud.Empty()     
 
