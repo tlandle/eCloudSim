@@ -99,9 +99,9 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
                        tick: ecloud.Tick, 
                        context: grpc.aio.ServicerContext) -> ecloud.Empty:
 
-        if tick.tick_id != ( self.last_tick + 1 ):
+        if tick.tick_id != ( self.last_tick + 1 ) and tick.tick_id > 0 and self.last_tick > 0:
             logger.error(f'received an out of sync tick. had {self.last_tick} | received {tick.tick_id}')
-        else:
+        elif tick.tick_id:
             self.last_tick = tick.tick_id
 
         logger.debug(f"PushTick(): tick - {tick}")
