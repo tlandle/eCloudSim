@@ -8,6 +8,7 @@ Analysis + visualization functions for platooning
 from opencda.core.plan.planer_debug_helper \
     import PlanDebugHelper
 
+import ecloud_pb2 as ecloud
 
 class ClientDebugHelper(PlanDebugHelper):
     """This class aims to save statistics for client time
@@ -38,6 +39,7 @@ class ClientDebugHelper(PlanDebugHelper):
         self.controller_step_time_list = []
         self.vehicle_step_time_list = []
         self.control_time_list = []
+        self.timestamps_list = []
 
         self.debug_data = {
             "client_control_time" : self.control_time_list,
@@ -139,6 +141,17 @@ class ClientDebugHelper(PlanDebugHelper):
         """
         self.control_time_list.append(time)
 
+    def update_timestamp(self, timestamps: ecloud.Timestamps):
+        """
+        Update the platoon related vehicle information.
+
+        Parameters
+        ----------
+        """
+        t = ecloud.Timestamps()
+        t.CopyFrom(timestamps)
+        self.timestamps_list.append(t)
+
 
     def serialize_debug_info(self, proto_debug_helper):
         # TODO: extend instead of append? or [:] = ?
@@ -169,6 +182,11 @@ class ClientDebugHelper(PlanDebugHelper):
 
         for obj in self.control_time_list:
             proto_debug_helper.control_time_list.append(obj)
+
+        for obj in self.timestamps_list:
+            t = ecloud.Timestamps()
+            t.CopyFrom(obj)
+            proto_debug_helper.timestamps_list.append(t)
 
 
     def deserialize_debug_info(self, proto_debug_helper):
@@ -209,4 +227,10 @@ class ClientDebugHelper(PlanDebugHelper):
         self.control_time_list.clear()
         for obj in proto_debug_helper.control_time_list:
             self.control_time_list.append(obj)
+
+        self.timestamps_list.clear()
+        for obj in proto_debug_helper.timestamps_list:
+            t = ecloud.Timestamps()
+            t.CopyFrom(obj)
+            self.timestamps_list.append(t)
   

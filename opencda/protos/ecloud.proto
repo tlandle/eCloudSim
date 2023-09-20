@@ -6,7 +6,7 @@ package ecloud;
 message Empty {}
 
 message Timestamps {
-  int32 vehicle_index = 1; // vehicle_uid
+  int32 tick_id = 1;
   google.protobuf.Timestamp client_start_tstamp = 2; // when client start process
   google.protobuf.Timestamp client_end_tstamp = 3; // when client done process
 }
@@ -14,9 +14,7 @@ message Timestamps {
 message Tick {
   int32 tick_id = 1; // use as bool for server
   Command command = 2;
-  google.protobuf.Timestamp sm_start_tstamp = 3; // when sim sent to grpc
-  int64 last_client_duration_ns = 4; // total time of last client. latency is: ( receipt_time - start time - duration )
-  repeated Timestamps timestamps = 5;
+  int64 last_client_duration_ns = 3; // total time of last client. latency is: ( receipt_time - start time - duration )
 }
 
 enum Command {
@@ -137,6 +135,7 @@ message ClientDebugHelper {
     repeated float vehicle_step_time_list = 7;
     repeated float controller_step_time_list = 8;
     repeated float control_time_list = 9;
+    repeated Timestamps timestamps_list = 10;
 }
 
 message RegistrationInfo {
@@ -155,11 +154,9 @@ message VehicleUpdate {
   LocDebugHelper loc_debug_helper = 4;
   PlanerDebugHelper planer_debug_helper = 5;
   ClientDebugHelper client_debug_helper = 6;
-  google.protobuf.Timestamp sm_start_tstamp = 7;
-  google.protobuf.Timestamp client_start_tstamp = 8; 
-  google.protobuf.Timestamp client_end_tstamp = 9;
-  Transform transform = 10;
-  Velocity velocity = 11;
+  Transform transform = 7;
+  Velocity velocity = 8;
+  int64 duration_ns = 9;
 }
 
 message EcloudResponse {
