@@ -39,6 +39,7 @@
 #define MAX_CARS 512
 #define INVALID_TIME 0
 #define TICK_ID_INVALID -1
+#define VEHICLE_UPDATE_BATCH_SIZE 32
 
 #define ECLOUD_PUSH_BASE_PORT 50101
 #define ECLOUD_PUSH_API_PORT 50061
@@ -192,18 +193,24 @@ public:
 
         DLOG(INFO) << "Server_GetVehicleUpdates - deserializing updates.";
 
-        for ( int i = 0; i < pendingReplies_.size(); i++ )
+        const int16_t replies = pendingReplies_.size();
+        for ( int i = 0; i < replies; i++ )
         {
             VehicleUpdate *update = reply->add_vehicle_update();
-            update->ParseFromString(pendingReplies_[i]);
+            const std::string msg = pendingReplies_.back();
+            pendingReplies_.pop_back();
+            update->ParseFromString(msg);
             LOG(INFO) << "update: vehicle_index - " << update->vehicle_index();
+
+            if ( i == VEHICLE_UPDATE_BATCH_SIZE ) // keep from exhausting resources
+                break;
         }
 
         DLOG(INFO) << "Server_GetVehicleUpdates - updates deserialized.";
 
-        numRepliedVehicles_ = 0;
-        pendingReplies_.clear();
-
+        if ( pendingReplies_.size() == 0 )
+            numRepliedVehicles_ = 0;
+    
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
         return reactor;
