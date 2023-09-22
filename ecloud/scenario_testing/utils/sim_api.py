@@ -29,19 +29,17 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 from ecloud.core.common.vehicle_manager_proxy import VehicleManagerProxy
 from ecloud.core.common.vehicle_manager import VehicleManager
-from ecloud.core.application.platooning.platooning_manager import \
-    PlatooningManager
+from ecloud.core.application.platooning.platooning_manager import PlatooningManager
 from ecloud.core.common.cav_world import CavWorld
-from ecloud.scenario_testing.utils.customized_map_api import \
-    load_customized_world, bcolors
-from ecloud.core.application.edge.edge_manager import \
-     EdgeManager
-from ecloud.sim_debug_helper import SimDebugHelper
-from ecloud.client_debug_helper import ClientDebugHelper
+from ecloud.scenario_testing.utils.customized_map_api import load_customized_world, bcolors
 from ecloud.scenario_testing.utils.yaml_utils import load_yaml
 import ecloud.core.plan.drive_profile_plotting as open_plt
 
-# TODO: make base ecloud folder
+from ecloud.core.application.edge.edge_manager import EdgeManager
+from ecloud.sim_debug_helper import SimDebugHelper
+from ecloud.client_debug_helper import ClientDebugHelper
+import ecloud.globals as ecloud_globals
+from ecloud.globals import EnvironmentConfig
 from ecloud.core.common.ecloud_config import EcloudConfig
 from ecloud.ecloud_server.ecloud_comms import EcloudClient, ecloud_run_push_server
 
@@ -55,7 +53,7 @@ ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 
 CARLA_IP = None
 ECLOUD_IP = None
-VEHICLE_IP = None
+VEHICLE_IPS = None
 
 logger = logging.getLogger("ecloud")
 
@@ -167,6 +165,7 @@ class ScenarioManager:
                 u.CopyFrom(v)
                 vehicle_updates_list.append(u)
             await asyncio.sleep(0.1)
+
         #logger.debug(f"{ecloud_update}")
         for vehicle_update in vehicle_updates_list:
             vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
@@ -226,8 +225,9 @@ class ScenarioManager:
                     vehicle_manager_proxy.vehicle.set_velocity(v)
                     vehicle_manager_proxy.vehicle.set_transform(t)
         except Exception as e:
-            logger.error(f'{e} \n {vehicle_update}')
+            logger.error(f'failed to properly unpack updates - {e} \n\t {vehicle_update}')
             raise
+
         logger.debug("vehicle updates unpacked")
 
     async def server_push_waypoints(self, stub_, wps_):
@@ -238,7 +238,7 @@ class ScenarioManager:
     async def server_do_tick(self, stub_, update_):
         empty = await stub_.Server_DoTick(update_)
 
-        assert(self.push_q.empty())
+        assert(self.push_q.empty()) # only process one push at a time
         tick = await self.push_q.get()
         snapshot_t = time.time_ns()
         self.push_q.task_done()
@@ -290,7 +290,7 @@ class ScenarioManager:
 
     def __init__(self, scenario_params,
                  apply_ml,
-                 carla_version='0.9.12',
+                 carla_version='0.9.12', # TODO global
                  xodr_path=None,
                  town=None,
                  cav_world=None,
@@ -302,14 +302,13 @@ class ScenarioManager:
 
         global CARLA_IP
         global ECLOUD_IP
-        global VEHICLE_IP
+        global VEHICLE_IPS
 
         self.sm_start_tstamp.GetCurrentTime()
 
-        cloud_config = load_yaml("cloud_config.yaml")
-        CARLA_IP = cloud_config[environment]["carla_server_public_ip"]
-        ECLOUD_IP = cloud_config[environment]["ecloud_server_public_ip"]
-        VEHICLE_IP = cloud_config[environment]["vehicle_client_public_ip"]
+        CARLA_IP = EnvironmentConfig.get_carla_ip()
+        ECLOUD_IP = EnvironmentConfig.get_ecloud_ip()
+        VEHICLE_IPS = EnvironmentConfig.get_client_ip_list() # TODO: option for multi-node
 
         # TODO: move these to EcloudConfig
         self.scenario_params = scenario_params
@@ -341,6 +340,7 @@ class ScenarioManager:
 
             # PERF Profiling
             # self.ecloud_server_process = subprocess.Popen(['sudo','perf','record','-g','./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'], stderr=sys.stdout.buffer)
+            # TODO move path to globals
             self.ecloud_server_process = subprocess.Popen(['./ecloud/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'], stderr=sys.stdout.buffer)
 
         if run_carla and ( CARLA_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
@@ -435,8 +435,8 @@ class ScenarioManager:
                 assert( False, "ML should only be run on the distributed clients")
 
             channel = grpc.aio.insecure_channel(
-            target=f"{ECLOUD_IP}:50051",
-            options=[
+            target=f"{ECLOUD_IP}:50051", # TODO: move port to globals
+            options=[ # TODO: move options to globals
                 ("grpc.lb_policy_name", "pick_first"),
                 ("grpc.enable_retries", 1),
                 ("grpc.keepalive_timeout_ms", TIMEOUT_MS),
@@ -457,8 +457,6 @@ class ScenarioManager:
     async def run_comms(self):
         self.push_q = asyncio.Queue()
         self.push_server = asyncio.create_task(ecloud_run_push_server(ECLOUD_PUSH_API_PORT, self.push_q))
-        #self.push_server = threading.Thread(target=ecloud_run_push_server, args=(ECLOUD_PUSH_API_PORT, self.push_q,))
-        #self.push_server.start()
 
         await asyncio.sleep(1) # this yields CPU to allow the PushServer to start
 
@@ -468,7 +466,6 @@ class ScenarioManager:
         server_request.version = self.carla_version
         server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
         server_request.is_edge = self.is_edge
-        server_request.vehicle_machine_ip = VEHICLE_IP
 
         await self.server_start_scenario(self.ecloud_server, server_request)
 
@@ -572,8 +569,7 @@ class ScenarioManager:
         platoon_list = []
         self.cav_world = CavWorld(self.apply_ml)
 
-        # we use lincoln as default choice since our UCLA mobility lab use the
-        # same car
+        # Lincoln is default choice as chosen by the UCLA mobility lab
         default_model = 'vehicle.lincoln.mkz_2017'
 
         cav_vehicle_bp = \
@@ -826,6 +822,8 @@ class ScenarioManager:
         logger.info('CARLA traffic flow generated.')
         return tm, bg_list
 
+    # END Core OpenCDA
+
     def close(self, spectator=None):
         """
         Simulation close.
@@ -845,25 +843,22 @@ class ScenarioManager:
         self.world.apply_settings(self.origin_settings)
         logger.debug(f"world state restored...")
 
-    # END Core OpenCDA
-
-    # -------------------------------------------------------
-
     # BEGIN eCloud
     def create_distributed_vehicle_manager(self, application,
                                map_helper=None,
                                data_dump=False):
         """
-        Create a list of single CAVs.
+        Create a list of single CAVs proxies.
+
+        Vehicle Manager Proxies are at lighter weight container class that contains
+        an Actor Proxy. These can be used as the Spectator vehicle, but mostly they server
+        as a container for debug helpers that we can dump data 1:1 after receiving it from
+        distributed Clients that have the heavier weight Vehicle Manager class object
 
         Parameters
         ----------
         application : list
             The application purpose, a list, eg. ['single'], ['platoon'].
-
-        map_helper : function
-            A function to help spawn vehicle on a specific position in
-            a specific map.
 
         data_dump : bool
             Whether to dump sensor data.
@@ -871,9 +866,9 @@ class ScenarioManager:
         Returns
         -------
         single_cav_list : list
-            A list contains all single CAVs' vehicle manager.
+            A list contains all single CAVs' vehicle manager proxies
         """
-        logger.info('Creating single CAVs.')
+        logger.info('Creating single CAVs proxies')
         single_cav_list = []
 
         config_yaml = self.scenario_params
@@ -895,14 +890,14 @@ class ScenarioManager:
 
             vehicle_manager_proxy.start_vehicle()
 
-            vehicle_manager_proxy.v2x_manager.set_platoon(None)
-            logger.debug("set platoon on vehicle manager")
+            vehicle_manager_proxy.v2x_manager.set_platoon(None) # empty call
+            logger.debug("set platoon on vehicle manager") # empty call
 
             single_cav_list.append(vehicle_manager_proxy)
             self.vehicle_managers[vehicle_index] = vehicle_manager_proxy
 
         self.tick_world()
-        logger.info("Finished creating vehicle managers and returning cav list")
+        logger.info("Finished creating vehicle manager proxies and returning cav list")
         return single_cav_list
 
     def create_edge_manager(self, application,

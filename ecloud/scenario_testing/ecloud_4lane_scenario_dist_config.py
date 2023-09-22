@@ -18,7 +18,7 @@ DO NOT USE for 2-Lane Free
 import os
 import time
 import asyncio
-import sys
+import logging
 
 # 3rd Party
 import carla
@@ -40,6 +40,8 @@ import ecloud_pb2 as ecloud
 LOG_NAME = f"{os.path.basename(__file__)}.log" # data drive from file name?
 SCENARIO_NAME = f"{os.path.basename(__file__)}" # data drive from file name?
 TOWN = 'Town06'
+
+logger = logging.getLogger("ecloud")
 
 def run_scenario(opt, config_yaml):
     step_count = 0
@@ -110,7 +112,7 @@ def run_scenario(opt, config_yaml):
  
         flag = True
         while flag:
-            print("Step: %d" %step)
+            logger.critical("ticking - step: %d" % step)
             scenario_manager.tick_world()
             if run_distributed:
                 flag = scenario_manager.broadcast_tick()
@@ -123,7 +125,7 @@ def run_scenario(opt, config_yaml):
                     control = single_cav.run_step()
                     single_cav.vehicle.apply_control(control)
                 post_client_tick_time = time.time()
-                print("Client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
+                logger.info("client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
                 if step > 0: # discard the first tick as startup is a major outlier
                     scenario_manager.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
@@ -147,7 +149,13 @@ def run_scenario(opt, config_yaml):
                 break            
     
     except Exception as e:
-        print(f'ERROR: {e}')
+        if type(e) == KeyboardInterrupt:
+            logger.info('exited by user.')
+        elif type(e) == SystemExit:
+            logger.info(f'system exit: {e}')
+        else:
+            logger.critical(e)
+            raise
 
     else:
         if run_distributed:
@@ -166,11 +174,11 @@ def run_scenario(opt, config_yaml):
                 v.destroy()
 
         for v in bg_veh_list:
-            print("destroying background vehicle")
+            logger.warning("destroying background vehicle")
             try:
                 v.destroy()
             except:
-                print("failed to destroy background vehicle")  
+                logger.warning("failed to destroy background vehicle")  
 
     #finally:
     

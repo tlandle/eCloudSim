@@ -1,13 +1,21 @@
 local:
-  carla_server_public_ip: 'localhost'
-  vehicle_client_public_ip: 'localhost'
-  ecloud_server_public_ip: 'localhost'
+  carla_server_public_ip: localhost
+  vehicle_client_public_ip: localhost
+  clients:
+    client_machine:
+      machine_name: localhost
+      vehicle_client_public_ip: localhost
+      vehicle_client_dns: localhost
 
 azure:
   carla_server_public_ip: '20.122.64.203' # server
   ecloud_server_public_ip: '20.122.64.203' # server
   # *must* be set to public IP *on* client machine(s) so they can send to ecloud server 
-  vehicle_client_public_ip: '20.172.248.156' # ndm
+  clients:
+    client_machine:
+      machine_name: ndm
+      vehicle_client_public_ip: '20.172.248.156'
+      vehicle_client_dns: ''
 
 multinode:
   carla_server_public_ip: '20.122.64.203' # server
@@ -35,4 +43,4 @@ multinode:
       vehicle_client_public_ip: '172.190.137.118'
       vehicle_client_dns: '' 
 
-log_level: 'INFO'
+log_level: 'INFO' # deprecated

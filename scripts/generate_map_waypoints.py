@@ -12,7 +12,7 @@ def check_if_within_dist(waypoint, x, y, ncars=4):
             return i
     return 1000
 
-cloud_config = load_yaml("cloud_config.yaml")
+cloud_config = load_yaml("environment_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]    
 
 client = carla.Client(CARLA_IP, 2000)

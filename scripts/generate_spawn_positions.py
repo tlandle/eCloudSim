@@ -75,7 +75,7 @@ def choose_template():
     choice = int(input("Choose a template by number: "))
     return templates[choice - 1]
 
-cloud_config = load_yaml("cloud_config.yaml")
+cloud_config = load_yaml("environment_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]    
 
 client = carla.Client(CARLA_IP, 2000)

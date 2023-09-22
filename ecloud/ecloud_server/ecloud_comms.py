@@ -42,7 +42,7 @@ class EcloudClient:
         self.channel = channel
         self.stub = ecloud_rpc.EcloudStub(self.channel)     
 
-    async def run(self) -> ecloud.Tick:
+    async def stream_updates(self) -> ecloud.Tick:
         count = 0
         pong = None
         async for ecloud_update in self.stub.SimulationStateStream(ecloud.Tick( tick_id = self.tick_id )):
@@ -89,7 +89,7 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
                        context: grpc.aio.ServicerContext) -> ecloud.Empty:
 
         if tick.tick_id != ( self.last_tick + 1 ) and tick.tick_id > 0 and self.last_tick > 0 and tick.command == ecloud.Command.TICK:
-            logger.error(f'received an out of sync tick. had {self.last_tick} | received {tick.tick_id}')
+            logger.warning(f'received an out of sync tick: had {self.last_tick} | received {tick.tick_id}')
         elif tick.tick_id:
             self.last_tick = tick.tick_id
 
@@ -97,7 +97,10 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
         #assert(self.q.empty())
         if not self.q.empty():
             t = self.q.get_nowait()
-            logger.error(f'received tick {tick} while {t} was already present')
+            if tick.tick_id == t.tick_id:
+                logger.warning(f'received duplicate tick {tick} with same tick_id as tick in queue - discarding.')
+            else:
+                logger.error(f'received new tick {tick} but {t} was already in queue - discarding.')
         else:
             self.q.put_nowait(tick)
 

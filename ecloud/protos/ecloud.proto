@@ -27,23 +27,19 @@ enum Command {
 enum VehicleState {
   REGISTERING = 0;
   CARLA_UPDATE = 1;
-  UPDATE_INFO_OK = 2;
-  GET_DESTINATION = 3;
-  TICK_OK = 4; // regular OK / ack
-  TICK_DONE = 5; // simulation ended --> include all Debug Info with this update
-  OK = 6;
-  ERROR = 7;
-  DEBUG_INFO_UPDATE = 8;
+  TICK_OK = 2; // ack
+  TICK_DONE = 3; // simulation ended --> include all Debug Info with this update
+  DEBUG_INFO_UPDATE = 4;
+  ERROR = 5;
 }
 
 message SimulationInfo {
   int32 vehicle_index = 1; // vehicle_uid
   string test_scenario = 2;
-  string application = 3;
+  string application = 3; // unused
   string version = 4;
   bool is_edge = 5;
-  string vehicle_machine_ip = 6; // TODO: multiple
-  string carla_ip = 7;
+  string carla_ip = 6; // could pass this to vehicles at runtime
 }
 
 message WaypointRequest {
@@ -145,6 +141,7 @@ message RegistrationInfo {
   int32 actor_id = 4;
   string container_name = 5;
   string vehicle_ip = 6;
+  string vehicle_port = 7; // pass this rather than deriving it
 }
 
 message VehicleUpdate {

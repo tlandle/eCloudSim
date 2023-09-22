@@ -12,7 +12,7 @@ WAYPOINTS_FILENAME = datetime.now().strftime('log/waypoints_%Y_%m_%d_%H_%M_%S.lo
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-cloud_config = load_yaml("cloud_config.yaml")
+cloud_config = load_yaml("environment_config.yaml")
 
 if cloud_config["log_level"] == "error":
     logger.setLevel(logging.ERROR)

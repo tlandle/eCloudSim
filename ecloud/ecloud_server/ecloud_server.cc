@@ -30,24 +30,17 @@
 #include "ecloud.grpc.pb.h"
 #include "ecloud.pb.h"
 
-//#include <glog/logging.h>
-
-#define WORLD_TICK_DEFAULT_MS 50
-#define SLOW_CAR_COUNT 0
 #define SPECTATOR_INDEX 0
-#define VERBOSE_PRINT_COUNT 5
 #define MAX_CARS 512
 #define INVALID_TIME 0
 #define TICK_ID_INVALID -1
-#define VEHICLE_UPDATE_BATCH_SIZE 32
 
-#define ECLOUD_PUSH_BASE_PORT 50101
-#define ECLOUD_PUSH_API_PORT 50061
-
-ABSL_FLAG(uint16_t, port, 50051, "Sim API server port for the service");
+ABSL_FLAG(uint16_t, vehicle_update_batch_size, 32, "Number of vehicle updates to batch at scenario end - keeps from going over gRPC's 4MB limit.");
+ABSL_FLAG(uint16_t, ecloud_push_base_port, 50101, "eCloud Client starting port");
+ABSL_FLAG(uint16_t, ecloud_push_api_port, 50061, "eCloud Sim API server port");
+ABSL_FLAG(uint16_t, port, 50051, "eCloud gRPC server port for the service");
 ABSL_FLAG(uint16_t, minloglevel, static_cast<uint16_t>(absl::LogSeverityAtLeast::kInfo),
-          "Messages logged at a lower level than this don't actually "
-          "get logged anywhere");
+          "Messages logged at a lower level than this don't actually get logged anywhere");
 
 using google::protobuf::util::TimeUtil;
 
@@ -83,10 +76,12 @@ volatile std::atomic<int16_t> numCompletedVehicles_;
 volatile std::atomic<int16_t> numRepliedVehicles_;
 volatile std::atomic<int32_t> tickId_;
 
+// for debugging slow/non-responsive containers
+#ifdef _DEBUG
 bool repliedCars_[MAX_CARS];
-std::string carNames_[MAX_CARS];
+std::string carNames_[MAX_CARS]; 
+#endif
 
-bool init_;
 bool isEdge_;
 int16_t numCars_;
 std::string configYaml_;
@@ -124,7 +119,6 @@ class PushClient
             grpc::ClientContext context;
             Empty empty;
 
-            // The actual RPC.
             std::mutex mu;
             std::condition_variable cv;
             bool done = false;
@@ -142,12 +136,10 @@ class PushClient
                 cv.wait(lock);
             }
 
-            // Act upon its status.
             if (status.ok()) {
                 return true;
             } else {
-                std::cout << status.error_code() << ": " << status.error_message()
-                << std::endl;
+                LOG(ERROR) << status.error_code() << ": " << status.error_message();
                 return false;
             }
         }
@@ -161,30 +153,25 @@ class PushClient
 class EcloudServiceImpl final : public Ecloud::CallbackService {
 public:
     explicit EcloudServiceImpl() {
-        if ( !init_ )
-        {
-            numCompletedVehicles_.store(0);
-            numRepliedVehicles_.store(0);
-            numRegisteredVehicles_.store(0);
-            tickId_.store(0);
+        numCompletedVehicles_.store(0);
+        numRepliedVehicles_.store(0);
+        numRegisteredVehicles_.store(0);
+        tickId_.store(0);
 
-            vehState_ = VehicleState::REGISTERING;
-            command_ = Command::TICK;
+        vehState_ = VehicleState::REGISTERING;
+        command_ = Command::TICK;
 
-            numCars_ = 0;
-            configYaml_ = "";
-            isEdge_ = false;
+        numCars_ = 0;
+        configYaml_ = "";
+        isEdge_ = false;
 
-            simIP_ = "localhost";
+        simIP_ = "localhost";
 
-            const std::string connection = absl::StrFormat("%s:%d", simIP_, ECLOUD_PUSH_API_PORT );
-            simAPIClient_ = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
+        const std::string connection = absl::StrFormat("%s:%d", simIP_, absl::GetFlag(FLAGS_ecloud_push_api_port));
+        simAPIClient_ = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
 
-            vehicleClients_.clear();
-            pendingReplies_.clear();
-
-            init_ = true;
-        }
+        vehicleClients_.clear();
+        pendingReplies_.clear();
     }
 
     ServerUnaryReactor* Server_GetVehicleUpdates(CallbackServerContext* context,
@@ -200,9 +187,9 @@ public:
             const std::string msg = pendingReplies_.back();
             pendingReplies_.pop_back();
             update->ParseFromString(msg);
-            LOG(INFO) << "update: vehicle_index - " << update->vehicle_index();
+            DLOG(INFO) << "update: vehicle_index - " << update->vehicle_index();
 
-            if ( i == VEHICLE_UPDATE_BATCH_SIZE ) // keep from exhausting resources
+            if ( i == absl::GetFlag(FLAGS_vehicle_update_batch_size) ) // keep from exhausting resources
                 break;
         }
 
@@ -238,7 +225,9 @@ public:
             }
         }
 
+#ifdef _DEBUG
         repliedCars_[request->vehicle_index()] = true;
+#endif
 
         DLOG(INFO) << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id();
 
@@ -313,7 +302,7 @@ public:
 
             mu_.Lock();
             reply->set_vehicle_index(numRegisteredVehicles_.load());
-            const std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), ECLOUD_PUSH_BASE_PORT + numRegisteredVehicles_.load() );
+            const std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), absl::GetFlag(FLAGS_ecloud_push_base_port) + numRegisteredVehicles_.load() );
             PushClient *vehicleClient = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
             vehicleClients_.push_back(std::move(vehicleClient));
             numRegisteredVehicles_++;
@@ -324,7 +313,10 @@ public:
             reply->set_version(version_);
 
             DLOG(INFO) << "RegisterVehicle - REGISTERING - container " << request->container_name() << " got vehicle id: " << reply->vehicle_index();
+
+#ifdef _DEBUG
             carNames_[reply->vehicle_index()] = request->container_name();
+#endif
         }
         else if ( request->vehicle_state() == VehicleState::CARLA_UPDATE )
         {
@@ -347,8 +339,8 @@ public:
 
         const int16_t replies_ = numRepliedVehicles_.load();
         LOG(INFO) << "received " << replies_ << " replies";
+        
         const bool complete_ = ( replies_ == numCars_ );
-
         LOG_IF(INFO, complete_ ) << "REGISTRATION COMPLETE";
         if ( complete_ )
         {
@@ -364,8 +356,10 @@ public:
     ServerUnaryReactor* Server_DoTick(CallbackServerContext* context,
                                const Tick* request,
                                Empty* empty) override {
+#ifdef _DEBUG
         for ( int i = 0; i < numCars_; i++ )
             repliedCars_[i] = false;
+#endif
 
         numRepliedVehicles_ = 0;
         assert(tickId_ == request->tick_id() - 1);

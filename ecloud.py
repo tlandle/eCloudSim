@@ -15,21 +15,23 @@ import subprocess
 import logging
 import re
 
-from ecloud.globals import __version__, __ecloud__
+from ecloud.globals import __version__, __ecloud__, __default_scenario__
 
-DEFAULT_SCENARIO="ecloud_4lane_scenario_dist_config"
 logger = logging.getLogger(__ecloud__)
 
 import_module = re.compile(r'import ([\.A-Za-z0-9_-]+) ')
 import_class = re.compile(r'from ([\.A-Za-z0-9_-]+) import')
 
 def arg_parse():
+    '''
+    fetch the command line args & returns an args object
+    '''
     parser = argparse.ArgumentParser(description="eCloudSim scenario runner.")
-    parser.add_argument('-t', "--test_scenario", type=str, default=DEFAULT_SCENARIO,
+    parser.add_argument('-t', "--test_scenario", type=str, default=__default_scenario__,
                         help='Define the name of the scenario you want to test. The given name must'
                              'match one of the testing scripts(e.g. single_2lanefree_carla) in '
                              'ecloud/scenario_testing/ folder'
-                             f' as well as the corresponding yaml file in ecloud/scenario_testing/config_yaml. [Default: {DEFAULT_SCENARIO}]')
+                             f' as well as the corresponding yaml file in ecloud/scenario_testing/config_yaml. [Default: {__default_scenario__}]')
     parser.add_argument("--record", action='store_true', help='whether to record and save the simulation process to'
                                                               '.log file')
     parser.add_argument('-n', "--num_cars", type=int, default=0,
@@ -52,7 +54,8 @@ def arg_parse():
                             help="Environment to run in: 'local' or 'azure'. [Default: 'local']")
     parser.add_argument('-c', "--run_carla", type=str, nargs='?', default=False, const=" ",
                             help="Run Carla with optional args; use = --run_carla='-RenderOffscreen'")
-    parser.add_argument("--version", type=str, default="0.9.12") # only support version
+    parser.add_argument("--version", type=str, default="0.9.12",
+                        "Carla version. [default: 0.9.12]") # only support version
     opt = parser.parse_args()
     return opt
 
@@ -73,10 +76,10 @@ def check_imports():
                                 except Exception as e:
                                     if module not in missing_imports.keys() and f"{e}" not in missing_imports.values():
                                         missing_imports[module] = f"{e}"
-                                        logger.error(f"ERROR importing {module} - {e}")
+                                        logger.error(f"failed importing {module} - {e}")
                                     continue
                                 else:
-                                    logger.debug(f"MODULE {x.group(1)} imported OK")
+                                    logger.debug(f"module {x.group(1)} imported OK")
                             
                             x = re.search(import_class, l)
                             if x:
@@ -86,10 +89,10 @@ def check_imports():
                                 except Exception as e:
                                     if module not in missing_imports.keys() and f"{e}" not in missing_imports.values():
                                         missing_imports[module] = f"{e}"
-                                        logger.error(f"ERROR importing {module} - {e}")
+                                        logger.error(f"failed importing {module} - {e}")
                                     continue
                                 else:
-                                    logger.debug(f"MODULE {module} imported OK")
+                                    logger.debug(f"module {module} imported OK")
 
 def get_scenario(opt):
     testing_scenario = None
@@ -139,6 +142,8 @@ if __name__ == '__main__':
     except Exception as e:
         if type(e) == KeyboardInterrupt:
             logger.info('exited by user.')
+        elif type(e) == SystemExit:
+            logger.info(f'system exit: {e}')
         else:
             logger.critical(e)
             raise

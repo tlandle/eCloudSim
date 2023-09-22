@@ -37,7 +37,7 @@ import ecloud_pb2_grpc as ecloud_rpc
 logger = logging.getLogger("ecloud")
 
 # TODO: move to eCloudConfig
-cloud_config = load_yaml("cloud_config.yaml")
+cloud_config = load_yaml("environment_config.yaml")
 
 ECLOUD_PUSH_BASE_PORT = 50101 # TODO: config
 LOCAL = "local"
@@ -203,7 +203,7 @@ async def main():
 
     await send_carla_data_to_ecloud(ecloud_server, vehicle_index, actor_id, vid)
 
-    assert(push_q.empty())
+    assert(push_q.empty()) # currently only process only a single message at a time
     pong = await push_q.get()
     push_q.task_done()
 
@@ -237,7 +237,7 @@ async def main():
             vehicle_manager.debug_helper.update_update_info_time((update_info_end_time-update_info_start_time)*1000)
             logger.debug("update_info complete")
 
-            if is_edge:               
+            if is_edge:           
                 is_wp_valid = False
                 has_not_cleared_buffer = True
                 if waypoint_proto != None:
@@ -288,7 +288,7 @@ async def main():
             #    logger.warning("final: waypoints transform for Vehicle: %s", waypoints[0].transform)
 
             should_run_step = False
-            if not is_edge or ( has_not_cleared_buffer and waypoint_proto == None ) or ( ( not has_not_cleared_buffer ) and waypoint_proto != None ):
+            if not is_edge or ( has_not_cleared_buffer and waypoint_proto is None ) or ( ( not has_not_cleared_buffer ) and waypoint_proto is not None ):
                 should_run_step = True
 
             if should_run_step:
@@ -343,9 +343,6 @@ async def main():
                 vehicle_update.vehicle_state = ecloud.VehicleState.ERROR # TODO: handle error status
                 logger.error("ecloud_client error")
 
-            #cur_location = vehicle_manager.vehicle.get_location()
-            #logger.debug(f"send OK and location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")   
-        
         # block waiting for a response
         if not reported_done or done_behavior == eDoneBehavior.CONTROL:
             if not reported_done:
@@ -356,14 +353,13 @@ async def main():
 
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
                 if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
-                    # we were asked for debug data and provided it, so NOW we exit
                     # TODO: this is better handled by done
                     logger.info(f"pushed DEBUG_INFO_UPDATE")
 
                 reported_done = True
                 logger.info(f"reported_done")
 
-            assert(push_q.empty())
+            assert(push_q.empty()) # only setup to process a single message
             pong = await push_q.get()
             push_q.task_done()
             assert( pong.tick_id != tick_id )
@@ -373,25 +369,29 @@ async def main():
                 wp_request = ecloud.WaypointRequest()
                 wp_request.vehicle_index = vehicle_index
                 waypoint_proto = await ecloud_server.Client_GetWaypoints(wp_request)
-                pong.command = ecloud.Command.TICK    
-            
+                pong.command = ecloud.Command.TICK
+
             # HANDLE END
             elif pong.command == ecloud.Command.END:
-                logger.critical("END received")
+                logger.critical("END received") # must print for the shell script to detect scenario end
                 break
-                
+
         else: # done
             logger.info("EXIT destroy-on-done vehicle actor")
             break
 
-    # end while    
+    # end while
     vehicle_manager.destroy()
-    push_server.cancel() 
+    push_server.cancel()
     logger.info("scenario complete. exiting.")
     sys.exit(0)
 
 if __name__ == '__main__':
     try:
         asyncio.get_event_loop().run_until_complete(main())
-    except KeyboardInterrupt:
-        logger.info(' - Exited by user.')
+    except Exception as e:
+        if type(e) == KeyboardInterrupt:
+            logger.info('exited by user.')
+        else:
+            logger.error(e)
+            raise
