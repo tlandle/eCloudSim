@@ -19,13 +19,14 @@ import ecloud_pb2_grpc as ecloud_rpc
 
 logger = logging.getLogger("ecloud")
 
-class EcloudClient:
-
+class EcloudComms:
     '''
-    Wrapper Class around gRPC Vehicle Client Calls
+    static class containing comms definitions
     '''
+    TIMEOUT_S = 10
+    TIMEOUT_MS = TIMEOUT_S * 1000
 
-    retry_opts = json.dumps({
+    RETRY_OPTS = json.dumps({
                     "methodConfig": [
                     {
                         "name": [{"service": "ecloud.Ecloud"}],
@@ -37,6 +38,17 @@ class EcloudClient:
                             "retryableStatusCodes": ["UNAVAILABLE"],
                         },
                     }]})
+
+    GRPC_OPTIONS = [("grpc.lb_policy_name", "pick_first"),
+                    ("grpc.enable_retries", 1),
+                    ("grpc.keepalive_timeout_ms", TIMEOUT_MS),
+                    ("grpc.service_config", RETRY_OPTS)]
+
+class EcloudClient:
+
+    '''
+    Wrapper Class around gRPC Vehicle Client Calls
+    '''
 
     def __init__(self, channel: grpc.Channel) -> None:
         self.channel = channel

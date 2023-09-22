@@ -6,14 +6,27 @@ __ecloud__ = "ecloud"
 # CONSTS
 __local__ = "local"
 __localhost__ = "localhost"
+__azure__ = "azure"
 __carla_version__ = "0.9.12"
 __default_scenario__ = "ecloud_4lane_scenario_dist_config"
+__spectator_index__ = 0
+
+# gRPC
+__ecloud_server_path__ = "./ecloud/ecloud_server/ecloud_server"
+__server_port__ = "50051" # gRPC server listens
+__push_api_port__ = "50061" # sim orchestrator listens
+__push_base_port__ = "50101" # client N listens on base + N
 
 # FILE PATHS
 __environment_config__ = "environment_config.yaml" # in eCloud root folder
 # local Carla path
 # eCloud gRPC server path
 # evaluation outputs path(s)
+
+# EDGE
+__world_dt__ = 0.03 # sec
+__edge_dt__ = 0.20 # sec
+__edge_search_t__ = 2.00 # sec
 
 class EnvironmentConfig():
     '''

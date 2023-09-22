@@ -141,7 +141,7 @@ def create_stacked_bar_chart(data,  y, labels):
         'client_controller_update_info', 
         'client_controller_step',  
         'client_control',
-        'network_latency']
+        'network_overhead']
 
     ax = data.plot(y=y, kind='bar', stacked=True, color=colors, figsize=(11, 8))
     plt.xlabel(labels['xlabel'])
@@ -398,7 +398,7 @@ def plot_client_stacked_barchart():
             "client_controller_step_time_list",
             # "client_vehicle_step_time_list", # COMPOSITE: client_agent_step_time_list + client_controller_step_time_list
             "client_control_time_list",
-            "network_latency",
+            "network_overhead",
     ]
     for list_name in client_debug_data:
         step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_{list_name}'
