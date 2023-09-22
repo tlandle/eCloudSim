@@ -134,7 +134,7 @@ class ScenarioManager:
     """
 
     tick_id = 0 # current tick counter
-    client_node_count = 1
+    client_node_count = None
 
     vehicle_managers = {}
     vehicle_count = 0
@@ -241,9 +241,9 @@ class ScenarioManager:
                         z=vehicle_update.velocity.z)
                     vehicle_manager_proxy.vehicle.set_velocity(v)
                     vehicle_manager_proxy.vehicle.set_transform(t)
-        except Exception as e:
-            logger.error(f'failed to properly unpack updates - {e} \n\t {vehicle_update}')
-            raise
+        except Exception as r_e:
+            logger.error('failed to properly unpack updates - %s \n\t %s', r_e, vehicle_update)
+            #raise # TODO: opt for raise on except
 
         logger.debug("vehicle updates unpacked")
 
@@ -287,25 +287,33 @@ class ScenarioManager:
         return empty
 
     async def server_start_scenario(self, stub_, update_):
+        '''
+        starts a given scenario
+        '''
         await stub_.Server_StartScenario(update_)
 
-        print(f"pushed scenario start")
         print(f"start {self.vehicle_count} vehicle containers")
 
         assert(self.push_q.empty())
-        await self.push_q.get()
+        tick = await self.push_q.get()
         self.push_q.task_done()
 
-        logger.info(f"vehicle registration complete")
+        assert tick.tick_id != 0
+        self.client_node_count = tick.tick_id # at startup, we use the tick id to transmit the number of client nodes
+        logger.info("scenario running on %s different nodes", self.client_node_count)
+
+        logger.info("vehicle registration complete")
 
         response = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
         
-        logger.info(f"vehicle registration data received")
-
+        logger.info("vehicle registration data received")
 
         return response
 
     async def server_end_scenario(self, stub_):
+        '''
+        tell the gRPC server to push an END command to all clients
+        '''
         empty = await stub_.Server_EndScenario(ecloud.Empty())
 
         return empty
@@ -321,7 +329,6 @@ class ScenarioManager:
                  distributed=False,
                  log_level=0,
                  ecloud_config=None,
-                 environment='local',
                  run_carla=False):
         
         self.sm_start_tstamp.GetCurrentTime()
@@ -354,23 +361,25 @@ class ScenarioManager:
 
         self.run_distributed = distributed
         if distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
-            server_log_level = 0 if logger.getEffectiveLevel() == logging.DEBUG else \
-                                1 if logger.getEffectiveLevel() == logging.WARNING else 2 # 1: WARNING | 2: ERROR
+            server_log_level = 0 if self.ecloud_config.get_log_level() == logging.DEBUG else \
+                                1 if self.ecloud_config.get_log_level() == logging.WARNING else 2 # 1: WARNING | 2: ERROR
+            logger.info("setting server log level to %s", server_log_level)
             try:
                 ecloud_pid = subprocess.check_output(['pgrep','ecloud_server'])
             except subprocess.CalledProcessError as e:
                 if e.returncode > 1:
-                    raise
+                    logger.error("exception trying to check for running server %s", e)
+                    #raise # TODO: opt for raise on except
                 ecloud_pid = None
             if ecloud_pid is not None:
-                logger.info(f'killing existing ecloud gRPC server process')
-                subprocess.run(['pkill','-9','ecloud_server'])
+                logger.info('killing existing ecloud gRPC server process')
+                subprocess.run(['pkill','-9','ecloud_server'], check=False)
 
             # PERF Profiling
             # self.ecloud_server_process = subprocess.Popen(['sudo','perf','record','-g','./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'], stderr=sys.stdout.buffer)
             # TODO move path to globals
             self.ecloud_server_process = subprocess.Popen([ecloud_globals.__ecloud_server_path__,
-                                                           f'--minloglevel={server_log_level}'], 
+                                                           f'--minloglevel={server_log_level}'],
                                                            stderr=sys.stdout.buffer)
 
         if run_carla and ( CARLA_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
@@ -379,7 +388,7 @@ class ScenarioManager:
 
             except subprocess.CalledProcessError as e:
                 if e.returncode > 1:
-                    raise
+                    logger.error("failed to run Carla - %s", e)
                 carla_pid = None
 
             if carla_pid is not None:
@@ -387,7 +396,10 @@ class ScenarioManager:
                 subprocess.run(['pkill','-9','Carla'])
 
             logger.info(f'spawning Carla')
-            self.carla_process = subprocess.Popen(['./CarlaUE4.sh',f'{run_carla}'], cwd='/opt/carla-simulator/', stderr=sys.stdout.buffer)
+            self.carla_process = subprocess.Popen(['./CarlaUE4.sh',f'{run_carla}'], 
+                                                  cwd='/opt/carla-simulator/', 
+                                                  start_new_session=True, 
+                                                  stderr=sys.stdout.buffer)
             print("waiting for Carla to start up", end=' ')
             for _ in range(5):
                 print('.', end=' ')
@@ -411,8 +423,8 @@ class ScenarioManager:
             try:
                 self.world = self.client.load_world(town)
 
-            except RuntimeError:
-                logger.critical("%s is not found in your CARLA repo! Please download all town maps to your CARLA repo!" % town)
+            except Exception as e:
+                logger.critical("%s - %s is not found in your CARLA repo! Please download all town maps to your CARLA repo!", e, town)
         
         else:
             self.world = self.client.get_world()
@@ -497,11 +509,11 @@ class ScenarioManager:
         server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
         server_request.is_edge = self.is_edge
 
-        await self.server_start_scenario(self.ecloud_server, server_request)
+        await self.server_start_scenario(self.ecloud_server, server_request)    
 
         self.world.tick()
 
-        logger.debug("eCloud debug: pushed START")
+        logger.debug("scenario started")
 
     @staticmethod
     def set_weather(weather_settings):
@@ -866,8 +878,8 @@ class ScenarioManager:
                 logger.info("destroying specator CAV")
                 try:
                     spectator.destroy()
-                except RuntimeError:
-                    logger.error("failed to destroy single CAV")
+                except Exception as e:
+                    logger.error("failed to destroy single CAV - %s", e)
 
             subprocess.Popen(['pkill','-9','CarlaUE4'])
             sys.exit(0)
@@ -1104,7 +1116,7 @@ class ScenarioManager:
         try:
             picklefile = open(data_df_path, 'rb+')
             current_data_df = pickle.load(picklefile)  #unpickle the dataframe
-        except FileExistsError:
+        except:
             picklefile = open(data_df_path, 'wb+')
             current_data_df = pd.DataFrame(columns=['num_cars', f'{column_key}_ms', 'run_timestamp'])
 
@@ -1287,7 +1299,7 @@ class ScenarioManager:
         try:
             picklefile = open(sim_time_df_path, 'rb+')
             sim_time_df = pickle.load(picklefile)
-        except FileExistsError:
+        except:
             picklefile = open(sim_time_df_path, 'wb+')
             sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'startup_time_ms', 'shutdown_time_ms', 'run_timestamp'])
 

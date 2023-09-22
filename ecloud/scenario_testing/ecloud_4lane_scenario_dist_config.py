@@ -37,8 +37,8 @@ from ecloud.core.common.ecloud_config import EcloudConfig
 import ecloud_pb2 as ecloud
 
 # Consts
-LOG_NAME = f"{os.path.basename(__file__)}.log" # data drive from file name?
-SCENARIO_NAME = f"{os.path.basename(__file__)}" # data drive from file name?
+LOG_NAME = f"{os.path.basename(__file__)}.log"
+SCENARIO_NAME = f"{os.path.basename(__file__)}"
 TOWN = 'Town06'
 
 logger = logging.getLogger("ecloud")
@@ -81,19 +81,18 @@ def run_scenario(opt, config_yaml):
                                                    distributed=run_distributed,
                                                    log_level=opt.log_level,
                                                    ecloud_config=ecloud_config,
-                                                   environment=opt.environment,
                                                    run_carla=opt.run_carla)
 
         if opt.record:
             scenario_manager.client. \
                 start_recorder(LOG_NAME, True)
-
         
         # create single cavs        
         if run_distributed:
             asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
             single_cav_list = \
                 scenario_manager.create_distributed_vehicle_manager(application=['single']) 
+        
         else:    
             single_cav_list = \
                 scenario_manager.create_vehicle_manager(application=['single'])
@@ -112,7 +111,7 @@ def run_scenario(opt, config_yaml):
  
         flag = True
         while flag:
-            logger.critical("ticking - step: %d" % step)
+            print(f"ticking - step: {step}")
             scenario_manager.tick_world()
             if run_distributed:
                 flag = scenario_manager.broadcast_tick()
@@ -120,11 +119,12 @@ def run_scenario(opt, config_yaml):
             else:    
                 # non-dist will break automatically; don't need to set flag
                 pre_client_tick_time = time.time()
-                for i, single_cav in enumerate(single_cav_list):
+                for _, single_cav in enumerate(single_cav_list):
                     single_cav.update_info()
                     control = single_cav.run_step()
                     single_cav.vehicle.apply_control(control)
                 post_client_tick_time = time.time()
+                
                 logger.info("client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
                 if step > 0: # discard the first tick as startup is a major outlier
                     scenario_manager.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
@@ -151,11 +151,16 @@ def run_scenario(opt, config_yaml):
     except Exception as e:
         if type(e) == KeyboardInterrupt:
             logger.info('exited by user.')
+            sys.exit(0)
+        
         elif type(e) == SystemExit:
+
             logger.info(f'system exit: {e}')
+            sys.exit(e)
+        
         else:
-            logger.critical(e)
-            raise
+            logger.critical("exception hit during scenario execution - %s", e)
+            #raise # TODO: opt for raise on except
 
     else:
         if run_distributed:

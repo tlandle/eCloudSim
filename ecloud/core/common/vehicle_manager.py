@@ -236,7 +236,7 @@ class VehicleManager(object):
             
             except Exception as e:
                 if COLLISION_ERROR not in f'{e}':
-                    raise
+                    logger.error("exception during spawn - %s", e)
                 
                 continue
 

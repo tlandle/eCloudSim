@@ -1,6 +1,6 @@
 local:
   carla_server_public_ip: localhost
-  vehicle_client_public_ip: localhost
+  ecloud_server_public_ip: localhost
   clients:
     client_machine:
       machine_name: localhost

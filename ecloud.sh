@@ -122,27 +122,27 @@ while ( (( loop == 1 )) );
 do
     for ((i=0; i<$count; i++))
     do
-        if test "$( docker logs ecloud_client_$i 2> >(grep -i "error") | wc -l )" -gt "1"; then
-            echo "ERROR: ecloud_client_$i has crashed"
-            docker logs ecloud_client_$i
-            loop=2
-            break
-        fi
-        if test "$( docker logs ecloud_client_$i 2> >(grep -i "traceback") | wc -l )" -gt "1"; then
-            echo "ERROR: ecloud_client_$i has crashed"
-            docker logs ecloud_client_$i
-            loop=2
-            break
-        fi
-        if test "$( docker logs ecloud_client_$i 2> >(grep -i "unknown") | wc -l )" -gt "1"; then
-            echo "ERROR: ecloud_client_$i has a gRPC error"
-            docker logs ecloud_client_$i
-            loop=2
-            break
-        fi
         if test "$( docker logs ecloud_client_$i 2> >(grep -i "end received") | wc -l )" -gt "1"; then
             echo "OK: scenario has completed successfully"
             loop=0
+            break
+        fi
+        if test "$( docker logs ecloud_client_$i 2> >(grep -i "error") | wc -l )" -gt "0"; then
+            echo "ERROR: ecloud_client_$i has crashed based on error"
+            docker logs ecloud_client_$i
+            loop=2
+            break
+        fi
+        if test "$( docker logs ecloud_client_$i 2> >(grep -i "traceback") | wc -l )" -gt "0"; then
+            echo "ERROR: ecloud_client_$i has crashed based on traceback"
+            docker logs ecloud_client_$i
+            loop=2
+            break
+        fi
+        if test "$( docker logs ecloud_client_$i 2> >(grep -i "unknown") | wc -l )" -gt "0"; then
+            echo "ERROR: ecloud_client_$i has a gRPC error"
+            docker logs ecloud_client_$i
+            loop=2
             break
         fi
     done

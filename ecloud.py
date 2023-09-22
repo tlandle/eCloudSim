@@ -2,7 +2,6 @@
 """
 Script to run different scenarios.
 """
-
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 #       : Jordan Rapp <jrapp7@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
@@ -15,7 +14,8 @@ import subprocess
 import logging
 import re
 
-from ecloud.globals import __version__, __ecloud__, __default_scenario__
+from ecloud.globals import __version__, __ecloud__, __default_scenario__, EnvironmentConfig
+import ecloud.globals as ecloud_globals
 
 logger = logging.getLogger(__ecloud__)
 
@@ -32,34 +32,42 @@ def arg_parse():
                              'match one of the testing scripts(e.g. single_2lanefree_carla) in '
                              'ecloud/scenario_testing/ folder'
                              f' as well as the corresponding yaml file in ecloud/scenario_testing/config_yaml. [Default: {__default_scenario__}]')
-    parser.add_argument("--record", action='store_true', help='whether to record and save the simulation process to'
-                                                              '.log file')
+    
+    # CONFIGURATION ARGS
     parser.add_argument('-n', "--num_cars", type=int, default=0,
-                        help="number of vehicles to run."
-                             "forces RANDOM spawning behavior")
+                            help="number of vehicles to run - forces RANDOM spawning behavior")
     parser.add_argument('-d', "--distributed", type=int, default=1,
-                        help="run a distributed scenario.")
-    parser.add_argument("--apply_ml",
-                        action='store_true',
-                        help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
-                             'Set it to true only when you have installed the pytorch/sklearn package.'
-                             'NOT compatible with distributed scenarios: containers must be started at runtime with perception enabled.')
+                            help="run a distributed scenario.")
     parser.add_argument('-l', "--log_level", type=int, default=0,
                             help="0: DEBUG | 1: INFO | WARNING: 2 | ERROR: 3")
     parser.add_argument('-b', "--build", action="store_true",
                             help="Rebuild gRPC proto files")
     parser.add_argument('-s', "--steps", type=int, default=0,
                             help="Number of scenario ticks to execute before exiting; if set, overrides scenario config")
-    parser.add_argument('-e', "--environment", type=str, default="local",
-                            help="Environment to run in: 'local' or 'azure'. [Default: 'local']")
-    parser.add_argument('-c', "--run_carla", type=str, nargs='?', default=False, const=" ",
+    parser.add_argument('-e', "--environment", type=str, default=ecloud_globals.__local__,
+                            help=f"Environment to run in: 'local' or 'azure'. [Default: '{ecloud_globals.__local__}']")
+    parser.add_argument('-r', "--run_carla", type=str, nargs='?', default=False, const=" ",
                             help="Run Carla with optional args; use = --run_carla='-RenderOffscreen'")
+    
+    # SEQUENTIAL ONLY
+    parser.add_argument("--apply_ml",
+                        action='store_true',
+                        help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
+                             'Set it to true only when you have installed the pytorch/sklearn package.'
+                             'NOT compatible with distributed scenarios: containers must be started at runtime with perception enabled.')
+    
+    # DEPRECATED
+    parser.add_argument("--record", action='store_true', help='whether to record and save the simulation process to'
+                                                              '.log file')
     parser.add_argument("--version", type=str, default="0.9.12",
-                        "Carla version. [default: 0.9.12]") # only support version
+                            help="Carla version. [default: 0.9.12]") # only support version 0.9.12
     opt = parser.parse_args()
     return opt
 
 def check_imports():
+    '''
+    debug helper function to scan for missing imports
+    '''
     missing_imports = {}
     for (root,_,files) in os.walk(__ecloud__, topdown=True):
             for file in files:
@@ -95,32 +103,36 @@ def check_imports():
                                     logger.debug(f"module {module} imported OK")
 
 def get_scenario(opt):
+    '''
+    fetch the desired scenario module & associatd YAML
+    '''
     testing_scenario = None
     config_yaml = None
     error = None
     try:
-        testing_scenario = importlib.import_module("ecloud.scenario_testing.%s" % opt.test_scenario)
+        testing_scenario = importlib.import_module(f"ecloud.scenario_testing.{opt.test_scenario}")
     except ModuleNotFoundError:
-        error = format("%s.py not found under ecloud/scenario_testing" % opt.test_scenario)
+        error = f"{opt.test_scenario}.py not found under ecloud/scenario_testing"
 
     if error is not None:
         try:
-            testing_scenario = importlib.import_module("ecloud.scenario_testing.archived.%s" % opt.test_scenario)
+            testing_scenario = importlib.import_module(f"ecloud.scenario_testing.archived.{opt.test_scenario}")
         except ModuleNotFoundError:
-            error = format("%s.py not found under ecloud/scenario_testing[/archived]" % opt.test_scenario)
+            error = f"{opt.test_scenario}.py not found under ecloud/scenario_testing[/archived]"
 
     config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                               'ecloud/scenario_testing/config_yaml/%s.yaml' % opt.test_scenario)
+                               f'ecloud/scenario_testing/config_yaml/{opt.test_scenario}.yaml')
     if not os.path.isfile(config_yaml):
         config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                               'ecloud/scenario_testing/config_yaml/archived/%s.yaml' % opt.test_scenario)
+                               f'ecloud/scenario_testing/config_yaml/archived/{opt.test_scenario}.yaml')
         if not os.path.isfile(config_yaml):
-            error = format("ecloud/scenario_testing/config_yaml/[archived/]%s.yaml not found!" % opt.test_scenario)
+            error = f"ecloud/scenario_testing/config_yaml/[archived/]{opt.test_scenario}.yaml not found!"
 
     return testing_scenario, config_yaml, error
 
 def main():
     opt = arg_parse()
+    assert ( opt.apply_ml is True and opt.distributed is False ) or opt.apply_ml is False
     logger.debug(opt)
     print(f"eCloudSim Version: {__version__}")
 
@@ -132,6 +144,7 @@ def main():
     if opt.build:
         subprocess.run(['python','-m','grpc_tools.protoc','-I./ecloud/protos','--python_out=.','--grpc_python_out=.','./ecloud//protos/ecloud.proto'])
 
+    EnvironmentConfig.set_environment(opt.environment)
     scenario_runner = getattr(testing_scenario, 'run_scenario')
     scenario_runner(opt, config_yaml)
 
@@ -139,11 +152,17 @@ def main():
 if __name__ == '__main__':
     try:
         main()
+
     except Exception as e:
         if type(e) == KeyboardInterrupt:
             logger.info('exited by user.')
+            sys.exit(0)
+
         elif type(e) == SystemExit:
             logger.info(f'system exit: {e}')
+            sys.exit(e)
+
         else:
             logger.critical(e)
-            raise
+            SystemExit(1)
+            #raise # TODO: opt for raise on except

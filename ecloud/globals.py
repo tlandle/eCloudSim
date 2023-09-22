@@ -13,9 +13,9 @@ __spectator_index__ = 0
 
 # gRPC
 __ecloud_server_path__ = "./ecloud/ecloud_server/ecloud_server"
-__server_port__ = "50051" # gRPC server listens
-__push_api_port__ = "50061" # sim orchestrator listens
-__push_base_port__ = "50101" # client N listens on base + N
+__server_port__ = 50051 # gRPC server listens
+__push_api_port__ = 50061 # sim orchestrator listens
+__push_base_port__ = 50101 # client N listens on base + N
 
 # FILE PATHS
 __environment_config__ = "environment_config.yaml" # in eCloud root folder
@@ -85,23 +85,12 @@ class EnvironmentConfig():
         return EnvironmentConfig.config[EnvironmentConfig.environment][EnvironmentConfig.ECLOUD_IP]
     
     @staticmethod
-    def get_client_ip_by_name(client_name) -> dict:
+    def get_client_ip_by_name(client_name) -> str:
         '''
         gets the parameters for a given client name - e.g. 'ndm' - so that the client can access its IP config
         '''
-        for client in EnvironmentConfig.config[EnvironmentConfig.environment][EnvironmentConfig.CLIENTS]:
-            if client[EnvironmentConfig.CLIENT_MACHINE][EnvironmentConfig.MACHINE_NAME] == client_name:
-                return client[EnvironmentConfig.CLIENT_MACHINE]
-            
-        assert False, f'invalid client name: {client_name}'
-
-    @staticmethod
-    def get_client_ip_list(client_name) -> dict:
-        '''
-        gets the parameters for a given client name - e.g. 'ndm' - so that the client can access its IP config
-        '''
-        for client in EnvironmentConfig.config[EnvironmentConfig.environment][EnvironmentConfig.CLIENTS]:
-            if client[EnvironmentConfig.CLIENT_MACHINE][EnvironmentConfig.MACHINE_NAME] == client_name:
-                return client[EnvironmentConfig.CLIENT_MACHINE]
+        for client_dict in EnvironmentConfig.config[EnvironmentConfig.environment][EnvironmentConfig.CLIENTS].values():
+            if client_dict[EnvironmentConfig.MACHINE_NAME] == client_name:
+                return client_dict[EnvironmentConfig.CLIENT_IP]
             
         assert False, f'invalid client name: {client_name}'

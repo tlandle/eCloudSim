@@ -97,7 +97,9 @@ std::vector<std::pair<int16_t, std::string>> serializedEdgeWaypoints_; // vehicl
 
 absl::Mutex mu_;
 
+volatile std::atomic<int8_t> nodeCount_ ABSL_GUARDED_BY(mu_);
 volatile std::atomic<int16_t> numRegisteredVehicles_ ABSL_GUARDED_BY(mu_);
+std::vector<std::string> clientNodes_ ABSL_GUARDED_BY(mu_);
 std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // TODO: Move to a hashmap serialized protobuf allows differing message types in same vector
 
 class PushClient
@@ -157,6 +159,7 @@ public:
         numRepliedVehicles_.store(0);
         numRegisteredVehicles_.store(0);
         tickId_.store(0);
+        nodeCount_.store(0);
 
         vehState_ = VehicleState::REGISTERING;
         command_ = Command::TICK;
@@ -303,6 +306,12 @@ public:
             mu_.Lock();
             reply->set_vehicle_index(numRegisteredVehicles_.load());
             const std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), absl::GetFlag(FLAGS_ecloud_push_base_port) + numRegisteredVehicles_.load() );
+            const std::string ip = request->vehicle_ip();
+            if ( std::find( clientNodes_.begin(), clientNodes_.end(), ip ) == clientNodes_.end() )
+            {    
+                nodeCount_++;
+                clientNodes_.push_back(ip);
+            }
             PushClient *vehicleClient = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
             vehicleClients_.push_back(std::move(vehicleClient));
             numRegisteredVehicles_++;
@@ -345,7 +354,7 @@ public:
         if ( complete_ )
         {
             assert( vehState_ == VehicleState::REGISTERING && replies_ == pendingReplies_.size() );
-            simAPIClient_->PushTick( TICK_ID_INVALID, command_, INVALID_TIME);
+            simAPIClient_->PushTick( nodeCount_.load(), command_, INVALID_TIME);
         }
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -436,8 +445,8 @@ public:
 
     private:
 
-        std::vector< PushClient * > vehicleClients_;
-        PushClient * simAPIClient_;
+        std::vector<PushClient*> vehicleClients_ ABSL_GUARDED_BY(mu_);
+        PushClient *simAPIClient_;
 };
 
 void RunServer(uint16_t port) {

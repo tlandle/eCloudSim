@@ -19,6 +19,7 @@ import grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 
 import ecloud.globals as ecloud_globals
+from ecloud.globals import EnvironmentConfig
 from ecloud.core.common.cav_world import CavWorld
 from ecloud.core.common.vehicle_manager import VehicleManager
 from ecloud.core.plan.local_planner_behavior import RoadOption
@@ -73,14 +74,14 @@ async def send_registration_to_ecloud_server(stub_) -> ecloud.SimulationInfo:
     request.vehicle_state = ecloud.VehicleState.REGISTERING
     try:
         request.container_name = os.environ["HOSTNAME"]
-    except RuntimeError:
-        request.container_name = f"vehiclesim.py"
+    except KeyError:
+        request.container_name = "vehiclesim.py"
 
     request.vehicle_ip = VEHICLE_IP
     
     sim_info = await stub_.Client_RegisterVehicle(request)
 
-    logger.info(f"vehicle ID {sim_info.vehicle_index} received...")
+    logger.info("vehicle ID %s received...", sim_info.vehicle_index)
     
     return sim_info
 
@@ -90,7 +91,7 @@ async def send_carla_data_to_ecloud(stub_, vehicle_index, actor_id, vid) -> eclo
     send Carla actor data to eCloud server
     '''
     message = {"vehicle_index": vehicle_index, "actor_id": actor_id, "vid": vid}
-    logger.info(f"Vehicle: Sending Carla rpc {message}")
+    logger.info("sending Carla rpc %s", message)
 
     # send actor ID and vid to API
     update = ecloud.RegistrationInfo()
@@ -100,8 +101,6 @@ async def send_carla_data_to_ecloud(stub_, vehicle_index, actor_id, vid) -> eclo
     update.actor_id = actor_id
     
     sim_info = await stub_.Client_RegisterVehicle(update)
-
-    logger.info(f"send_carla_data_to_ecloud: response received")
 
     return sim_info
 
@@ -129,6 +128,8 @@ def arg_parse():
                         help="Specifies the port to connect to. [Default: 50051]")
     parser.add_argument('-e', "--environment", type=str, default="local",
                             help="Environment to run in: 'local' or 'azure'. [Default: 'local']")
+    parser.add_argument('-m', "--machine", type=str, default="localhost",
+                            help="Name of the specific machine name: 'localhost' or 'ndm'. [Default: 'localhost']")
 
     opt = parser.parse_args()
     return opt
@@ -153,9 +154,10 @@ async def main():
 
     opt = arg_parse()
     assert opt.environment == LOCAL or opt.environment == AZURE
-    CARLA_IP = environment_config[opt.environment]["carla_server_public_ip"]
-    ECLOUD_IP = environment_config[opt.environment]["ecloud_server_public_ip"]
-    VEHICLE_IP = environment_config[opt.environment]["vehicle_client_public_ip"]
+    EnvironmentConfig.set_environment(opt.environment)
+    CARLA_IP = EnvironmentConfig.get_carla_ip()
+    ECLOUD_IP = EnvironmentConfig.get_ecloud_ip()
+    VEHICLE_IP = EnvironmentConfig.get_client_ip_by_name(opt.machine)
 
     # TODO: move to eCloudClient
     channel = grpc.aio.insecure_channel(
@@ -400,6 +402,8 @@ if __name__ == '__main__':
     except Exception as e:
         if type(e) == KeyboardInterrupt:
             logger.info('exited by user.')
+            sys.exit(0)
         else:
-            logger.error(e)
-            raise
+            logger.error("exception hit: %s", e)
+            sys.exit(e)
+            #raise # TODO: opt for raise on except
