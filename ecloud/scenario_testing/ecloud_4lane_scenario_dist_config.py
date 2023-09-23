@@ -160,7 +160,7 @@ def run_scenario(opt, config_yaml):
             sys.exit(scenario_error)
 
         else:
-            logger.critical("exception hit during scenario execution - %s", type(scenario_error))
+            logger.critical("exception hit during scenario execution: %s - %s", type(scenario_error), scenario_error)
             if opt.fatal_errors:
                 raise
 

@@ -129,7 +129,7 @@ async def ecloud_run_push_server(port,
         listen_addr = f"0.0.0.0:{port}"
         server.add_insecure_port(listen_addr)
     except Exception as port_exception:
-        logger.error("failed - %s - to start push server on port %s - incrementing port & retying", type(port_exception), port)
+        logger.error("failed - %s: %s - to start push server on port %s - incrementing port & retrying", type(port_exception), port_exception, port)
         port += 1
 
     logger.critical("starting eCloud push server on port %s", port)

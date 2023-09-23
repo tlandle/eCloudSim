@@ -233,7 +233,7 @@ class VehicleManager(object):
 
             except Exception as spawn_error:
                 if COLLISION_ERROR not in f'{spawn_error}':
-                    logger.error("exception during spawn - %s", type(spawn_error))
+                    logger.error("exception during spawn: %s - %s", type(spawn_error), spawn_error)
 
                 continue
 
@@ -398,7 +398,7 @@ class VehicleManager(object):
         try:
             target_speed, target_pos = self.agent.run_step(target_speed)
         except Exception as trace_error:
-            logger.error("%s: can't successfully _trace_route; setting to done.", type(trace_error))
+            logger.error("%s - %s: can't successfully _trace_route; setting to done.", type(trace_error), trace_error)
             target_speed = 0
             ego_pos = self.localizer.get_ego_pos()
             target_pos = ego_pos.location
