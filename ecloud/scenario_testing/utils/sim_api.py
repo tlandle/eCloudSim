@@ -588,6 +588,7 @@ class ScenarioManager:
                 clean=True)
 
             single_cav_list.append(vehicle_manager)
+            self.vehicle_managers[vehicle_index] = vehicle_manager
 
         return single_cav_list
 
@@ -620,7 +621,8 @@ class ScenarioManager:
             self.world.get_blueprint_library().find(default_model)
 
         # create platoons
-        for i, platoon in enumerate(
+        count = 0
+        for _, platoon in enumerate(
                 self.scenario_params['scenario']['platoon_list']):
             platoon_manager = PlatooningManager(platoon, self.cav_world)
             for j, cav in enumerate(platoon['members']):
@@ -654,6 +656,8 @@ class ScenarioManager:
                     platoon_manager.set_lead(vehicle_manager)
                 else:
                     platoon_manager.add_member(vehicle_manager, leader=False)
+                self.vehicle_managers[count] = vehicle_manager
+                count += 1
 
             self.world.tick()
             destination = carla.Location(x=platoon['destination'][0],

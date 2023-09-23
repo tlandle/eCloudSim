@@ -51,7 +51,6 @@ class ClientDebugHelper(PlanDebugHelper):
             "client_agent_step_time_list" : self.agent_step_time_list,
             "client_controller_step_time_list" : self.controller_step_time_list,
             "client_vehicle_step_time_list" : self.vehicle_step_time_list,
-            "client_control_time_list" : self.control_time_list,
         }
 
     def get_debug_data(self):

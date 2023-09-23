@@ -60,7 +60,6 @@ def serialize_debug_info(vehicle_update, vehicle_manager) -> None:
     vehicle_update.loc_debug_helper.CopyFrom( loc_debug_helper_msg )
 
     client_debug_helper = vehicle_manager.debug_helper
-    #logger.debug(vehicle_manager.debug_helper.perception_time_list)
     client_debug_helper_msg = ecloud.ClientDebugHelper()
     client_debug_helper.serialize_debug_info(client_debug_helper_msg)
     vehicle_update.client_debug_helper.CopyFrom(client_debug_helper_msg)
@@ -245,10 +244,7 @@ async def main():
             client_start_timestamp = Timestamp()
             client_start_timestamp.GetCurrentTime()
             # update info runs BEFORE waypoint injection
-            update_info_start_time = time.time()
             vehicle_manager.update_info()
-            update_info_end_time = time.time()
-            vehicle_manager.debug_helper.update_update_info_time((update_info_end_time-update_info_start_time)*1000)
             logger.debug("update_info complete")
 
             if is_edge:           

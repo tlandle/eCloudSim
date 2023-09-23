@@ -157,7 +157,7 @@ class VehicleManager(object):
                     if 'edge_sets_destination' in self.scenario_params['scenario']['edge_list'][0] else False
 
             else:
-                assert(False, "no known vehicle indexing format found")
+                assert False, "no known vehicle indexing format found"
             
         spawned = False
         while not spawned:
@@ -348,6 +348,7 @@ class VehicleManager(object):
         Call perception and localization module to
         retrieve surrounding info an ego position.
         """
+        overall_start = time.time()
         # localization
         start_time = time.time()
         self.localizer.localize()
@@ -384,6 +385,7 @@ class VehicleManager(object):
         end_time = time.time()
         logger.debug("Controller update time: %s" %(end_time - start_time))
         self.debug_helper.update_controller_update_info_time((end_time-start_time)*1000)
+        self.debug_helper.update_update_info_time((end_time-overall_start)*1000)
 
     def run_step(self, target_speed=None):
         """

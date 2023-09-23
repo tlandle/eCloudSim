@@ -122,7 +122,7 @@ def run_scenario(opt, config_yaml):
                 for _, single_cav in enumerate(single_cav_list):
                     single_cav.update_info()
                     control = single_cav.run_step()
-                    single_cav.vehicle.apply_control(control)
+                    single_cav.apply_control(control)
                 post_client_tick_time = time.time()
                 
                 logger.info("client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
