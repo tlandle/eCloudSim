@@ -3,17 +3,11 @@
 Basic class of CAV
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>
+#       : Aaron Drysdale <adrysdale3@gatech.edu>
+#       : Jordan Rapp <jrapp7@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-import uuid
-import subprocess
-import random
-import socket
-import json
-import psutil
-
 import carla
-import numpy as np
 
 from ecloud.core.actuation.control_manager \
     import ControlManager
@@ -28,7 +22,6 @@ from ecloud.core.sensing.perception.perception_manager \
 from ecloud.core.plan.behavior_agent \
     import BehaviorAgent
 from ecloud.core.common.data_dumper import DataDumper
-from ecloud.scenario_testing.utils.yaml_utils import load_yaml
 from ecloud.client_debug_helper import ClientDebugHelper
 from ecloud.core.common.ecloud_config import eLocationType
 
@@ -36,10 +29,13 @@ RESULT_SUCCESS = 0 # Step ran ok
 RESULT_ERROR = 1 # Step resulted in an error
 RESULT_END = 2 # Step resulted in the vehicle simulation ending
 
-CARLA_IP = 'localhost'
+CARLA_IP = 'localhost' # todo Environment Config
 
 # once we have all methods, we no longer need any reference to the actual actor in ecloud
 class ActorProxy(object):
+    '''
+    lightweight proxy class used as a replace for an actual Carla actor in distributed scenarios
+    '''
     def __init__(self,
                  id = 0):
         self.id = id
@@ -82,22 +78,30 @@ class VehicleManagerProxy(object):
     TODO: update
     """
 
-    def __init__(
-            self,
-            vehicle_index,
-            #conn,
-            config_yaml,
-            application,
-            carla_map,
-            cav_world,
-            carla_version,
-            current_time='',
-            data_dumping=False,
-            location_type=eLocationType.EXPLICIT):
+    def __init__(self,
+                vehicle_index,
+                #conn,
+                config_yaml,
+                application,
+                carla_map,
+                cav_world,
+                carla_version,
+                current_time='',
+                data_dumping=False,
+                location_type=eLocationType.EXPLICIT):
+        
+        # default initializers
+        self.agent = None
+        self.controller = None
+        self.data_dumper = None
+        self.perception_manager = None
+        self.vehicle = None
+        self.v2x_manager = None
+        self.localizer = None
 
         self.is_edge = False
         if 'single_cav_list' in config_yaml['scenario']:
-                self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
+            self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
                                 else config_yaml['scenario']['single_cav_list'][0]
         
         elif 'edge_list' in config_yaml['scenario']:

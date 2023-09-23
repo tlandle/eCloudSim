@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught
 """
 Script to run different scenarios.
 """
@@ -74,37 +75,37 @@ def check_imports():
     '''
     missing_imports = {}
     for (root,_,files) in os.walk(__ecloud__, topdown=True):
-            for file in files:
-                if file.endswith('.py'):
-                    # print(f"{file}")
-                    with open(os.path.join(root, file), 'r', encoding='utf-8') as f:
-                        s = f.read()
-                        for l in s.splitlines():
-                            x = re.search(import_module, l)
-                            if x:
+        for file in files:
+            if file.endswith('.py'):
+                # print(f"{file}")
+                with open(os.path.join(root, file), 'r', encoding='utf-8') as f:
+                    s = f.read()
+                    for l in s.splitlines():
+                        x = re.search(import_module, l)
+                        if x:
+                            module = x.group(1)
+                            try:
+                                importlib.import_module(module)
+                            except Exception as me:
+                                if module not in missing_imports.keys() and f"{me}" not in missing_imports.values():
+                                    missing_imports[module] = f"{me}"
+                                    logger.error("failed importing %s - %s", module, me)
+                                continue
+                            else:
+                                logger.debug("module %s imported OK", module)
+                        
+                        x = re.search(import_class, l)
+                        if x:
+                            try:
                                 module = x.group(1)
-                                try:
-                                    importlib.import_module(module)
-                                except Exception as e:
-                                    if module not in missing_imports.keys() and f"{e}" not in missing_imports.values():
-                                        missing_imports[module] = f"{e}"
-                                        logger.error(f"failed importing {module} - {e}")
-                                    continue
-                                else:
-                                    logger.debug(f"module {x.group(1)} imported OK")
-                            
-                            x = re.search(import_class, l)
-                            if x:
-                                try:
-                                    module = x.group(1)
-                                    importlib.import_module(module)
-                                except Exception as e:
-                                    if module not in missing_imports.keys() and f"{e}" not in missing_imports.values():
-                                        missing_imports[module] = f"{e}"
-                                        logger.error(f"failed importing {module} - {e}")
-                                    continue
-                                else:
-                                    logger.debug(f"module {module} imported OK")
+                                importlib.import_module(module)
+                            except Exception as ce:
+                                if module not in missing_imports.keys() and f"{ce}" not in missing_imports.values():
+                                    missing_imports[module] = f"{ce}"
+                                    logger.error("failed importing %s - %s", module, ce)
+                                continue
+                            else:
+                                logger.debug("module %s imported OK", module)
 
 def get_scenario(opt):
     '''
@@ -135,6 +136,9 @@ def get_scenario(opt):
     return testing_scenario, config_yaml, error
 
 def main():
+    '''
+    fetches the specific scenario module (or default) and calls its 'run_scenario' method
+    '''
     opt = arg_parse()
     assert ( opt.apply_ml is True and opt.distributed == 0 ) or opt.apply_ml is False
     logger.debug(opt)
@@ -150,7 +154,10 @@ def main():
         sys.exit(error)
 
     if opt.build:
-        subprocess.run(['python','-m','grpc_tools.protoc','-I./ecloud/protos','--python_out=.','--grpc_python_out=.','./ecloud//protos/ecloud.proto'])
+        subprocess.run(['python','-m','grpc_tools.protoc',
+                        '-I./ecloud/protos','--python_out=.',
+                        '--grpc_python_out=.','./ecloud//protos/ecloud.proto'],
+                        check=True)
 
     EnvironmentConfig.set_environment(opt.environment)
     scenario_runner = getattr(testing_scenario, 'run_scenario')
@@ -162,12 +169,12 @@ if __name__ == '__main__':
         main()
 
     except Exception as e:
-        if type(e) == KeyboardInterrupt:
+        if isinstance(e, KeyboardInterrupt):
             logger.info('exited by user.')
             sys.exit(0)
 
-        elif type(e) == SystemExit:
-            logger.info(f'system exit: {e}')
+        elif isinstance(e, SystemExit):
+            logger.info('system exit: %s', e)
             sys.exit(e)
 
         else:

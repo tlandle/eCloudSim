@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pylint: disable=locally-disabled, line-too-long, no-member, invalid-name
+# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught
 """
 Utilize scenario manager to manage CARLA simulation construction. This script
 is used for carla simulation only, and if you want to manage the Co-simulation,
@@ -193,10 +193,12 @@ class ScenarioManager:
                     self.debug_helper.update_network_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, network_overhead_by_tick[timestamps.tick_id])
                     self.debug_helper.update_overall_step_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, overall_steps_by_tick[timestamps.tick_id])
 
-                    logger.info(f'client process time: {round(client_process_time_ms, 2)}ms')
-                    logger.info(f'barrier time: {round(barrier_overhead_time_ms, 2)}ms')
-                    logger.debug(f"updated time stamp data for vehicle {vehicle_manager_proxy.vehicle_index}")
-                    logger.debug(f"timestamps: client_end - {timestamps.client_end_tstamp.ToDatetime().time()} client_start - {timestamps.client_start_tstamp.ToDatetime().time()}")
+                    logger.info('client process time: %sms', round(client_process_time_ms, 2))
+                    logger.info('barrier time: %sms', round(barrier_overhead_time_ms, 2))
+                    logger.debug("updated time stamp data for vehicle %s", vehicle_manager_proxy.vehicle_index)
+                    logger.debug("timestamps: client_end - %s client_start - %s",
+                                 timestamps.client_end_tstamp.ToDatetime().time(),
+                                 timestamps.client_start_tstamp.ToDatetime().time())
 
     async def server_unpack_vehicle_updates(self, stub_) -> None:
         '''
@@ -262,7 +264,7 @@ class ScenarioManager:
         '''
         empty = await stub_.Server_DoTick(update_)
 
-        assert(self.push_q.empty()) # only process one push at a time
+        assert self.push_q.empty() # only process one push at a time
         tick = await self.push_q.get()
         snapshot_t = time.time_ns()
         self.push_q.task_done()
@@ -277,7 +279,9 @@ class ScenarioManager:
         self.debug_helper.update_network_time_timestamp(tick.tick_id, step_latency_ms) # same for all vehicles *per tick*
         self.debug_helper.update_overall_step_time_timestamp(tick.tick_id, overall_step_time_ms)
 
-        logger.info(f"timestamps: overall_step_time_ms - {round(overall_step_time_ms, 2)}ms | step_latency_ms - {round(step_latency_ms, 2)}ms")
+        logger.info("timestamps: overall_step_time_ms - %sms | step_latency_ms - %sms",
+                    round(overall_step_time_ms, 2),
+                    round(step_latency_ms, 2))
 
         if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
             await self.server_unpack_debug_data(stub_)
@@ -295,7 +299,7 @@ class ScenarioManager:
 
         print(f"start {self.vehicle_count} vehicle containers")
 
-        assert(self.push_q.empty())
+        assert self.push_q.empty()
         tick = await self.push_q.get()
         self.push_q.task_done()
 
@@ -370,7 +374,8 @@ class ScenarioManager:
             except subprocess.CalledProcessError as e:
                 if e.returncode > 1:
                     logger.error("exception trying to check for running server %s", e)
-                    #raise # TODO: opt for raise on except
+                    if ecloud_config.fatal_errors:
+                        raise
                 ecloud_pid = None
             if ecloud_pid is not None:
                 logger.info('killing existing ecloud gRPC server process')
@@ -393,19 +398,16 @@ class ScenarioManager:
                 carla_pid = None
 
             if carla_pid is not None:
-                logger.info(f'killing existing Carla instance')
-                subprocess.run(['pkill','-9','Carla'])
+                logger.info('killing existing Carla instance')
+                subprocess.run(['pkill','-9','Carla'], check=True)
 
-            logger.info(f'spawning Carla')
+            logger.info('spawning Carla')
             self.carla_process = subprocess.Popen(['./CarlaUE4.sh',f'{run_carla}'], 
                                                   cwd='/opt/carla-simulator/', 
                                                   start_new_session=True, 
                                                   stderr=sys.stdout.buffer)
-            print("waiting for Carla to start up", end=' ')
-            for _ in range(5):
-                print('.', end=' ')
-                time.sleep(1)
-            print('')
+            logger.info("waiting for Carla to start up")
+            time.sleep(5)
 
         cav_world.update_scenario_manager(self)
 
@@ -458,9 +460,9 @@ class ScenarioManager:
         # eCLOUD BEGIN
 
         if 'ecloud' in scenario_params['scenario'] and 'num_cars' in scenario_params['scenario']['ecloud']:
-            assert('edge_list' not in scenario_params['scenario']) # edge requires explicit
+            assert 'edge_list' not in scenario_params['scenario'] # edge requires explicit
             self.vehicle_count = scenario_params['scenario']['ecloud']['num_cars']
-            logger.debug(f"'ecloud' in YAML specified {self.vehicle_count} cars")
+            logger.debug("'ecloud' in YAML specified %s cars", self.vehicle_count)
 
         elif 'single_cav_list' in scenario_params['scenario']:
             self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
@@ -700,7 +702,7 @@ class ScenarioManager:
         default_model = 'vehicle.lincoln.mkz_2017'
         ego_vehicle_bp = blueprint_library.find(default_model)
 
-        for i, vehicle_config in enumerate(traffic_config['vehicle_list']):
+        for _, vehicle_config in enumerate(traffic_config['vehicle_list']):
             spawn_transform = carla.Transform(
                 carla.Location(
                     x=vehicle_config['spawn_position'][0],
@@ -921,7 +923,7 @@ class ScenarioManager:
 
         config_yaml = self.scenario_params
         for vehicle_index in range(self.vehicle_count):
-            logger.debug(f"Creating VehiceManagerProxy for vehicle {vehicle_index}")
+            logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)
 
             # create vehicle manager for each cav
             vehicle_manager_proxy = VehicleManagerProxy(
@@ -977,12 +979,12 @@ class ScenarioManager:
 
         config_yaml = self.scenario_params
         # create edges
-        for e, edge in enumerate(
+        for _, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
             edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt)
-            for vehicle_index, cav in enumerate(edge['members']):
+            for vehicle_index, _ in enumerate(edge['members']):
 
-                logger.debug(f"Creating VehiceManagerProxy for vehicle {vehicle_index}")
+                logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)
 
                 # create vehicle manager for each cav
                 vehicle_manager = VehicleManagerProxy(
@@ -1110,7 +1112,14 @@ class ScenarioManager:
         '''
         pickle a dataframe for combined analysis in grpah generation
         '''
-        logger.info(f"run stats for {column_key}:\nmean {column_key}: {np.mean(flat_list)} \nmedian {column_key}: {np.median(flat_list)} \n95% percentile {column_key} {np.percentile(flat_list, 95)}")
+        logger.info("run stats for %s:\nmean %s: %s \nmedian %s: %s \n95th percentile %s %s",
+                    column_key,
+                    column_key,
+                    np.mean(flat_list),
+                    column_key,
+                    np.median(flat_list),
+                    column_key,
+                    np.percentile(flat_list, 95))
 
         data_df = pd.DataFrame(flat_list, columns = [f'{column_key}_ms'])
         data_df['num_cars'] = self.vehicle_count
@@ -1121,7 +1130,8 @@ class ScenarioManager:
         try:
             picklefile = open(data_df_path, 'rb+')
             current_data_df = pickle.load(picklefile)  #unpickle the dataframe
-        except:
+        except Exception as pickle_error:
+            logger.warning('%s: failed to find pickle file - creating', type(pickle_error))
             picklefile = open(data_df_path, 'wb+')
             current_data_df = pd.DataFrame(columns=['num_cars', f'{column_key}_ms', 'run_timestamp'])
 
@@ -1261,7 +1271,7 @@ class ScenarioManager:
             os.makedirs(cumulative_stats_folder_path)
 
         self.evaluate_agent_data(cumulative_stats_folder_path)
-        if(self.run_distributed):
+        if self.run_distributed:
             self.evaluate_network_data(cumulative_stats_folder_path)
             self.evaluate_barrier_data(cumulative_stats_folder_path)
             self.evaluate_client_process_data(cumulative_stats_folder_path)
@@ -1297,14 +1307,15 @@ class ScenarioManager:
         # Total simulation time
         sim_start_time = self.debug_helper.sim_start_timestamp
         sim_end_time = time.time()
-        total_sim_time = (sim_end_time - sim_start_time) # total time in milliseconds
+        total_sim_time = sim_end_time - sim_start_time # total time in milliseconds
         perform_txt += f"Total Simulation Time: {total_sim_time} \n\t Registration Time: {self.debug_helper.startup_time_ms}ms \n\t Shutdown Time: {self.debug_helper.shutdown_time_ms}ms"
 
         sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
         try:
             picklefile = open(sim_time_df_path, 'rb+')
             sim_time_df = pickle.load(picklefile)
-        except:
+        except Exception as pickle_error:
+            logger.warning('%s: failed to find pickle file - creating', type(pickle_error))
             picklefile = open(sim_time_df_path, 'wb+')
             sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'startup_time_ms', 'shutdown_time_ms', 'run_timestamp'])
 

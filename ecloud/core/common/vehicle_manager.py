@@ -9,12 +9,10 @@ import random
 import uuid
 import logging
 import time
-import random
 
 import carla
 import numpy as np
 
-from ecloud.core.common.cav_world import CavWorld
 from ecloud.core.actuation.control_manager \
     import ControlManager
 from ecloud.core.application.platooning.platoon_behavior_agent\
@@ -29,7 +27,6 @@ from ecloud.core.plan.behavior_agent \
     import BehaviorAgent
 from ecloud.core.common.data_dumper import DataDumper
 from ecloud.core.common.misc import compute_distance
-from ecloud.scenario_testing.utils.yaml_utils import load_yaml
 from ecloud.client_debug_helper import ClientDebugHelper
 from ecloud.core.common.ecloud_config import eLocationType
 
@@ -87,23 +84,22 @@ class VehicleManager(object):
         Used for dumping sensor data.
     """
 
-    def __init__(
-            self,
-            vehicle=None,
-            config_yaml=None,
-            vehicle_index=None,
-            application=['single'],
-            carla_world=None,
-            carla_map=None,
-            cav_world=None,
-            carla_version='0.9.12',
-            current_time='',
-            data_dumping=False,
-            location_type=eLocationType.EXPLICIT,
-            run_distributed=False,
-            map_helper=None,
-            is_edge=False,
-            carla_ip='localhost'):
+    def __init__(self,
+                 vehicle=None,
+                 config_yaml=None,
+                 vehicle_index=None,
+                 application=['single'],
+                 carla_world=None,
+                 carla_map=None,
+                 cav_world=None,
+                 carla_version='0.9.12',
+                 current_time='',
+                 data_dumping=False,
+                 location_type=eLocationType.EXPLICIT,
+                 run_distributed=False,
+                 map_helper=None,
+                 is_edge=False,
+                 carla_ip='localhost'):
 
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
@@ -121,7 +117,7 @@ class VehicleManager(object):
             seed = config_yaml['world']['seed']
         
         if self.location_type == eLocationType.RANDOM:
-            assert( 'seed' in config_yaml['world'] )
+            assert 'seed' in config_yaml['world']
             seed = seed + self.vehicle_index # speeds up finding a start because we don't get a guaranteed collision with the same seed so every vehicle will at least try a different spawn point to start
 
         np.random.seed(seed)
@@ -135,8 +131,8 @@ class VehicleManager(object):
 
         # ORIGINAL FLOW
 
-        if run_distributed == False:
-            assert( carla_world is not None )
+        if run_distributed is False:
+            assert carla_world is not None
             self.world = carla_world
             self.carla_map = carla_map
             
@@ -150,7 +146,7 @@ class VehicleManager(object):
             # if the spawn position is a single scalar, we need to use map
             # helper to transfer to spawn transform
             if is_edge:
-                assert('edge_list' in self.scenario_params['scenario'])
+                assert 'edge_list' in self.scenario_params['scenario']
                 # TODO: support multiple edges... 
                 cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
                 logger.debug(cav_config)
@@ -207,7 +203,7 @@ class VehicleManager(object):
                 cav_vehicle_bp.set_attribute('color', '0, 0, 255')
                 self.vehicle = self.world.spawn_actor(cav_vehicle_bp, self.spawn_transform)
 
-                logger.debug(f"spawned @ {self.spawn_transform}")
+                logger.debug("spawned @ %s", self.spawn_transform)
 
                 if location_type == eLocationType.RANDOM:
                     dist = 0
@@ -224,20 +220,20 @@ class VehicleManager(object):
                         if count % 10 == 0:
                             min_dist = min_dist / 2
 
-                    logger.debug(f"it took {count} tries to find a destination that's {int(dist)}m away")
+                    logger.debug("it took %s tries to find a destination that's %sm away", count, int(dist))
                     self.destination_location = destination_location    
                     self.destination = {}
                     self.destination['x'] = destination_location.x
                     self.destination['y'] = destination_location.y
                     self.destination['z'] = destination_location.z
 
-                logger.debug(f"set destination to {self.destination}")
+                logger.debug("set destination to %s", self.destination)
 
                 spawned = True
             
             except Exception as e:
                 if COLLISION_ERROR not in f'{e}':
-                    logger.error("exception during spawn - %s", e)
+                    logger.error("exception during spawn - %s", type(e))
                 
                 continue
 
@@ -357,14 +353,14 @@ class VehicleManager(object):
         ego_pos = self.localizer.get_ego_pos()
         ego_spd = self.localizer.get_ego_spd()
         end_time = time.time()
-        logger.debug("Localizer time: %s" %(end_time - start_time)) 
+        logger.debug("Localizer time: %s", (end_time - start_time)) 
         self.debug_helper.update_localization_time((end_time-start_time)*1000)
 
         # object detection
         start_time = time.time()
         objects = self.perception_manager.detect(ego_pos)
         end_time = time.time()
-        logger.debug("Perception time: %s" %(end_time - start_time))
+        logger.debug("Perception time: %s", (end_time - start_time))
         self.debug_helper.update_perception_time((end_time-start_time)*1000)
 
         # update ego position and speed to v2x manager,
@@ -372,19 +368,19 @@ class VehicleManager(object):
         start_time = time.time()
         self.v2x_manager.update_info(ego_pos, ego_spd)
         end_time = time.time()
-        logger.debug("v2x manager update info time: %s" %(end_time - start_time)) 
+        logger.debug("v2x manager update info time: %s", (end_time - start_time)) 
 
         start_time = time.time()
         self.agent.update_information(ego_pos, ego_spd, objects)
         end_time = time.time()
-        logger.debug("Agent Update info time: %s" %(end_time - start_time))
+        logger.debug("Agent Update info time: %s", (end_time - start_time))
         self.debug_helper.update_agent_update_info_time((end_time-start_time)*1000)
 
         # pass position and speed info to controller
         start_time = time.time()
         self.controller.update_info(ego_pos, ego_spd)
         end_time = time.time()
-        logger.debug("Controller update time: %s" %(end_time - start_time))
+        logger.debug("Controller update time: %s", (end_time - start_time))
         self.debug_helper.update_controller_update_info_time((end_time-start_time)*1000)
         self.debug_helper.update_update_info_time((end_time-overall_start)*1000)
 
@@ -402,17 +398,17 @@ class VehicleManager(object):
         try:
             target_speed, target_pos = self.agent.run_step(target_speed)
         except Exception as e:
-            logger.error(f"can't successfully _trace_route; setting to done.")
+            logger.error("%s: can't successfully _trace_route; setting to done.", type(e))
             target_speed = 0
             ego_pos = self.localizer.get_ego_pos()
             target_pos = ego_pos.location    
         end_time = time.time()
-        logger.debug("Agent step time: %s" %(end_time - pre_vehicle_step_time))
+        logger.debug("Agent step time: %s", (end_time - pre_vehicle_step_time))
 
         control = self.controller.run_step(target_speed, target_pos)
         post_vehicle_step_time = time.time()
-        logger.debug("Controller step time: %s" %(post_vehicle_step_time - end_time))
-        logger.debug("Vehicle step time: %s" %(post_vehicle_step_time - pre_vehicle_step_time))
+        logger.debug("Controller step time: %s", (post_vehicle_step_time - end_time))
+        logger.debug("Vehicle step time: %s", (post_vehicle_step_time - pre_vehicle_step_time))
         self.debug_helper.update_controller_step_time((post_vehicle_step_time - end_time)*1000)
         self.debug_helper.update_vehicle_step_time((post_vehicle_step_time - pre_vehicle_step_time)*1000)
         self.debug_helper.update_agent_step_time((end_time - pre_vehicle_step_time)*1000)        

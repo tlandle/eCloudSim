@@ -16,21 +16,27 @@ import carla
 import ecloud.scenario_testing.utils.sim_api as sim_api
 from ecloud.scenario_testing.utils.yaml_utils import load_yaml
 from ecloud.core.common.cav_world import CavWorld
-from ecloud.scenario_testing.evaluations.evaluate_manager import \
-    EvaluationManager
+from ecloud.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 # ONLY *required* for 2 Lane highway scenarios
-import ecloud.scenario_testing.utils.customized_map_api as map_api
+#import ecloud.scenario_testing.utils.customized_map_api as map_api # doesn't seem to actually provide any utility
 
 import ecloud_pb2 as ecloud
 
 def run_scenario(opt, config_yaml):
+    '''
+    default scenario runner method called by ecloud.py
+    '''
+
+    eval_manager = None
+    run_distributed = True
+
     try:
         scenario_params = load_yaml(config_yaml)
 
         # sanity checks...
-        assert('edge_list' not in scenario_params['scenario']) # do NOT use this template for edge scenarios
-        assert('sync_mode' in scenario_params['world'] and scenario_params['world']['sync_mode'] == True)
-        assert(scenario_params['world']['fixed_delta_seconds'] == 0.03 or scenario_params['world']['fixed_delta_seconds'] == 0.05)
+        assert 'edge_list' not in scenario_params['scenario'] # do NOT use this template for edge scenarios
+        assert 'sync_mode' in scenario_params['world'] and scenario_params['world']['sync_mode'] is True
+        assert scenario_params['world']['fixed_delta_seconds'] == 0.03 or scenario_params['world']['fixed_delta_seconds'] == 0.05
 
         current_path = os.path.dirname(os.path.realpath(__file__))
         xodr_path = os.path.join(
@@ -55,7 +61,7 @@ def run_scenario(opt, config_yaml):
             scenario_manager.client. \
                 start_recorder("multi_2lanefree_carla.log", True)
 
-        # create single cavs        
+        # create single cavs
         if run_distributed:
             single_cav_list = \
                 scenario_manager.create_distributed_vehicle_manager(application=['single']) 
@@ -65,8 +71,7 @@ def run_scenario(opt, config_yaml):
                                                         #map_helper=map_api.spawn_helper_2lanefree)
 
         # create background traffic in carla
-        traffic_manager, bg_veh_list = \
-            scenario_manager.create_traffic_carla()
+        #traffic_manager, bg_veh_list = scenario_manager.create_traffic_carla()
 
         # create evaluation manager
         eval_manager = \
@@ -88,7 +93,7 @@ def run_scenario(opt, config_yaml):
             else:    
                 # non-dist will break automatically; don't need to set flag
                 pre_client_tick_time = time.time()
-                for i, single_cav in enumerate(single_cav_list):
+                for _, single_cav in enumerate(single_cav_list):
                     single_cav.update_info()
                     control = single_cav.run_step()
                     single_cav.vehicle.apply_control(control)
@@ -110,13 +115,14 @@ def run_scenario(opt, config_yaml):
             if step > 750:
                 if run_distributed:
                     flag = scenario_manager.broadcast_message(ecloud.Command.REQUEST_DEBUG_INFO)
-                break             
+                break
 
     finally:
         if run_distributed:
             scenario_manager.end() # only dist requires explicit scenario end call
 
-        eval_manager.evaluate()
+        if eval_manager is not None:
+            eval_manager.evaluate()
 
         if opt.record:
             scenario_manager.client.stop_recorder()
@@ -126,10 +132,3 @@ def run_scenario(opt, config_yaml):
         if not run_distributed:
             for v in single_cav_list:
                 v.destroy()
-
-        for v in bg_veh_list:
-            print("destroying background vehicle")
-            try:
-                v.destroy()
-            except:
-                print("failed to destroy background vehicle")  

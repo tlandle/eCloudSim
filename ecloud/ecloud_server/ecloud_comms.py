@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught
+"""
+gRPC & general networking communications configuration info for eCloud scenarios
+"""
+# Author: Jordan Rapp <jrapp7@gatech.edu>
+# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import logging
 import json
@@ -5,7 +12,7 @@ import asyncio
 
 import grpc
 
-from ecloud.scenario_testing.utils.yaml_utils import load_yaml
+#from ecloud.scenario_testing.utils.yaml_utils import load_yaml
 import ecloud.globals as ecloud_globals
 
 import ecloud_pb2 as ecloud
@@ -48,31 +55,26 @@ class EcloudClient:
         self.channel = channel
         self.stub = ecloud_rpc.EcloudStub(self.channel)     
 
-    async def stream_updates(self) -> ecloud.Tick:
-        count = 0
-        pong = None
-        async for ecloud_update in self.stub.SimulationStateStream(ecloud.Tick( tick_id = self.tick_id )):
-            logger.debug(f"T{ecloud_update.tick_id}:C{ecloud_update.command}")
-            assert(self.tick_id != ecloud_update.tick_id)
-            self.tick_id = ecloud_update.tick_id
-            count += 1
-            pong = ecloud_update
-
-        assert(pong != None)
-        assert(count == 1)
-        return pong
-        
     async def register_vehicle(self, update: ecloud.VehicleUpdate) -> ecloud.SimulationInfo:
+        '''
+        send initial registration info to the eCloud server
+        '''
         sim_info = await self.stub.Client_RegisterVehicle(update)
 
         return sim_info
 
     async def send_vehicle_update(self, update: ecloud.VehicleUpdate) -> ecloud.Empty:
+        '''
+        send a vehicle update to the eCloud server
+        '''
         empty = await self.stub.Client_SendUpdate(update)
 
         return empty
 
     async def get_waypoints(self, request: ecloud.WaypointRequest) -> ecloud.WaypointBuffer:
+        ''''
+        fetch Edge-derived waypoints from the eCloud server
+        '''
         buffer = await self.stub.Client_GetWaypoints(request)
 
         return buffer
@@ -85,51 +87,55 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
 
     def __init__(self, 
                  q: asyncio.Queue):
-        
+  
         logger.info("eCloud push server initialized")
         self.q = q
         self.last_tick = 0
         self.port_no = 0
 
-    async def PushTick(self, 
-                       tick: ecloud.Tick, 
-                       context: grpc.aio.ServicerContext) -> ecloud.Empty:
+    def PushTick(self,
+                 request: ecloud.Tick,
+                 context: grpc.aio.ServicerContext) -> ecloud.Empty:
 
+        tick = request # readability - gRPC prefers overrides preserve variable names
         if tick.tick_id != ( self.last_tick + 1 ) and tick.tick_id > 0 and self.last_tick > 0 and tick.command == ecloud.Command.TICK:
-            logger.warning(f'received an out of sync tick: had {self.last_tick} | received {tick.tick_id}')
+            logger.warning('received an out of sync tick: had %s | received %s', self.last_tick, tick.tick_id)
         elif tick.tick_id:
             self.last_tick = tick.tick_id
 
-        logger.debug(f"PushTick(): tick - {tick}")
-        #assert(self.q.empty())
+        logger.debug("PushTick(): tick - %s", tick)
+        #assert self.q.empty()
         if not self.q.empty():
             t = self.q.get_nowait()
             if tick.tick_id == t.tick_id:
-                logger.warning(f'received duplicate tick {tick} with same tick_id as tick in queue - discarding.')
+                logger.warning('received duplicate tick %s with same tick_id as tick in queue - discarding.', tick)
             else:
-                logger.error(f'received new tick {tick} but {t} was already in queue - discarding.')
+                logger.error('received new tick %s but %s was already in queue - discarding.', tick, t)
         else:
             self.q.put_nowait(tick)
 
-        return ecloud.Empty()     
+        return ecloud.Empty()
 
-async def ecloud_run_push_server(port, 
+async def ecloud_run_push_server(port,
                                  q: asyncio.Queue) -> None:
-    
+    '''
+    runs a simple listen server that accepts event-based message from the central ecloud gRPC server
+    '''
+
     logger.info("spinning up eCloud push server")
     server = grpc.aio.server()
     ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(q), server)
-    try:    
+    try:
         listen_addr = f"0.0.0.0:{port}"
         server.add_insecure_port(listen_addr)
-    except:
-        logger.error("failed to start push server on port %s - incrementing port & retying", port)
+    except Exception as port_exception:
+        logger.error("failed - %s - to start push server on port %s - incrementing port & retying", type(port_exception), port)
         port += 1
 
-    print(f"starting eCloud push server on port {port}")
-    
+    logger.critical("starting eCloud push server on port %s", port)
+
     if port >= ecloud_globals.__push_base_port__:
         q.put_nowait(port)
-    
+
     await server.start()
     await server.wait_for_termination()

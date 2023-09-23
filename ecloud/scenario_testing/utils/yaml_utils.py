@@ -24,7 +24,7 @@ def load_yaml(file):
         A dictionary that contains defined parameters.
     """
 
-    stream = open(file, 'r')
+    stream = open(file, 'r', encoding='utf-8')
     loader = yaml.Loader
     loader.add_implicit_resolver(
         u'tag:yaml.org,2002:float',
@@ -60,6 +60,6 @@ def save_yaml(data, save_name):
         Full path of the output yaml file.
     """
 
-    with open(save_name, 'w') as outfile:
+    with open(save_name, 'w', encoding='utf-8') as outfile:
         yaml.dump(data, outfile, default_flow_style=False)
 

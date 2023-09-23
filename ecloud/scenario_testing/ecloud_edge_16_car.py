@@ -26,6 +26,8 @@ from ecloud.core.common.ecloud_config import EcloudConfig
 import ecloud_pb2 as ecloud
 
 def run_scenario(opt, config_yaml):
+
+    eval_manager = None
     try:
         scenario_params = load_yaml(config_yaml)
 
@@ -45,7 +47,7 @@ def run_scenario(opt, config_yaml):
 
         world_dt = scenario_params['world']['fixed_delta_seconds']
         edge_dt = scenario_params['edge_base']['edge_dt']
-        assert( edge_dt % world_dt == 0 ) # we need edge time to be an exact multiple of world time because we send waypoints every Nth tick
+        assert edge_dt % world_dt == 0 # we need edge time to be an exact multiple of world time because we send waypoints every Nth tick
 
         # create single cavs
         edge_list = \
@@ -105,7 +107,8 @@ def run_scenario(opt, config_yaml):
 
         scenario_manager.end()
 
-        eval_manager.evaluate()
+        if eval_manager is not None:
+            eval_manager.evaluate()
 
         if opt.record:
             scenario_manager.client.stop_recorder()       

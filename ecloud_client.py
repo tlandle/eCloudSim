@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pylint: disable=locally-disabled, line-too-long, no-member, invalid-name
+# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught
 """
 Script to run a simulated vehicle
 """
@@ -12,7 +12,6 @@ import json
 import asyncio
 import os
 import logging
-import time
 
 import carla
 import grpc
@@ -188,23 +187,23 @@ async def main():
     ecloud_server = ecloud_rpc.EcloudStub(channel)
     ecloud_update = await send_registration_to_ecloud_server(ecloud_server, port)
     vehicle_index = ecloud_update.vehicle_index
-    assert( vehicle_index != None )
+    assert vehicle_index is not None
 
     test_scenario = ecloud_update.test_scenario
     application = ecloud_update.application
     version = ecloud_update.version
 
-    logger.debug(f"main - application: {application}")
-    logger.debug(f"main - version: {version}")
+    logger.debug("main - application: %s", application)
+    logger.debug("main - version: %s", version)
 
     # create CAV world
     cav_world = CavWorld(opt.apply_ml)
 
-    logger.info(f"eCloud debug: creating VehicleManager vehicle_index: {vehicle_index}")
+    logger.info("creating VehicleManager vehicle_index: %s", vehicle_index)
 
     scenario_yaml = json.loads(test_scenario) #load_yaml(test_scenario)
     if 'debug_scenario' in scenario_yaml:
-        logger.debug(f"main - test_scenario: {test_scenario}") # VERY verbose
+        logger.debug("main - test_scenario: %s", test_scenario) # VERY verbose
 
     ecloud_config = EcloudConfig(scenario_yaml)
     location_type = ecloud_config.get_location_type()
@@ -231,7 +230,7 @@ async def main():
 
     await send_carla_data_to_ecloud(ecloud_server, vehicle_index, actor_id, vid)
 
-    assert(push_q.empty()) # currently only process only a single message at a time
+    assert push_q.empty() # currently only process only a single message at a time
     pong = await push_q.get()
     push_q.task_done()
 
@@ -241,13 +240,13 @@ async def main():
                 vehicle_manager.destination_location,
                 clean=True)
 
-    logger.info(f"vehicle {vehicle_index} beginning scenario tick flow")
+    logger.info("vehicle %s beginning scenario tick flow", vehicle_index)
     waypoint_proto = None
     while pong.command != ecloud.Command.END:   
         
         vehicle_update = ecloud.VehicleUpdate()
         if pong.command != ecloud.Command.TICK: # don't print tick message since there are too many
-            logger.info(f"Vehicle: received cmd {pong.command}")
+            logger.info("received cmd %s", pong.command)
         
         # HANDLE DEBUG DATA REQUEST
         if pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
@@ -273,9 +272,21 @@ async def main():
                     dao = GlobalRoutePlannerDAO(world.get_map(), 2)
                     for swp in waypoint_proto.waypoint_buffer:
                         #logger.debug(swp.SerializeToString())
-                        logger.debug(f"Override Waypoint x:{swp.transform.location.x}, y:{swp.transform.location.y}, z:{swp.transform.location.z}, rl:{swp.transform.rotation.roll}, pt:{swp.transform.rotation.pitch}, yw:{swp.transform.rotation.yaw}")
+                        logger.debug("Override Waypoint x: %s, y: %s, z: %s, rl: %s, pt: %s, yw: %s",
+                                     swp.transform.location.x,
+                                     swp.transform.location.y,
+                                     swp.transform.location.z,
+                                     swp.transform.rotation.roll,
+                                     swp.transform.rotation.pitch,
+                                     swp.transform.rotation.yaw)
                         wp = deserialize_waypoint(swp, dao)
-                        logger.debug(f"DAO Waypoint x:{wp.transform.location.x}, y:{wp.transform.location.y}, z:{wp.transform.location.z}, rl:{wp.transform.rotation.roll}, pt:{wp.transform.rotation.pitch}, yw:{wp.transform.rotation.yaw}")
+                        logger.debug("DAO Waypoint x: %s, y: %s, z: %s, rl: %s, pt: %s, yw: %s",
+                                     wp.transform.location.x,
+                                     wp.transform.location.y,
+                                     wp.transform.location.z,
+                                     wp.transform.rotation.roll,
+                                     wp.transform.rotation.pitch,
+                                     wp.transform.rotation.yaw)
                         is_wp_valid = vehicle_manager.agent.get_local_planner().is_waypoint_valid(waypoint=wp)
                         
                         if edge_sets_destination and is_wp_valid:
@@ -300,7 +311,10 @@ async def main():
                     waypoint_proto = None
 
                 cur_location = vehicle_manager.vehicle.get_location()
-                logger.debug(f"location for vehicle_{vehicle_index} - is - x: {cur_location.x}, y: {cur_location.y}")
+                logger.debug("location for vehicle_%s - is - x: %s, y: %s", 
+                             vehicle_index,
+                             cur_location.x,
+                             cur_location.y)
 
                 waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
                 for waypoints in waypoints_buffer_printer:
@@ -316,7 +330,7 @@ async def main():
 
             if should_run_step:
                 if reported_done:
-                   target_speed = 0
+                    target_speed = 0
                 control = vehicle_manager.run_step(target_speed=target_speed)
                 logger.debug("run_step complete")
 
@@ -370,7 +384,10 @@ async def main():
             if not reported_done:
                 vehicle_update.tick_id = tick_id
                 vehicle_update.vehicle_index = vehicle_index
-                logger.debug(f'VEHICLE_UPDATE_DBG: \n vehicle_index: {vehicle_index} \n tick_id: {tick_id} \n {vehicle_update}')
+                logger.debug('VEHICLE_UPDATE_DBG: \n vehicle_index: %s \n tick_id: %s \n %s',
+                             vehicle_index,
+                             tick_id,
+                             vehicle_update)
                 ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
 
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
@@ -380,10 +397,10 @@ async def main():
                 reported_done = True
                 logger.info("reported_done")
 
-            assert(push_q.empty()) # only setup to process a single message
+            assert push_q.empty() # only setup to process a single message
             pong = await push_q.get()
             push_q.task_done()
-            assert( pong.tick_id != tick_id )
+            assert pong.tick_id != tick_id
             tick_id = pong.tick_id
 
             if pong.command == ecloud.Command.PULL_WAYPOINTS_AND_TICK:
@@ -420,4 +437,3 @@ if __name__ == '__main__':
             if fatal_errors:
                 raise
             sys.exit(e)
-            

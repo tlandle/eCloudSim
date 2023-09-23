@@ -19,6 +19,7 @@ import os
 import time
 import asyncio
 import logging
+import sys
 
 # 3rd Party
 import carla
@@ -44,6 +45,9 @@ TOWN = 'Town06'
 logger = logging.getLogger("ecloud")
 
 def run_scenario(opt, config_yaml):
+    '''
+    scenario runner for default eCloud scenario on Carla's Town 06
+    '''
     step_count = 0
     step = 0
     run_distributed = opt.distributed
@@ -60,10 +64,10 @@ def run_scenario(opt, config_yaml):
         ecloud_config.set_fatal_errors(opt.fatal_errors)
         step_count = ecloud_config.get_step_count() if opt.steps == 0 else opt.steps
         # sanity checks...
-        assert('edge_list' not in scenario_params['scenario']) # do NOT use this template for edge scenarios
-        assert('sync_mode' in scenario_params['world'] and scenario_params['world']['sync_mode'] == True)
-        assert(scenario_params['world']['fixed_delta_seconds'] == 0.03 or scenario_params['world']['fixed_delta_seconds'] == 0.05)
-        
+        assert 'edge_list' not in scenario_params['scenario'] # do NOT use this template for edge scenarios
+        assert 'sync_mode' in scenario_params['world'] and scenario_params['world']['sync_mode'] is True
+        assert scenario_params['world']['fixed_delta_seconds'] == 0.03 or scenario_params['world']['fixed_delta_seconds'] == 0.05
+
         # spectator configs
         world_x = scenario_params['world']['x_pos'] if 'x_pos' in scenario_params['world'] else 0 
         world_y = scenario_params['world']['y_pos'] if 'y_pos' in scenario_params['world'] else 0
@@ -99,7 +103,7 @@ def run_scenario(opt, config_yaml):
                 scenario_manager.create_vehicle_manager(application=['single'])
 
         # create background traffic in carla
-        traffic_manager, bg_veh_list = \
+        _, bg_veh_list = \
             scenario_manager.create_traffic_carla()
 
         # create evaluation manager
@@ -126,7 +130,7 @@ def run_scenario(opt, config_yaml):
                     single_cav.apply_control(control)
                 post_client_tick_time = time.time()
                 
-                logger.info("client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
+                logger.info("client tick completion time: %s", (post_client_tick_time - pre_client_tick_time))
                 if step > 0: # discard the first tick as startup is a major outlier
                     scenario_manager.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
@@ -150,17 +154,16 @@ def run_scenario(opt, config_yaml):
                 break            
     
     except Exception as e:
-        if type(e) == KeyboardInterrupt:
+        if isinstance(e, KeyboardInterrupt):
             logger.info('exited by user.')
             sys.exit(0)
         
-        elif type(e) == SystemExit:
-
-            logger.info(f'system exit: {e}')
+        elif isinstance(e, SystemExit):
+            logger.info('system exit: %s', e)
             sys.exit(e)
         
         else:
-            logger.critical("exception hit during scenario execution - %s", e)
+            logger.critical("exception hit during scenario execution - %s", type(e))
             if opt.fatal_errors:
                 raise
 
@@ -180,15 +183,15 @@ def run_scenario(opt, config_yaml):
             for v in single_cav_list:
                 try:
                     v.destroy()
-                except:
-                    logger.error('failed to destroy single CAV')
+                except Exception as destroy_error:
+                    logger.error('%s: failed to destroy single CAV', type(destroy_error))
 
         for v in bg_veh_list:
             logger.warning("destroying background vehicle")
             try:
                 v.destroy()
-            except:
-                logger.warning("failed to destroy background vehicle")  
+            except Exception as destroy_error:
+                logger.warning("%s: failed to destroy background vehicle", type(destroy_error))  
 
     #finally:
     

@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught
+"""
+global variables & constants: contains commonly referenced strings & integers
+"""
+# Author: Jordan Rapp <jrapp7@gatech.edu>
+# License: TDG-Attribution-NonCommercial-NoDistrib
+
 from ecloud.scenario_testing.utils.yaml_utils import load_yaml
 
 __version__ = "0.0.3" # 3: CPP server
@@ -41,7 +49,7 @@ class EnvironmentConfig():
             vehicle_client_dns: ''
     '''
 
-    # keys: server IPs 
+    # keys: server IPs
     CARLA_IP = 'carla_server_public_ip'
     ECLOUD_IP = 'ecloud_server_public_ip'
 
@@ -69,21 +77,21 @@ class EnvironmentConfig():
         returns params for a given environment
         '''
         return EnvironmentConfig.config[EnvironmentConfig.environment]
-    
+
     @staticmethod
     def get_carla_ip() -> str:
         '''
         gets the IP of the Carla server
         '''
         return EnvironmentConfig.config[EnvironmentConfig.environment][EnvironmentConfig.CARLA_IP]
-    
+
     @staticmethod
     def get_ecloud_ip() -> str:
         '''
         gets the IP of gRPC eCloud server
         '''
         return EnvironmentConfig.config[EnvironmentConfig.environment][EnvironmentConfig.ECLOUD_IP]
-    
+
     @staticmethod
     def get_client_ip_by_name(client_name) -> str:
         '''
@@ -92,5 +100,5 @@ class EnvironmentConfig():
         for client_dict in EnvironmentConfig.config[EnvironmentConfig.environment][EnvironmentConfig.CLIENTS].values():
             if client_dict[EnvironmentConfig.MACHINE_NAME] == client_name:
                 return client_dict[EnvironmentConfig.CLIENT_IP]
-            
+
         assert False, f'invalid client name: {client_name}'
