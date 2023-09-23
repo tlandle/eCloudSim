@@ -22,6 +22,8 @@ logger = logging.getLogger(__ecloud__)
 import_module = re.compile(r'import ([\.A-Za-z0-9_-]+) ')
 import_class = re.compile(r'from ([\.A-Za-z0-9_-]+) import')
 
+fatal_errors = False
+
 def arg_parse():
     '''
     fetch the command line args & returns an args object
@@ -48,6 +50,8 @@ def arg_parse():
                             help=f"Environment to run in: 'local' or 'azure'. [Default: '{ecloud_globals.__local__}']")
     parser.add_argument('-r', "--run_carla", type=str, nargs='?', default=False, const=" ",
                             help="Run Carla with optional args; use = --run_carla='-RenderOffscreen'")
+    parser.add_argument('-f', "--fatal_errors", action='store_true',
+                        help="will raise exceptions when set to allow for easier debugging")
     
     # SEQUENTIAL ONLY
     parser.add_argument("--apply_ml",
@@ -134,6 +138,10 @@ def main():
     opt = arg_parse()
     assert ( opt.apply_ml is True and opt.distributed == 0 ) or opt.apply_ml is False
     logger.debug(opt)
+
+    global fatal_errors
+    fatal_errors = opt.fatal_errors
+
     print(f"eCloudSim Version: {__version__}")
 
     testing_scenario, config_yaml, error = get_scenario(opt)
@@ -164,5 +172,6 @@ if __name__ == '__main__':
 
         else:
             logger.critical(e)
-            SystemExit(1)
-            #raise # TODO: opt for raise on except
+            if fatal_errors:
+                raise
+            sys.exit(1)

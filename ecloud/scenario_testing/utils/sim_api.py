@@ -243,7 +243,8 @@ class ScenarioManager:
                     vehicle_manager_proxy.vehicle.set_transform(t)
         except Exception as r_e:
             logger.error('failed to properly unpack updates - %s \n\t %s', r_e, vehicle_update)
-            #raise # TODO: opt for raise on except
+            if EcloudConfig.fatal_errors:
+                raise
 
         logger.debug("vehicle updates unpacked")
 

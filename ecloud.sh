@@ -5,9 +5,10 @@ rebuild=0
 use_ml=0
 kill=0
 environment="local"
+machine="localhost"
 clean=0
 
-__usage="script usage: $(basename $0) [-n num_cars] [-r] [-p] [-k] [-c]
+__usage="script usage: $(basename $0) [-n n_cars] [-r] [-p] [-k] [-c] [-m mac_nm] [-e env]
 
 Options:
 -n #: number of containers to run
@@ -15,8 +16,9 @@ Options:
 -p: enable perception
 -e env: environment to run - 'local' or 'azure' | default: 'local'
 -k: kill existing containers and exit
--c: clean up on exit"
-while getopts 'n:rpkc' OPTION; do
+-c: clean up on exit
+-m mac: machine name - 'ndm' | default 'localhost'"
+while getopts 'n:rpkce:m:' OPTION; do
     case "$OPTION" in
         n)
             count="$OPTARG"
@@ -30,7 +32,7 @@ while getopts 'n:rpkc' OPTION; do
             echo "scenario will run with perception enabled"
             use_ml=1
             ;;
-        l)
+        e)
             environment="$OPTARG"
             echo "running in $OPTARG environment"
             ;;
@@ -40,6 +42,10 @@ while getopts 'n:rpkc' OPTION; do
         c)
             echo "will cleanup after a successful scenario"
             clean=1
+            ;;
+        m)
+            machine="$OPTARG"
+            echo "machine name is $OPTARG"
             ;;
         ?)
             echo "$__usage">&2
@@ -102,7 +108,7 @@ for ((i=0; i<$count; i++))
 do
     if (( use_ml == 1 )); then
         echo "container $i pinned to gpu $gpu"
-        sudo docker run --runtime=nvidia --gpus device=$gpu -d --network=host --name=ecloud_client_$i -e "HOSTNAME=ecloud_client_$i" -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY ecloud-client --apply_ml --environment $environment
+        sudo docker run --runtime=nvidia --gpus device=$gpu -d --network=host --name=ecloud_client_$i -e "HOSTNAME=ecloud_client_$i" -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY ecloud-client --apply_ml --environment $environment --machine $machine --container_id=$i
         ((gpu++))
         #echo "$gpu % $num_gpus = $(( gpu % num_gpus ))"
         if (( $(( gpu % num_gpus )) == 0 )); then
@@ -111,7 +117,7 @@ do
         fi   
     else
         #sudo docker run --runtime=nvidia --gpus all -d --network=host --name=ecloud_client_$i -e "HOSTNAME=ecloud_client_$i" -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY ecloud-client
-        sudo docker run -d --network=host --name=ecloud_client_$i -e "HOSTNAME=ecloud_client_$i" ecloud-client --environment $environment
+        sudo docker run -d --network=host --name=ecloud_client_$i -e "HOSTNAME=ecloud_client_$i" ecloud-client --environment $environment --machine $machine --container_id=$i
     fi
 done
 

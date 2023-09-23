@@ -106,7 +106,7 @@ class VehicleManagerProxy(object):
             self.cav_config = config_yaml['scenario']['edge_list'][0]['members'][vehicle_index]
         
         else:
-            assert(False, "no known vehicle indexing format found")
+            assert False, "no known vehicle indexing format found"
         
         self.cav_world = cav_world
         self.data_dumping = data_dumping

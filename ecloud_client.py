@@ -44,6 +44,8 @@ CARLA_IP = None
 ECLOUD_IP = None
 VEHICLE_IP = None
 
+fatal_errors = False
+
 #TODO: move to eCloudClient
 def serialize_debug_info(vehicle_update, vehicle_manager) -> None:
     '''
@@ -65,16 +67,17 @@ def serialize_debug_info(vehicle_update, vehicle_manager) -> None:
     vehicle_update.client_debug_helper.CopyFrom(client_debug_helper_msg)
 
 #TODO: move to eCloudClient
-async def send_registration_to_ecloud_server(stub_) -> ecloud.SimulationInfo:
+async def send_registration_to_ecloud_server(stub_, port) -> ecloud.SimulationInfo:
     '''
     register this container client with the eCloud server
     '''
     request = ecloud.RegistrationInfo()
     request.vehicle_state = ecloud.VehicleState.REGISTERING
+    request.vehicle_port = port
     try:
         request.container_name = os.environ["HOSTNAME"]
     except KeyError:
-        request.container_name = "vehiclesim.py"
+        request.container_name = f"ecloud_client_{port}.py"
 
     request.vehicle_ip = VEHICLE_IP
     
@@ -123,12 +126,16 @@ def arg_parse():
                              'Set it to true only when you have installed the pytorch/sklearn package.')
     parser.add_argument('-i', "--ipaddress", type=str, default='localhost',
                         help="Specifies the ip address of the server to connect to. [Default: localhost]")
-    parser.add_argument('-p', "--port", type=int, default=50051,
-                        help="Specifies the port to connect to. [Default: 50051]")
+    parser.add_argument('-p', "--port", type=int, default=ecloud_globals.__server_port__,
+                        help=f"Specifies the port to connect to. [Default: {ecloud_globals.__server_port__}]")
     parser.add_argument('-e', "--environment", type=str, default="local",
                             help="Environment to run in: 'local' or 'azure'. [Default: 'local']")
     parser.add_argument('-m', "--machine", type=str, default="localhost",
                             help="Name of the specific machine name: 'localhost' or 'ndm'. [Default: 'localhost']")
+    parser.add_argument('-c',"--container_id", type=int, default=0,
+                        help="container ID #. Used as the counter from the base port for the eCloud push service")
+    parser.add_argument('-f', "--fatal_errors", action='store_true',
+                        help="will raise exceptions when set to allow for easier debugging")
 
     opt = parser.parse_args()
     return opt
@@ -158,6 +165,20 @@ async def main():
     ECLOUD_IP = EnvironmentConfig.get_ecloud_ip()
     VEHICLE_IP = EnvironmentConfig.get_client_ip_by_name(opt.machine)
 
+    global fatal_errors
+    fatal_errors = opt.fatal_errors
+
+    # spawn push server
+    port = ECLOUD_PUSH_BASE_PORT + opt.container_id
+    push_server = asyncio.create_task(ecloud_run_push_server(port, push_q))
+
+    await asyncio.sleep(1) # pause to let the server spin up
+    
+    port = await push_q.get()
+    push_q.task_done()
+
+    logger.info("push server spun up on port %s", port)
+
     # TODO: move to eCloudClient
     channel = grpc.aio.insecure_channel(
         target=f"{ECLOUD_IP}:{opt.port}",
@@ -165,7 +186,7 @@ async def main():
         )
     
     ecloud_server = ecloud_rpc.EcloudStub(channel)
-    ecloud_update = await send_registration_to_ecloud_server(ecloud_server)
+    ecloud_update = await send_registration_to_ecloud_server(ecloud_server, port)
     vehicle_index = ecloud_update.vehicle_index
     assert( vehicle_index != None )
 
@@ -184,12 +205,6 @@ async def main():
     scenario_yaml = json.loads(test_scenario) #load_yaml(test_scenario)
     if 'debug_scenario' in scenario_yaml:
         logger.debug(f"main - test_scenario: {test_scenario}") # VERY verbose
-
-    # spawn push server
-    push_port = ECLOUD_PUSH_BASE_PORT + vehicle_index # TODO: push this rather than pulling
-    push_server = asyncio.create_task(ecloud_run_push_server(push_port, push_q))
-
-    await asyncio.sleep(1)
 
     ecloud_config = EcloudConfig(scenario_yaml)
     location_type = ecloud_config.get_location_type()
@@ -395,11 +410,14 @@ async def main():
 if __name__ == '__main__':
     try:
         asyncio.get_event_loop().run_until_complete(main())
+    
     except Exception as e:
         if type(e) == KeyboardInterrupt:
             logger.info('exited by user.')
             sys.exit(0)
         else:
             logger.error("exception hit: %s", e)
+            if fatal_errors:
+                raise
             sys.exit(e)
-            #raise # TODO: opt for raise on except
+            

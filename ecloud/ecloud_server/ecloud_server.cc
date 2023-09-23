@@ -305,7 +305,7 @@ public:
 
             mu_.Lock();
             reply->set_vehicle_index(numRegisteredVehicles_.load());
-            const std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), absl::GetFlag(FLAGS_ecloud_push_base_port) + numRegisteredVehicles_.load() );
+            const std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), request->vehicle_port());
             const std::string ip = request->vehicle_ip();
             if ( std::find( clientNodes_.begin(), clientNodes_.end(), ip ) == clientNodes_.end() )
             {    

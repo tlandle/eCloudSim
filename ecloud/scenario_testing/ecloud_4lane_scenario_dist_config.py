@@ -57,6 +57,7 @@ def run_scenario(opt, config_yaml):
             scenario_params['scenario']['ecloud']['location_type'] = 'random'
 
         ecloud_config = EcloudConfig(scenario_params)
+        ecloud_config.set_fatal_errors(opt.fatal_errors)
         step_count = ecloud_config.get_step_count() if opt.steps == 0 else opt.steps
         # sanity checks...
         assert('edge_list' not in scenario_params['scenario']) # do NOT use this template for edge scenarios
@@ -160,7 +161,8 @@ def run_scenario(opt, config_yaml):
         
         else:
             logger.critical("exception hit during scenario execution - %s", e)
-            #raise # TODO: opt for raise on except
+            if opt.fatal_errors:
+                raise
 
     else:
         if run_distributed:
@@ -176,7 +178,10 @@ def run_scenario(opt, config_yaml):
   
         if not run_distributed:
             for v in single_cav_list:
-                v.destroy()
+                try:
+                    v.destroy()
+                except:
+                    logger.error('failed to destroy single CAV')
 
         for v in bg_veh_list:
             logger.warning("destroying background vehicle")

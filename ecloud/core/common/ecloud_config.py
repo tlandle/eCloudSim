@@ -33,6 +33,8 @@ class EcloudConfig(object):
 
     log_level = logging.INFO
     logger = None
+
+    fatal_errors = False
     
     location_types = { RANDOM : eLocationType.RANDOM, 
                        EXPLICIT : eLocationType.EXPLICIT }
@@ -96,6 +98,10 @@ class EcloudConfig(object):
         self.logger.debug(f"step_count: {self.ecloud_scenario['step_count']}")
         return self.ecloud_scenario['step_count']
     
+    @staticmethod
+    def set_fatal_errors(b):
+        EcloudConfig.fatal_errors = b
+
     @staticmethod
     def get_log_level():
         return EcloudConfig.log_level

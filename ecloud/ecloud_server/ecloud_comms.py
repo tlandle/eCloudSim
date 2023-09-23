@@ -1,18 +1,12 @@
 
 import logging
-import time
-import os
-import sys
 import json
 import asyncio
 
-import carla
+import grpc
 
 from ecloud.scenario_testing.utils.yaml_utils import load_yaml
-
-import grpc
-from google.protobuf.json_format import MessageToJson
-from google.protobuf.timestamp_pb2 import Timestamp
+import ecloud.globals as ecloud_globals
 
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
@@ -95,6 +89,7 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
         logger.info("eCloud push server initialized")
         self.q = q
         self.last_tick = 0
+        self.port_no = 0
 
     async def PushTick(self, 
                        tick: ecloud.Tick, 
@@ -119,14 +114,22 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
         return ecloud.Empty()     
 
 async def ecloud_run_push_server(port, 
-                       q: asyncio.Queue) -> None:
+                                 q: asyncio.Queue) -> None:
     
     logger.info("spinning up eCloud push server")
     server = grpc.aio.server()
     ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(q), server)
-    listen_addr = f"0.0.0.0:{port}"
-    server.add_insecure_port(listen_addr)
+    try:    
+        listen_addr = f"0.0.0.0:{port}"
+        server.add_insecure_port(listen_addr)
+    except:
+        logger.error("failed to start push server on port %s - incrementing port & retying", port)
+        port += 1
+
     print(f"starting eCloud push server on port {port}")
+    
+    if port >= ecloud_globals.__push_base_port__:
+        q.put_nowait(port)
     
     await server.start()
     await server.wait_for_termination()

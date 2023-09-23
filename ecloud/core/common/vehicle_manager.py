@@ -128,6 +128,7 @@ class VehicleManager(object):
         random.seed(seed)
 
         edge_sets_destination = False
+        cav_config = None
         if not is_edge:
             cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
                         else self.scenario_params['scenario']['single_cav_list'][0]
@@ -156,8 +157,8 @@ class VehicleManager(object):
                 edge_sets_destination = self.scenario_params['scenario']['edge_list'][0]['edge_sets_destination'] \
                     if 'edge_sets_destination' in self.scenario_params['scenario']['edge_list'][0] else False
 
-            else:
-                assert False, "no known vehicle indexing format found"
+            
+            assert cav_config is not None, "no known vehicle indexing format found"
             
         spawned = False
         while not spawned:
