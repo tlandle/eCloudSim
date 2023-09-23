@@ -132,7 +132,7 @@ def get_scenario(opt):
 
 def main():
     opt = arg_parse()
-    assert ( opt.apply_ml is True and opt.distributed is False ) or opt.apply_ml is False
+    assert ( opt.apply_ml is True and opt.distributed == 0 ) or opt.apply_ml is False
     logger.debug(opt)
     print(f"eCloudSim Version: {__version__}")
 
