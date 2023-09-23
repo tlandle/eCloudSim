@@ -171,14 +171,13 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         logger.info('exited by user.')
         sys.exit(0)
+    
+    except SystemExit:
+        logger.info('system exit.')
+        sys.exit(0)
 
     except Exception as e:
-        if isinstance(e, SystemExit):
-            logger.info('system exit: %s', e)
-            sys.exit(e)
-
-        else:
-            logger.critical(e)
-            if fatal_errors:
-                raise
-            sys.exit(1)
+        logger.critical(e)
+        if fatal_errors:
+            raise
+        sys.exit(1)

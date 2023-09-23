@@ -154,15 +154,13 @@ def run_scenario(opt, config_yaml):
                     flag = scenario_manager.broadcast_message(ecloud.Command.REQUEST_DEBUG_INFO)
                 break
 
+    except SystemExit:
+        logger.info('system exit')
+        
     except Exception as scenario_error:
-        if isinstance(scenario_error, SystemExit):
-            logger.info('system exit: %s', scenario_error)
-            sys.exit(scenario_error)
-
-        else:
-            logger.critical("exception hit during scenario execution: %s - %s", type(scenario_error), scenario_error)
-            if opt.fatal_errors:
-                raise
+        logger.critical("exception hit during scenario execution: %s - %s", type(scenario_error), scenario_error)
+        if opt.fatal_errors:
+            raise
 
     else:
         if run_distributed:
