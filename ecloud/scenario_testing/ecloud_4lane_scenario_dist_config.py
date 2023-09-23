@@ -155,11 +155,7 @@ def run_scenario(opt, config_yaml):
                 break
 
     except Exception as scenario_error:
-        if isinstance(scenario_error, KeyboardInterrupt):
-            logger.info('exited by user.')
-            sys.exit(0)
-
-        elif isinstance(scenario_error, SystemExit):
+        if isinstance(scenario_error, SystemExit):
             logger.info('system exit: %s', scenario_error)
             sys.exit(scenario_error)
 

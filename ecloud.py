@@ -168,12 +168,12 @@ if __name__ == '__main__':
     try:
         main()
 
-    except Exception as e:
-        if isinstance(e, KeyboardInterrupt):
-            logger.info('exited by user.')
-            sys.exit(0)
+    except KeyboardInterrupt:
+        logger.info('exited by user.')
+        sys.exit(0)
 
-        elif isinstance(e, SystemExit):
+    except Exception as e:
+        if isinstance(e, SystemExit):
             logger.info('system exit: %s', e)
             sys.exit(e)
 

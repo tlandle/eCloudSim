@@ -37,8 +37,8 @@ class ActorProxy(object):
     lightweight proxy class used as a replace for an actual Carla actor in distributed scenarios
     '''
     def __init__(self,
-                 vid = 0):
-        self.vid = vid
+                 id = 0): # id must be used since Carla actors have this
+        self.id = id
         self.transform = carla.Transform(
                 carla.Location(
                     x=0,

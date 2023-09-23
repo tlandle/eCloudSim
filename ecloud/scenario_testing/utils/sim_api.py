@@ -182,9 +182,11 @@ class ScenarioManager:
                     assert timestamps.tick_id in network_overhead_by_tick
                     client_process_time_ms = (timestamps.client_end_tstamp.ToNanoseconds() - timestamps.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
                     barrier_overhead_time_ms = overall_steps_by_tick[timestamps.tick_id] - network_overhead_by_tick[timestamps.tick_id] - client_process_time_ms # inferred rather than actual "barrier" time
+                    
+                    # TODO: confirm if we wantt to do this?
                     #if barrier_overhead_time_ms < 0:
                     #    logger.warning(f"got a NEGATIVE inferred barrier_overhead_time value of {round(barrier_overhead_time_ms, 2)}ms for vehicle {v.vehicle_index}")
-                    #barrier_overhead_time_ms = barrier_overhead_time_ms if barrier_overhead_time_ms > 0 else 0 # TODO: confirm if we wantt to do this?
+                    #barrier_overhead_time_ms = barrier_overhead_time_ms if barrier_overhead_time_ms > 0 else 0 
 
                     self.debug_helper.update_barrier_overhead_time_timestamp(vehicle_manager_proxy.vehicle_index, barrier_overhead_time_ms) # this inferred
                     self.debug_helper.update_client_process_time_timestamp(vehicle_manager_proxy.vehicle_index, client_process_time_ms) # how long client actually was active
@@ -394,20 +396,24 @@ class ScenarioManager:
 
             except subprocess.CalledProcessError as e:
                 if e.returncode > 1:
-                    logger.error("failed to run Carla - %s", e)
+                    logger.error("failed to check for running Carla - %s", e)
                 carla_pid = None
 
             if carla_pid is not None:
                 logger.info('killing existing Carla instance')
                 subprocess.run(['pkill','-9','Carla'], check=True)
 
-            logger.info('spawning Carla')
+            time.sleep(1)
+            print('spawning Carla') # TODO: this MUST be a print call and NOT a log call for some reason
             self.carla_process = subprocess.Popen(['./CarlaUE4.sh',f'{run_carla}'],
                                                   cwd='/opt/carla-simulator/',
                                                   start_new_session=True,
                                                   stderr=sys.stdout.buffer)
-            logger.info("waiting for Carla to start up")
-            time.sleep(5)
+            print("waiting for Carla to start up", end=" ")
+            for _ in range(5):
+                print(".", end=" ")
+                time.sleep(1)
+            print("")
 
         cav_world.update_scenario_manager(self)
 
@@ -642,10 +648,6 @@ class ScenarioManager:
                 else:
                     spawn_transform = map_helper(self.carla_version,
                                                  *cav['spawn_special'])
-
-                cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-                vehicle = self.world.spawn_actor(cav_vehicle_bp,
-                                                 spawn_transform)
 
                 # create vehicle manager for each cav
                 vehicle_manager = VehicleManager(

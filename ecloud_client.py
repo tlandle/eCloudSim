@@ -426,14 +426,13 @@ async def main():
 
 if __name__ == '__main__':
     try:
-        asyncio.get_event_loop().run_until_complete(main())
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main())
+
+    except KeyboardInterrupt:
+        logger.info("caught keyboard interrupt")
 
     except Exception as e:
-        if isinstance(e, KeyboardInterrupt):
-            logger.info('exited by user.')
-            sys.exit(0)
-        else:
-            logger.error("exception hit: %s", type(e))
-            if fatal_errors:
-                raise
-            sys.exit(e)
+        logger.error("exception hit: %s - %s", type(e), e)
+        if fatal_errors:
+            raise
