@@ -206,7 +206,7 @@ class LocalPlanner(object):
             logger.error('invalid waypoint!')
             return False
 
-        return True    
+        return True
 
     def get_waypoints_queue(self):
         """
@@ -320,7 +320,7 @@ class LocalPlanner(object):
             if self.potential_curved_road:
                 x.append(prev_wpt.x)
                 y.append(prev_wpt.y)
-                index += 1      
+                index += 1
 
         # to make sure the vehicle is stable during lane change, we don't
         # include any current position
@@ -376,7 +376,7 @@ class LocalPlanner(object):
         diff_x = current_location.x - sp.sx.y[0]
         diff_y = current_location.y - sp.sy.y[0]
         diff_s = np.hypot(diff_x, diff_y)
-        
+
         # we only need the interpolation points after current position
         s = np.arange(diff_s, sp.s[-1], ds)
 
@@ -525,7 +525,7 @@ class LocalPlanner(object):
     def pop_buffer(self, vehicle_transform):
         """
         Remove waypoints the ego vehicle has achieved.
-        
+
         Parameters
         ----------
         vehicle_transform : carla.position

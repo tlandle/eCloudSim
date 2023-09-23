@@ -81,10 +81,10 @@ def run_scenario(opt, config_yaml):
 
                 scenario_manager.push_waypoint_buffer(waypoint_buffer)
                 flag = scenario_manager.broadcast_message(ecloud.Command.PULL_WAYPOINTS_AND_TICK)
-            
+
             else:
                 flag = scenario_manager.broadcast_tick()
-            
+
             step = step + 1
             if step > ecloud_config.get_step_count():
                 flag = scenario_manager.broadcast_message(ecloud.Command.REQUEST_DEBUG_INFO)
@@ -108,7 +108,7 @@ def run_scenario(opt, config_yaml):
             eval_manager.evaluate()
 
         if opt.record:
-            scenario_manager.client.stop_recorder()       
+            scenario_manager.client.stop_recorder()
 
         scenario_manager.close()
         for edge in edge_list:

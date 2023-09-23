@@ -792,10 +792,10 @@ class BehaviorAgent(object):
             # eCLOUD
             if self._is_dist:
                 return -1, None # eCloud: Use -1 to indicate simulation end. Need a better way than this.
-            else:    
+            else:
                 sys.exit(0)
         end_time = time.time()
-        self.debug_helper.update_agent_step_list(0, end_time-start_time)        
+        self.debug_helper.update_agent_step_list(0, end_time-start_time)
 
         start_time = time.time()
         # 1. Traffic light management
@@ -803,7 +803,7 @@ class BehaviorAgent(object):
             # TODO - eCLOUD: (we have no traffic lights in sims yet)
             return 0, None
         end_time = time.time()
-        self.debug_helper.update_agent_step_list(1, end_time-start_time) 
+        self.debug_helper.update_agent_step_list(1, end_time-start_time)
 
         start_time = time.time()
         # 2. when the temporary route is finished, we return to the global route
@@ -822,7 +822,7 @@ class BehaviorAgent(object):
                 clean_history=True)
         end_time = time.time()
         logger.debug("Local planner destination reached block: %s" %(end_time - start_time))
-        self.debug_helper.update_agent_step_list(2, end_time-start_time) 
+        self.debug_helper.update_agent_step_list(2, end_time-start_time)
 
         # intersection behavior. if the car is near a intersection, no overtake is allowed
         if is_intersection:
@@ -835,13 +835,13 @@ class BehaviorAgent(object):
         rx, ry, rk, ryaw = self._local_planner.generate_path()
         end_time = time.time()
         logger.debug("Local planner path generation time: %s" %(end_time - start_time))
-        self.debug_helper.update_agent_step_list(3, end_time-start_time) 
+        self.debug_helper.update_agent_step_list(3, end_time-start_time)
 
         # 4. check whether lane change is allowed
         start_time = time.time()
         self.lane_change_allowed = self.check_lane_change_permission(lane_change_allowed, collision_detector_enabled, rk)
         end_time = time.time()
-        self.debug_helper.update_agent_step_list(4, end_time-start_time) 
+        self.debug_helper.update_agent_step_list(4, end_time-start_time)
 
         # 5. Collision check
         start_time = time.time()
@@ -851,7 +851,7 @@ class BehaviorAgent(object):
                 rx, ry, ryaw, ego_vehicle_wp)
         car_following_flag = False
         end_time = time.time()
-        self.debug_helper.update_agent_step_list(5, end_time-start_time) 
+        self.debug_helper.update_agent_step_list(5, end_time-start_time)
 
         if not is_hazard:
             self.hazard_flag = False
@@ -880,7 +880,7 @@ class BehaviorAgent(object):
                 end_reset=False)
             rx, ry, rk, ryaw = self._local_planner.generate_path()
             end_time_7 = time.time()
-        
+
         # 8. the case that vehicle is blocking in front and overtake not
         # allowed or it is doing overtaking the second condition is to
         # prevent successive overtaking
@@ -912,8 +912,8 @@ class BehaviorAgent(object):
             end_time_9 = time.time()
         end_time = time.time()
         logger.debug("Lane change not allowed so path regenerated or overtake issue or overtake handling: %s" %(end_time - start_time))
-        self.debug_helper.update_agent_step_list(6, end_time-start_time) 
-        self.debug_helper.update_agent_step_list(7, end_time_7-start_time) 
+        self.debug_helper.update_agent_step_list(6, end_time-start_time)
+        self.debug_helper.update_agent_step_list(7, end_time_7-start_time)
         self.debug_helper.update_agent_step_list(8, end_time_8-start_time)
         self.debug_helper.update_agent_step_list(9, end_time_9-start_time)
 
@@ -923,7 +923,7 @@ class BehaviorAgent(object):
             if distance < max(self.break_distance, 3):
                 end_time = time.time()
                 self.debug_helper.update_agent_step_list(10, end_time-start_time)
-                self.debug_helper.update_agent_step_list(11, 0) 
+                self.debug_helper.update_agent_step_list(11, 0)
                 return 0, None
 
             target_speed = self.car_following_manager(obstacle_vehicle, distance, target_speed)
@@ -931,10 +931,10 @@ class BehaviorAgent(object):
                 rx, ry, rk, target_speed=target_speed)
             end_time = time.time()
             self.debug_helper.update_agent_step_list(10, end_time-start_time)
-            self.debug_helper.update_agent_step_list(11, 0)  
+            self.debug_helper.update_agent_step_list(11, 0)
             return target_speed, target_loc
         end_time = time.time()
-        self.debug_helper.update_agent_step_list(10, end_time-start_time) 
+        self.debug_helper.update_agent_step_list(10, end_time-start_time)
 
         # 11. Normal behavior
         start_time = time.time()
@@ -943,7 +943,7 @@ class BehaviorAgent(object):
             if not target_speed else target_speed)
         end_time = time.time()
         logger.debug("Local planner run step time: %s" %(end_time - start_time))
-        self.debug_helper.update_agent_step_list(11, end_time-start_time) 
+        self.debug_helper.update_agent_step_list(11, end_time-start_time)
         return target_speed, target_loc
 
 

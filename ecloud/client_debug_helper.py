@@ -54,7 +54,7 @@ class ClientDebugHelper(PlanDebugHelper):
         }
 
     def get_debug_data(self):
-        return self.debug_data    
+        return self.debug_data
 
     def update_perception_time(self, tick_time_step=None):
         """
@@ -64,7 +64,7 @@ class ClientDebugHelper(PlanDebugHelper):
         ----------
         """
         self.perception_time_list.append(tick_time_step)
-    
+
 
     def update_localization_time(self, tick_time_step=None):
         """
@@ -130,7 +130,7 @@ class ClientDebugHelper(PlanDebugHelper):
         ----------
         """
         self.controller_step_time_list.append(time)
-   
+
     def update_control_time(self, time=None):
         """
         Update the platoon related vehicle information.
@@ -163,19 +163,19 @@ class ClientDebugHelper(PlanDebugHelper):
 
         for obj in self.update_info_time_list:
             proto_debug_helper.update_info_time_list.append(obj)
-        
+
         for obj in self.agent_update_info_time_list:
             proto_debug_helper.agent_update_info_time_list.append(obj)
 
         for obj in self.controller_update_info_time_list:
             proto_debug_helper.controller_update_info_time_list.append(obj)
-        
+
         for obj in self.agent_step_time_list:
             proto_debug_helper.agent_step_time_list.append(obj)
-        
+
         for obj in self.vehicle_step_time_list:
             proto_debug_helper.vehicle_step_time_list.append(obj)
-        
+
         for obj in self.controller_step_time_list:
             proto_debug_helper.controller_step_time_list.append(obj)
 
@@ -202,23 +202,23 @@ class ClientDebugHelper(PlanDebugHelper):
         self.update_info_time_list.clear()
         for obj in proto_debug_helper.update_info_time_list:
             self.update_info_time_list.append(obj)
- 
+
         self.agent_update_info_time_list.clear()
         for obj in proto_debug_helper.agent_update_info_time_list:
             self.agent_update_info_time_list.append(obj)
- 
+
         self.controller_update_info_time_list.clear()
         for obj in proto_debug_helper.controller_update_info_time_list:
             self.controller_update_info_time_list.append(obj)
- 
+
         self.agent_step_time_list.clear()
         for obj in proto_debug_helper.agent_step_time_list:
             self.agent_step_time_list.append(obj)
- 
+
         self.vehicle_step_time_list.clear()
         for obj in proto_debug_helper.vehicle_step_time_list:
             self.vehicle_step_time_list.append(obj)
- 
+
         self.controller_step_time_list.clear()
         for obj in proto_debug_helper.controller_step_time_list:
             self.controller_step_time_list.append(obj)

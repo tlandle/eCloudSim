@@ -35,7 +35,7 @@ def arg_parse():
                              'match one of the testing scripts(e.g. single_2lanefree_carla) in '
                              'ecloud/scenario_testing/ folder'
                              f' as well as the corresponding yaml file in ecloud/scenario_testing/config_yaml. [Default: {__default_scenario__}]')
-    
+
     # CONFIGURATION ARGS
     parser.add_argument('-n', "--num_cars", type=int, default=0,
                             help="number of vehicles to run - forces RANDOM spawning behavior")
@@ -53,14 +53,14 @@ def arg_parse():
                             help="Run Carla with optional args; use = --run_carla='-RenderOffscreen'")
     parser.add_argument('-f', "--fatal_errors", action='store_true',
                         help="will raise exceptions when set to allow for easier debugging")
-    
+
     # SEQUENTIAL ONLY
     parser.add_argument("--apply_ml",
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                              'Set it to true only when you have installed the pytorch/sklearn package.'
                              'NOT compatible with distributed scenarios: containers must be started at runtime with perception enabled.')
-    
+
     # DEPRECATED
     parser.add_argument("--record", action='store_true', help='whether to record and save the simulation process to'
                                                               '.log file')
@@ -93,7 +93,7 @@ def check_imports():
                                 continue
                             else:
                                 logger.debug("module %s imported OK", module)
-                        
+
                         x = re.search(import_class, l)
                         if x:
                             try:

@@ -47,7 +47,7 @@ def get_scaling(waypoints):
     scaling = []
     for i in waypoints.keys():
         rot_1.append(transform(waypoints[i]['x'][-1],waypoints[i]['y'][-1],rotation_mat,offset))
-        count += 1 
+        count += 1
         if count > 1:
             scaling.append(count/(rot_1[-1][1,0]-rot_1[0][1,0]))
     return scaling
@@ -56,9 +56,9 @@ def serialize_waypoint(waypoint):
 
     serialized_waypoint = ecloud.Waypoint()
     serialized_waypoint.id = str(waypoint.id)
-    
+
     transform = ecloud.Transform()
-    
+
     location   = ecloud.Location()
     location.x = waypoint.transform.location.x
     location.y = waypoint.transform.location.y
@@ -86,7 +86,7 @@ def serialize_waypoint(waypoint):
     # int32 right_lane_marking = 11; // unused - enum if needed
     # int32 left_lane_marking = 12; // unused - enum if needed
 
-    return serialized_waypoint    
+    return serialized_waypoint
 
 def deserialize_waypoint(serialized_waypoint, dao):
     '''
@@ -98,8 +98,8 @@ def deserialize_waypoint(serialized_waypoint, dao):
     '''waypoint = carla.Waypoint
 
     waypoint.id = serialized_waypoint.id
-    
-    waypoint.transform.location.x = serialized_waypoint.transform.location.x 
+
+    waypoint.transform.location.x = serialized_waypoint.transform.location.x
     waypoint.transform.location.y = serialized_waypoint.transform.location.y
     waypoint.transform.location.z = serialized_waypoint.transform.location.z
 

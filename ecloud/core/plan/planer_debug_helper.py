@@ -51,7 +51,7 @@ class PlanDebugHelper(object):
             [], # 8: blocking
             [], # 9: overtake
             [], # 10: following
-            [], # 11: normal 
+            [], # 11: normal
         ] # index corresponds to specific decision instance in BehaviorAgent.run_step
 
         self.count = 0
@@ -135,7 +135,7 @@ class PlanDebugHelper(object):
             logger.debug(f"actor {self.actor_id} | agent step list_{idx} - std: {sub_list_std}")
 
         return figure, perform_txt
-    
+
     def serialize_debug_info(self, proto_debug_helper):
         # seems we only ever access [0] anywhere...
         # but need to consider this when de-serializing info from protobuf
@@ -143,17 +143,17 @@ class PlanDebugHelper(object):
 
         for obj in self.speed_list[0]:
             proto_debug_helper.speed_list.append(obj)
-        
+
         for obj in self.acc_list[0]:
             proto_debug_helper.acc_list.append(obj)
-        
+
         for obj in self.ttc_list[0]:
             proto_debug_helper.ttc_list.append(obj)
-           
+
         for sub_step_time_list in self.agent_step_list:
             step_list = proto_debug_helper.agent_step_list.add()
             for obj in sub_step_time_list:
-                step_list.time_list.append(obj)    
+                step_list.time_list.append(obj)
 
     def deserialize_debug_info(self, proto_debug_helper):
         # call from Sim API to populate locally
@@ -174,4 +174,4 @@ class PlanDebugHelper(object):
             time_list.clear()
         for idx, proto_agent_list in enumerate(proto_debug_helper.agent_step_list):
             for obj in proto_agent_list.time_list:
-                self.agent_step_list[idx].append(obj)        
+                self.agent_step_list[idx].append(obj)

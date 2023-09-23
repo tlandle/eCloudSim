@@ -181,7 +181,7 @@ class LocDebugHelper(object):
         figure, axis = plt.subplots(3, 2)
         figure.set_size_inches(16, 12)
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)   
+            warnings.simplefilter("ignore", category=RuntimeWarning)
             # x, y coordinates
             axis[0, 0].plot(self.gnss_x, self.gnss_y, ".g", label='gnss')
             axis[0, 0].plot(self.gt_x, self.gt_y, ".b", label='gt')
@@ -300,31 +300,31 @@ class LocDebugHelper(object):
 
         for obj in self.gnss_yaw:
             proto_debug_helper.gnss_yaw.append(obj)
-        
+
         for obj in self.gnss_spd:
             proto_debug_helper.gnss_spd.append(obj)
 
         for obj in self.filter_x:
             proto_debug_helper.filter_x.append(obj)
-        
+
         for obj in self.filter_y:
             proto_debug_helper.filter_y.append(obj)
-        
+
         for obj in self.filter_yaw:
             proto_debug_helper.filter_yaw.append(obj)
-        
+
         for obj in self.filter_spd:
             proto_debug_helper.filter_spd.append(obj)
 
         for obj in self.gt_x:
             proto_debug_helper.gt_x.append(obj)
-        
+
         for obj in self.gt_y:
             proto_debug_helper.gt_y.append(obj)
-        
+
         for obj in self.gt_yaw:
             proto_debug_helper.gt_yaw.append(obj)
-        
+
         for obj in self.gt_spd:
             proto_debug_helper.gt_spd.append(obj)
 
@@ -342,7 +342,7 @@ class LocDebugHelper(object):
         self.gnss_yaw.clear()
         for obj in proto_debug_helper.gnss_yaw:
             self.gnss_yaw.append(obj)
-        
+
         self.gnss_spd.clear()
         for obj in proto_debug_helper.gnss_spd:
             self.gnss_spd.append(obj)
@@ -350,15 +350,15 @@ class LocDebugHelper(object):
         self.filter_x.clear()
         for obj in proto_debug_helper.filter_x:
             self.filter_x.append(obj)
-        
+
         self.filter_y.clear()
         for obj in proto_debug_helper.filter_y:
             self.filter_y.append(obj)
-        
+
         self.filter_yaw.clear()
         for obj in proto_debug_helper.filter_yaw:
             self.filter_yaw.append(obj)
-        
+
         self.filter_spd.clear()
         for obj in proto_debug_helper.filter_spd:
             self.filter_spd.append(obj)
@@ -366,15 +366,15 @@ class LocDebugHelper(object):
         self.gt_x.clear()
         for obj in proto_debug_helper.gt_x:
             self.gt_x.append(obj)
-        
+
         self.gt_y.clear()
         for obj in proto_debug_helper.gt_y:
             self.gt_y.append(obj)
-        
+
         self.gt_yaw.clear()
         for obj in proto_debug_helper.gt_yaw:
             self.gt_yaw.append(obj)
-        
+
         self.gt_spd.clear()
         for obj in proto_debug_helper.gt_spd:
             self.gt_spd.append(obj)

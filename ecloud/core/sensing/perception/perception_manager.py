@@ -184,7 +184,7 @@ class LidarSensor:
             self.sensor.listen(
                 lambda event: LidarSensor._on_data_event(
                     weak_self, event))
-        
+
         self.debug_helper = ClientDebugHelper(0)
 
     @staticmethod
@@ -266,7 +266,7 @@ class SemanticLidarSensor:
             self.sensor.listen(
                 lambda event: SemanticLidarSensor._on_data_event(
                     weak_self, event))
-        
+
         self.debug_helper = ClientDebugHelper(0)
 
     @staticmethod
@@ -447,7 +447,7 @@ class PerceptionManager:
             Updated object dictionary.
         """
         # retrieve current cameras and lidar data
-        
+
         rgb_images = []
         for rgb_camera in self.rgb_camera:
             while rgb_camera.image is None:

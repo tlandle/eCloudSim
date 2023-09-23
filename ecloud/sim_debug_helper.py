@@ -37,9 +37,9 @@ class SimDebugHelper(PlanDebugHelper):
         self.network_time_dict = {}
         self.client_tick_time_dict = {}
         self.network_time_dict_per_client = {}
-        self.client_tick_time_dict_per_client = {}   
+        self.client_tick_time_dict_per_client = {}
         self.barrier_overhead_time_dict = {}
-        self.client_process_time_dict = {}    
+        self.client_process_time_dict = {}
 
     def update_world_tick(self, tick_time_step=None):
         self.world_tick_time_list[0].append(tick_time_step)
@@ -75,4 +75,4 @@ class SimDebugHelper(PlanDebugHelper):
         if vehicle_index not in self.client_process_time_dict:
           self.client_process_time_dict[vehicle_index] = []
         self.client_process_time_dict[vehicle_index].append(time_step)
-        
+

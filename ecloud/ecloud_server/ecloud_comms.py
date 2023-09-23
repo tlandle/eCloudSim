@@ -53,7 +53,7 @@ class EcloudClient:
 
     def __init__(self, channel: grpc.Channel) -> None:
         self.channel = channel
-        self.stub = ecloud_rpc.EcloudStub(self.channel)     
+        self.stub = ecloud_rpc.EcloudStub(self.channel)
 
     async def register_vehicle(self, update: ecloud.VehicleUpdate) -> ecloud.SimulationInfo:
         '''
@@ -85,9 +85,9 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
     Lightweight gRPC Server Class for Receiving Push Messages from Ochestrator
     '''
 
-    def __init__(self, 
+    def __init__(self,
                  q: asyncio.Queue):
-  
+
         logger.info("eCloud push server initialized")
         self.q = q
         self.last_tick = 0

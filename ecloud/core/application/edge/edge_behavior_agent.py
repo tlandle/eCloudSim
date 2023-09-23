@@ -140,4 +140,4 @@ class EdgeBehaviorAgent(BehaviorAgent):
             # This method also includes stop signs and intersections.
             self.light_state = str(self.vehicle.get_traffic_light_state())
 
-      
+

@@ -4,7 +4,7 @@ Extensible modular class for Network modeling. Calculates latency between indivi
 
 - track world time and increment it each time it ticks
 - use world time and latency to evaluate SET_DESTINATION commands in queue
-- Sim API *should* manage this and not send SET_DESTINATION to a specific vehicle until it's ready, but it's also fine to just broadcast them all and for individual vehicles to manage the queue 
+- Sim API *should* manage this and not send SET_DESTINATION to a specific vehicle until it's ready, but it's also fine to just broadcast them all and for individual vehicles to manage the queue
 - it's possibly a bit easier if Sim API keeps queue since it can manage latencies centrally; otherwise, we need a way for vehicles to get latencies - which is fine? - but it does require support for a PING command
 """
 # Author: Jordan Rapp <jrapp7@gatech.edu>

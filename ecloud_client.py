@@ -79,11 +79,11 @@ async def send_registration_to_ecloud_server(stub_, port) -> ecloud.SimulationIn
         request.container_name = f"ecloud_client_{port}.py"
 
     request.vehicle_ip = VEHICLE_IP
-    
+
     sim_info = await stub_.Client_RegisterVehicle(request)
 
     logger.info("vehicle ID %s received...", sim_info.vehicle_index)
-    
+
     return sim_info
 
 #TODO: move to eCloudClient
@@ -100,7 +100,7 @@ async def send_carla_data_to_ecloud(stub_, vehicle_index, actor_id, vid) -> eclo
     update.vehicle_index = vehicle_index
     update.vid = vid
     update.actor_id = actor_id
-    
+
     sim_info = await stub_.Client_RegisterVehicle(update)
 
     return sim_info
@@ -111,7 +111,7 @@ async def send_vehicle_update(stub_, vehicle_update_) -> ecloud.Empty:
     push a vehicle update message to eCloud server
     '''
     empty = await stub_.Client_SendUpdate(vehicle_update_)
-    
+
     return empty
 
 def arg_parse():
@@ -172,7 +172,7 @@ async def main():
     push_server = asyncio.create_task(ecloud_run_push_server(port, push_q))
 
     await asyncio.sleep(1) # pause to let the server spin up
-    
+
     port = await push_q.get()
     push_q.task_done()
 
@@ -183,7 +183,7 @@ async def main():
         target=f"{ECLOUD_IP}:{opt.port}",
         options=EcloudComms.GRPC_OPTIONS,
         )
-    
+
     ecloud_server = ecloud_rpc.EcloudStub(channel)
     ecloud_update = await send_registration_to_ecloud_server(ecloud_server, port)
     vehicle_index = ecloud_update.vehicle_index
@@ -214,7 +214,7 @@ async def main():
     is_edge = False # TODO: added this to the actual protobuf message
     if 'edge_list' in scenario_yaml['scenario']:
         is_edge = True
-        # TODO: support multiple edges... 
+        # TODO: support multiple edges...
         target_speed = scenario_yaml['scenario']['edge_list'][0]['target_speed']
         edge_sets_destination = scenario_yaml['scenario']['edge_list'][0]['edge_sets_destination'] \
             if 'edge_sets_destination' in scenario_yaml['scenario']['edge_list'][0] else False
@@ -242,17 +242,17 @@ async def main():
 
     logger.info("vehicle %s beginning scenario tick flow", vehicle_index)
     waypoint_proto = None
-    while pong.command != ecloud.Command.END:   
-        
+    while pong.command != ecloud.Command.END:
+
         vehicle_update = ecloud.VehicleUpdate()
         if pong.command != ecloud.Command.TICK: # don't print tick message since there are too many
             logger.info("received cmd %s", pong.command)
-        
+
         # HANDLE DEBUG DATA REQUEST
         if pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
-            vehicle_update.vehicle_state = ecloud.VehicleState.DEBUG_INFO_UPDATE            
+            vehicle_update.vehicle_state = ecloud.VehicleState.DEBUG_INFO_UPDATE
             serialize_debug_info(vehicle_update, vehicle_manager)
-  
+
         # HANDLE TICK
         elif pong.command == ecloud.Command.TICK:
             client_start_timestamp = Timestamp()
@@ -261,7 +261,7 @@ async def main():
             vehicle_manager.update_info()
             logger.debug("update_info complete")
 
-            if is_edge:           
+            if is_edge:
                 is_wp_valid = False
                 has_not_cleared_buffer = True
                 if waypoint_proto is not None:
@@ -288,7 +288,7 @@ async def main():
                                      wp.transform.rotation.pitch,
                                      wp.transform.rotation.yaw)
                         is_wp_valid = vehicle_manager.agent.get_local_planner().is_waypoint_valid(waypoint=wp)
-                        
+
                         if edge_sets_destination and is_wp_valid:
                             cur_location = vehicle_manager.vehicle.get_location()
                             start_location = carla.Location(x=cur_location.x, y=cur_location.y, z=cur_location.z)
@@ -311,7 +311,7 @@ async def main():
                     waypoint_proto = None
 
                 cur_location = vehicle_manager.vehicle.get_location()
-                logger.debug("location for vehicle_%s - is - x: %s, y: %s", 
+                logger.debug("location for vehicle_%s - is - x: %s, y: %s",
                              vehicle_index,
                              cur_location.x,
                              cur_location.y)
@@ -335,7 +335,7 @@ async def main():
                 logger.debug("run_step complete")
 
             vehicle_update.tick_id = tick_id
-            
+
             if should_run_step:
                 if control is None or vehicle_manager.is_close_to_scenario_destination():
                     vehicle_update.vehicle_state = ecloud.VehicleState.TICK_DONE
@@ -375,7 +375,7 @@ async def main():
                     pt.rotation.yaw = transform.rotation.yaw
                     pt.rotation.pitch = transform.rotation.pitch
                     vehicle_update.transform.CopyFrom(pt)
-            
+
             else:
                 vehicle_update.vehicle_state = ecloud.VehicleState.ERROR # TODO: handle error status
                 logger.error("ecloud_client error")
@@ -427,7 +427,7 @@ async def main():
 if __name__ == '__main__':
     try:
         asyncio.get_event_loop().run_until_complete(main())
-    
+
     except Exception as e:
         if type(e) == KeyboardInterrupt:
             logger.info('exited by user.')

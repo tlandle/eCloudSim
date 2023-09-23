@@ -32,7 +32,7 @@ class EdgeDebugHelper(PlanDebugHelper):
         self.time_gap_list = [[]]
         self.dist_gap_list = [[]]
         self.algorithm_time_list = [[]]
-        
+
 
     def update(self, ego_speed, ttc, time_gap=None, dist_gap=None, algorithm_time_step=None):
         """
@@ -60,7 +60,7 @@ class EdgeDebugHelper(PlanDebugHelper):
             self.time_gap_list[0].append(time_gap)
             self.dist_gap_list[0].append(dist_gap)
 
-  
+
     def update_edge(self, algorithm_time_step=None):
         """
         Update the platoon related vehicle information.

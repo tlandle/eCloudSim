@@ -168,7 +168,7 @@ class V2XManager(object):
                 self.cav_nearby.update({vid: vm})
     """
     -----------------------------------------------------------
-                 Below is platooning related 
+                 Below is platooning related
     -----------------------------------------------------------
     """
 

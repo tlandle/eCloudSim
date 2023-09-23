@@ -2,7 +2,7 @@
 """
 eCloudSim
 ---------
-Scenario testing: *TEMPLATE* 
+Scenario testing: *TEMPLATE*
 Use for OpenCDA vs eCloudSim DIST-ONLY comparisons
 
 *NOT for Edge*
@@ -69,7 +69,7 @@ def run_scenario(opt, config_yaml):
         assert scenario_params['world']['fixed_delta_seconds'] == 0.03 or scenario_params['world']['fixed_delta_seconds'] == 0.05
 
         # spectator configs
-        world_x = scenario_params['world']['x_pos'] if 'x_pos' in scenario_params['world'] else 0 
+        world_x = scenario_params['world']['x_pos'] if 'x_pos' in scenario_params['world'] else 0
         world_y = scenario_params['world']['y_pos'] if 'y_pos' in scenario_params['world'] else 0
         world_z = scenario_params['world']['z_pos'] if 'z_pos' in scenario_params['world'] else 256
         world_roll = scenario_params['world']['roll'] if 'roll' in scenario_params['world'] else 0
@@ -91,14 +91,14 @@ def run_scenario(opt, config_yaml):
         if opt.record:
             scenario_manager.client. \
                 start_recorder(LOG_NAME, True)
-        
-        # create single cavs        
+
+        # create single cavs
         if run_distributed:
             asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
             single_cav_list = \
-                scenario_manager.create_distributed_vehicle_manager(application=['single']) 
-        
-        else:    
+                scenario_manager.create_distributed_vehicle_manager(application=['single'])
+
+        else:
             single_cav_list = \
                 scenario_manager.create_vehicle_manager(application=['single'])
 
@@ -113,15 +113,15 @@ def run_scenario(opt, config_yaml):
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
- 
+
         flag = True
         while flag:
             print(f"ticking - step: {step}")
             scenario_manager.tick_world()
             if run_distributed:
                 flag = scenario_manager.broadcast_tick()
-            
-            else:    
+
+            else:
                 # non-dist will break automatically; don't need to set flag
                 pre_client_tick_time = time.time()
                 for _, single_cav in enumerate(single_cav_list):
@@ -129,7 +129,7 @@ def run_scenario(opt, config_yaml):
                     control = single_cav.run_step()
                     single_cav.apply_control(control)
                 post_client_tick_time = time.time()
-                
+
                 logger.info("client tick completion time: %s", (post_client_tick_time - pre_client_tick_time))
                 if step > 0: # discard the first tick as startup is a major outlier
                     scenario_manager.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
@@ -145,23 +145,23 @@ def run_scenario(opt, config_yaml):
                 carla.Rotation(
                     yaw=world_yaw,
                     roll=world_roll,
-                    pitch=world_pitch)))   
+                    pitch=world_pitch)))
 
             step = step + 1
             if step > step_count:
                 if run_distributed:
                     flag = scenario_manager.broadcast_message(ecloud.Command.REQUEST_DEBUG_INFO)
-                break            
-    
+                break
+
     except Exception as e:
         if isinstance(e, KeyboardInterrupt):
             logger.info('exited by user.')
             sys.exit(0)
-        
+
         elif isinstance(e, SystemExit):
             logger.info('system exit: %s', e)
             sys.exit(e)
-        
+
         else:
             logger.critical("exception hit during scenario execution - %s", type(e))
             if opt.fatal_errors:
@@ -178,7 +178,7 @@ def run_scenario(opt, config_yaml):
             scenario_manager.client.stop_recorder()
 
         scenario_manager.close()
-  
+
         if not run_distributed:
             for v in single_cav_list:
                 try:
@@ -191,7 +191,7 @@ def run_scenario(opt, config_yaml):
             try:
                 v.destroy()
             except Exception as destroy_error:
-                logger.warning("%s: failed to destroy background vehicle", type(destroy_error))  
+                logger.warning("%s: failed to destroy background vehicle", type(destroy_error))
 
     #finally:
-    
+

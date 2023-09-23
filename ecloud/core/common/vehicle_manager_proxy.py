@@ -52,17 +52,17 @@ class ActorProxy(object):
 
     def is_proxy(self):
         return True
-    
+
     def get_transform(self):
         return self.transform
-    
+
     def set_transform(self, transform):
         self.transform = transform
 
     def get_location(self):
         # need to return Carla.location
         return self.transform.location
-    
+
     def set_location(self, location):
         self.transform.location = location
 
@@ -89,7 +89,7 @@ class VehicleManagerProxy(object):
                 current_time='',
                 data_dumping=False,
                 location_type=eLocationType.EXPLICIT):
-        
+
         # default initializers
         self.agent = None
         self.controller = None
@@ -103,15 +103,15 @@ class VehicleManagerProxy(object):
         if 'single_cav_list' in config_yaml['scenario']:
             self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
                                 else config_yaml['scenario']['single_cav_list'][0]
-        
+
         elif 'edge_list' in config_yaml['scenario']:
             # TODO: support multiple edges...
             self.is_edge = True
             self.cav_config = config_yaml['scenario']['edge_list'][0]['members'][vehicle_index]
-        
+
         else:
             assert False, "no known vehicle indexing format found"
-        
+
         self.cav_world = cav_world
         self.data_dumping = data_dumping
         self.application = application

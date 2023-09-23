@@ -62,4 +62,3 @@ def save_yaml(data, save_name):
 
     with open(save_name, 'w', encoding='utf-8') as outfile:
         yaml.dump(data, outfile, default_flow_style=False)
-

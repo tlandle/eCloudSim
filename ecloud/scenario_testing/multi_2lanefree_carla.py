@@ -55,7 +55,7 @@ def run_scenario(opt, config_yaml):
                                                    opt.version,
                                                    xodr_path=xodr_path,
                                                    cav_world=cav_world,
-                                                   distributed=run_distributed)                                         
+                                                   distributed=run_distributed)
 
         if opt.record:
             scenario_manager.client. \
@@ -64,8 +64,8 @@ def run_scenario(opt, config_yaml):
         # create single cavs
         if run_distributed:
             single_cav_list = \
-                scenario_manager.create_distributed_vehicle_manager(application=['single']) 
-        else:    
+                scenario_manager.create_distributed_vehicle_manager(application=['single'])
+        else:
             single_cav_list = \
                 scenario_manager.create_vehicle_manager(application=['single'])#,
                                                         #map_helper=map_api.spawn_helper_2lanefree)
@@ -82,15 +82,15 @@ def run_scenario(opt, config_yaml):
         spectator = scenario_manager.world.get_spectator()
 
         # run steps
-        step = 0 
+        step = 0
         flag = True
         while flag:
             print("Step: %d" %step)
             scenario_manager.tick_world()
             if run_distributed:
                 flag = scenario_manager.broadcast_tick()
-            
-            else:    
+
+            else:
                 # non-dist will break automatically; don't need to set flag
                 pre_client_tick_time = time.time()
                 for _, single_cav in enumerate(single_cav_list):
@@ -109,7 +109,7 @@ def run_scenario(opt, config_yaml):
                 carla.Location(
                     z=120),
                 carla.Rotation(
-                    pitch=-90)))   
+                    pitch=-90)))
 
             step = step + 1
             if step > 750:
@@ -128,7 +128,7 @@ def run_scenario(opt, config_yaml):
             scenario_manager.client.stop_recorder()
 
         scenario_manager.close()
-  
+
         if not run_distributed:
             for v in single_cav_list:
                 v.destroy()

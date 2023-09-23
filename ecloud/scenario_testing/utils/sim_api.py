@@ -185,7 +185,7 @@ class ScenarioManager:
                     #if barrier_overhead_time_ms < 0:
                     #    logger.warning(f"got a NEGATIVE inferred barrier_overhead_time value of {round(barrier_overhead_time_ms, 2)}ms for vehicle {v.vehicle_index}")
                     #barrier_overhead_time_ms = barrier_overhead_time_ms if barrier_overhead_time_ms > 0 else 0 # TODO: confirm if we wantt to do this?
-                                        
+
                     self.debug_helper.update_barrier_overhead_time_timestamp(vehicle_manager_proxy.vehicle_index, barrier_overhead_time_ms) # this inferred
                     self.debug_helper.update_client_process_time_timestamp(vehicle_manager_proxy.vehicle_index, client_process_time_ms) # how long client actually was active
 
@@ -310,7 +310,7 @@ class ScenarioManager:
         logger.info("vehicle registration complete")
 
         response = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
-        
+
         logger.info("vehicle registration data received")
 
         return response
@@ -335,7 +335,7 @@ class ScenarioManager:
                  log_level=0,
                  ecloud_config=None,
                  run_carla=False):
-        
+
         self.sm_start_tstamp.GetCurrentTime()
 
         global CARLA_IP
@@ -402,9 +402,9 @@ class ScenarioManager:
                 subprocess.run(['pkill','-9','Carla'], check=True)
 
             logger.info('spawning Carla')
-            self.carla_process = subprocess.Popen(['./CarlaUE4.sh',f'{run_carla}'], 
-                                                  cwd='/opt/carla-simulator/', 
-                                                  start_new_session=True, 
+            self.carla_process = subprocess.Popen(['./CarlaUE4.sh',f'{run_carla}'],
+                                                  cwd='/opt/carla-simulator/',
+                                                  start_new_session=True,
                                                   stderr=sys.stdout.buffer)
             logger.info("waiting for Carla to start up")
             time.sleep(5)
@@ -428,7 +428,7 @@ class ScenarioManager:
 
             except Exception as e:
                 logger.critical("%s - %s is not found in your CARLA repo! Please download all town maps to your CARLA repo!", e, town)
-        
+
         else:
             self.world = self.client.get_world()
 
@@ -512,7 +512,7 @@ class ScenarioManager:
         server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
         server_request.is_edge = self.is_edge
 
-        await self.server_start_scenario(self.ecloud_server, server_request)    
+        await self.server_start_scenario(self.ecloud_server, server_request)
 
         self.world.tick()
 
@@ -543,11 +543,11 @@ class ScenarioManager:
                     fog_falloff=weather_settings['fog_falloff'],
                     wetness=weather_settings['wetness']
                 )
-        
+
         return weather
 
     # BEGIN Core OpenCDA
-    
+
     def create_vehicle_manager(self, application,
                                map_helper=None,
                                data_dump=False):
@@ -950,7 +950,7 @@ class ScenarioManager:
         logger.info("Finished creating vehicle manager proxies and returning cav list")
         return single_cav_list
 
-    def create_edge_manager(self, 
+    def create_edge_manager(self,
                             application,
                             data_dump=False,
                             world_dt=ecloud_globals.__world_dt__,
@@ -1105,7 +1105,7 @@ class ScenarioManager:
 
         if self.run_distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
             os.kill(self.ecloud_server_process.pid, signal.SIGTERM)
-        
+
         self.debug_helper.shutdown_time_ms = time.time() - start_time
 
     def do_pickling(self, column_key, flat_list, file_path):
@@ -1174,7 +1174,7 @@ class ScenarioManager:
         if all_network_data_list_flat.any():
             all_network_data_list_flat = np.hstack(all_network_data_list_flat)
         else:
-            all_network_data_list_flat = all_network_data_list_flat.flatten()  
+            all_network_data_list_flat = all_network_data_list_flat.flatten()
 
         data_key = "network_overhead"
         self.do_pickling(data_key, all_network_data_list_flat, cumulative_stats_folder_path)
@@ -1189,7 +1189,7 @@ class ScenarioManager:
         if all_barrier_data_lists_flat.any():
             all_barrier_data_lists_flat = np.hstack(all_barrier_data_lists_flat)
         else:
-            all_barrier_data_lists_flat = all_barrier_data_lists_flat.flatten()    
+            all_barrier_data_lists_flat = all_barrier_data_lists_flat.flatten()
         data_key = "barrier_overhead"
         self.do_pickling(data_key, all_barrier_data_lists_flat, cumulative_stats_folder_path)
 
@@ -1203,14 +1203,14 @@ class ScenarioManager:
         if all_client_process_data_list_flat.any():
             all_client_process_data_list_flat = np.hstack(all_client_process_data_list_flat)
         else:
-            all_client_process_data_list_flat = all_client_process_data_list_flat.flatten()    
+            all_client_process_data_list_flat = all_client_process_data_list_flat.flatten()
         data_key = "client_process"
         self.do_pickling(data_key, all_client_process_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_individual_client_data(self, cumulative_stats_folder_path):
         '''
         evaluate individual client data
-        
+
         TODO: redundant to process time above
         '''
         all_client_data_lists = sum(self.debug_helper.client_tick_time_dict_per_client.values(), [])

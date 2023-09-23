@@ -65,5 +65,5 @@ class EdgePlugin(object):
         """
         self.ego_pos = ego_pos
         self.ego_spd = ego_spd
-    
-       
+
+

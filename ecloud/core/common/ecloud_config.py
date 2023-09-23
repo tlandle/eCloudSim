@@ -13,7 +13,7 @@ import coloredlogs
 
 class eLocationType(Enum):
     '''
-    enum for spawn & destination location types 
+    enum for spawn & destination location types
     '''
     RANDOM = 0
     EXPLICIT = 1
@@ -40,8 +40,8 @@ class EcloudConfig(object):
     DRIVE = "drive"
 
     FORMAT_STRING = "%(asctime)s %(filename)s %(funcName)s %(lineno)d %(message)s"
-    LOGGING_FIELD_STYLES = {'asctime': {'color': 'green'}, 
-                            'filename': {'bold': True, 'color': 'blue'}, 
+    LOGGING_FIELD_STYLES = {'asctime': {'color': 'green'},
+                            'filename': {'bold': True, 'color': 'blue'},
                             'funcName': {'color': 'cyan'},
                             'lineno': {'color' : 'cyan'},
                             'level': coloredlogs.DEFAULT_LEVEL_STYLES}
@@ -52,7 +52,7 @@ class EcloudConfig(object):
 
     fatal_errors = False
 
-    location_types = { RANDOM : eLocationType.RANDOM, 
+    location_types = { RANDOM : eLocationType.RANDOM,
                        EXPLICIT : eLocationType.EXPLICIT }
 
     done_behavior_types = { DESTROY : eDoneBehavior.DESTROY,
@@ -91,7 +91,7 @@ class EcloudConfig(object):
             for k in self.ecloud_scenario.keys():
                 if k in config_json['scenario']['ecloud']:
                     self.logger.info(f"overriding scenario_config {k} with {config_json['scenario']['ecloud'][k]}")
-                    self.ecloud_scenario[k] = config_json['scenario']['ecloud'][k] 
+                    self.ecloud_scenario[k] = config_json['scenario']['ecloud'][k]
         else:
             self.logger.warning("'ecloud' not found in config_scenario")
 
@@ -131,7 +131,7 @@ class EcloudConfig(object):
         '''
         a lot of the code runs inside of try/except blocks, which helps with doing cleanup if an error occurs.
 
-        this can make debugging very hard though. if fatal_errors are enabled, 
+        this can make debugging very hard though. if fatal_errors are enabled,
         key exceptions will be raised allowing for a traceback to be generated
 
         note that this means you may need to do some additional manual process cleanup of Carla and/or the gRPC server
@@ -168,7 +168,7 @@ class EcloudConfig(object):
             EcloudConfig.log_level = log_level
 
         EcloudConfig.logger = logging.getLogger("ecloud")
-        coloredlogs.install(level=EcloudConfig.log_level, 
+        coloredlogs.install(level=EcloudConfig.log_level,
                             logger=EcloudConfig.logger,
                             miliseconds=True,
                             fmt=EcloudConfig.FORMAT_STRING,

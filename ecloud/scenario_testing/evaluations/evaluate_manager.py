@@ -45,7 +45,7 @@ class EvaluationManager(object):
         if not os.path.exists(self.eval_save_path):
             os.makedirs(self.eval_save_path)
 
-        #print(f"self.eval_save_path: {self.eval_save_path}") 
+        #print(f"self.eval_save_path: {self.eval_save_path}")
 
     def evaluate(self):
         """
