@@ -87,7 +87,7 @@ def check_imports():
                             try:
                                 importlib.import_module(module)
                             except Exception as me:
-                                if module not in missing_imports.keys() and f"{me}" not in missing_imports.values():
+                                if module not in missing_imports and f"{me}" not in missing_imports.values():
                                     missing_imports[module] = f"{me}"
                                     logger.error("failed importing %s - %s", module, me)
                                 continue
@@ -100,7 +100,7 @@ def check_imports():
                                 module = x.group(1)
                                 importlib.import_module(module)
                             except Exception as ce:
-                                if module not in missing_imports.keys() and f"{ce}" not in missing_imports.values():
+                                if module not in missing_imports and f"{ce}" not in missing_imports.values():
                                     missing_imports[module] = f"{ce}"
                                     logger.error("failed importing %s - %s", module, ce)
                                 continue

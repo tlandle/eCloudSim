@@ -930,7 +930,7 @@ class ScenarioManager:
                 vehicle_index, config_yaml, application,
                 self.carla_map, self.cav_world,
                 current_time=self.scenario_params['current_time'],
-                data_dumping=data_dump, carla_version=self.carla_version, location_type=self.ecloud_config.get_location_type())
+                data_dumping=data_dump, location_type=self.ecloud_config.get_location_type())
             logger.debug("finished creating VehiceManagerProxy")
 
             # self.tick_world()
@@ -991,7 +991,7 @@ class ScenarioManager:
                     vehicle_index, config_yaml, application,
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
-                    data_dumping=data_dump, carla_version=self.carla_version)
+                    data_dumping=data_dump)
                 logger.debug("finished creating VehiceManagerProxy")
 
                 # self.tick_world()

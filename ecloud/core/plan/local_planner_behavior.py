@@ -441,7 +441,7 @@ class LocalPlanner(object):
         target_speed = min(target_speed, np.sqrt(5.0 / (mean_k + 10e-6)) * 3.6)
 
         max_acc = 3.5
-        # todo: hard-coded, need to be tuned
+        # TODO: hard-coded, need to be tuned
         acceleration = max(
             min(max_acc, (target_speed / 3.6 - current_speed) / dt), -6.5)
 

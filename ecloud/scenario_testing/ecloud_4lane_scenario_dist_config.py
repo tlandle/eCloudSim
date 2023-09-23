@@ -66,7 +66,8 @@ def run_scenario(opt, config_yaml):
         # sanity checks...
         assert 'edge_list' not in scenario_params['scenario'] # do NOT use this template for edge scenarios
         assert 'sync_mode' in scenario_params['world'] and scenario_params['world']['sync_mode'] is True
-        assert scenario_params['world']['fixed_delta_seconds'] == 0.03 or scenario_params['world']['fixed_delta_seconds'] == 0.05
+        assert scenario_params['world']['fixed_delta_seconds'] == 0.03 \
+               or scenario_params['world']['fixed_delta_seconds'] == 0.05
 
         # spectator configs
         world_x = scenario_params['world']['x_pos'] if 'x_pos' in scenario_params['world'] else 0
@@ -153,17 +154,17 @@ def run_scenario(opt, config_yaml):
                     flag = scenario_manager.broadcast_message(ecloud.Command.REQUEST_DEBUG_INFO)
                 break
 
-    except Exception as e:
-        if isinstance(e, KeyboardInterrupt):
+    except Exception as scenario_error:
+        if isinstance(scenario_error, KeyboardInterrupt):
             logger.info('exited by user.')
             sys.exit(0)
 
-        elif isinstance(e, SystemExit):
-            logger.info('system exit: %s', e)
-            sys.exit(e)
+        elif isinstance(scenario_error, SystemExit):
+            logger.info('system exit: %s', scenario_error)
+            sys.exit(scenario_error)
 
         else:
-            logger.critical("exception hit during scenario execution - %s", type(e))
+            logger.critical("exception hit during scenario execution - %s", type(scenario_error))
             if opt.fatal_errors:
                 raise
 
@@ -180,18 +181,17 @@ def run_scenario(opt, config_yaml):
         scenario_manager.close()
 
         if not run_distributed:
-            for v in single_cav_list:
+            for veh in single_cav_list:
                 try:
-                    v.destroy()
+                    veh.destroy()
                 except Exception as destroy_error:
                     logger.error('%s: failed to destroy single CAV', type(destroy_error))
 
-        for v in bg_veh_list:
+        for veh in bg_veh_list:
             logger.warning("destroying background vehicle")
             try:
-                v.destroy()
+                veh.destroy()
             except Exception as destroy_error:
                 logger.warning("%s: failed to destroy background vehicle", type(destroy_error))
 
     #finally:
-

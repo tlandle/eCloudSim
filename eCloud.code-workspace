@@ -6,7 +6,7 @@
 	],
 	"settings": {
 		"pylint.args": [
-			"--rcfile=${workspaceFolder}/pylintrc"
+			"--rcfile=${workspaceFolder}/.pylintrc"
 		],
 
 	}

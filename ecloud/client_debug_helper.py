@@ -54,6 +54,9 @@ class ClientDebugHelper(PlanDebugHelper):
         }
 
     def get_debug_data(self):
+        '''
+        accessor method. unneeded? probably just accessor the member directly...
+        '''
         return self.debug_data
 
     def update_perception_time(self, tick_time_step=None):
@@ -147,9 +150,9 @@ class ClientDebugHelper(PlanDebugHelper):
         Parameters
         ----------
         """
-        t = ecloud.Timestamps()
-        t.CopyFrom(timestamps)
-        self.timestamps_list.append(t)
+        stamp = ecloud.Timestamps()
+        stamp.CopyFrom(timestamps)
+        self.timestamps_list.append(stamp)
 
 
     def serialize_debug_info(self, proto_debug_helper):
@@ -183,9 +186,9 @@ class ClientDebugHelper(PlanDebugHelper):
             proto_debug_helper.control_time_list.append(obj)
 
         for obj in self.timestamps_list:
-            t = ecloud.Timestamps()
-            t.CopyFrom(obj)
-            proto_debug_helper.timestamps_list.append(t)
+            stamp = ecloud.Timestamps()
+            stamp.CopyFrom(obj)
+            proto_debug_helper.timestamps_list.append(stamp)
 
 
     def deserialize_debug_info(self, proto_debug_helper):
@@ -229,6 +232,6 @@ class ClientDebugHelper(PlanDebugHelper):
 
         self.timestamps_list.clear()
         for obj in proto_debug_helper.timestamps_list:
-            t = ecloud.Timestamps()
-            t.CopyFrom(obj)
-            self.timestamps_list.append(t)
+            stamp = ecloud.Timestamps()
+            stamp.CopyFrom(obj)
+            self.timestamps_list.append(stamp)

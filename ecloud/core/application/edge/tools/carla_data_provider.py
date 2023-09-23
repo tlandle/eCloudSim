@@ -387,7 +387,7 @@ class CarlaDataProvider(object):  # pylint: disable=too-many-public-methods
         """
         Set the route of the ego vehicle
 
-        @todo extend ego_vehicle_route concept to support multi ego_vehicle scenarios
+        @TODO extend ego_vehicle_route concept to support multi ego_vehicle scenarios
         """
         CarlaDataProvider._ego_vehicle_route = route
 

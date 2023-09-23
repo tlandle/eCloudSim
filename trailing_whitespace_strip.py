@@ -4,7 +4,7 @@ import fileinput
 
 from ecloud.globals import __ecloud__
 
-# for line in (line.rstrip() for line in fileinput.FileInput("/home/jordan/eCloud/ecloud/core/common/vehicle_manager.py", inplace=1)):
+# for line in (line.rstrip() for line in fileinput.FileInput("file_path", inplace=1)):
 #     print(line)
 #     print(line, file=sys.stderr)
 

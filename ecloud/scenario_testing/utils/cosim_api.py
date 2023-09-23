@@ -84,7 +84,7 @@ class CoScenarioManager(ScenarioManager):
             os.path.basename(sumo_file_parent_path)
         sumo_cfg = \
             os.path.join(sumo_file_parent_path, base_name + '.sumocfg')
-        # todo: use yaml file to generate the route file
+        # TODO: use yaml file to generate the route file
         assert os.path.isfile(sumo_cfg), '%s does not exist, make sure' \
                                          'your config file name has the' \
                                          'same basename as the directory' \
@@ -222,7 +222,7 @@ class CoScenarioManager(ScenarioManager):
                                           None)
 
         # Updates traffic lights in sumo based on carla information.
-        # todo make sure the tl is synced
+        # TODO make sure the tl is synced
         common_landmarks = self.sumo.traffic_light_ids & \
                            self.traffic_light_ids
         for landmark_id in common_landmarks:

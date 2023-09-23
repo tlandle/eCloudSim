@@ -29,7 +29,7 @@ RESULT_SUCCESS = 0 # Step ran ok
 RESULT_ERROR = 1 # Step resulted in an error
 RESULT_END = 2 # Step resulted in the vehicle simulation ending
 
-CARLA_IP = 'localhost' # todo Environment Config
+CARLA_IP = 'localhost' # TODO Environment Config
 
 # once we have all methods, we no longer need any reference to the actual actor in ecloud
 class ActorProxy(object):
@@ -37,8 +37,8 @@ class ActorProxy(object):
     lightweight proxy class used as a replace for an actual Carla actor in distributed scenarios
     '''
     def __init__(self,
-                 id = 0):
-        self.id = id
+                 vid = 0):
+        self.vid = vid
         self.transform = carla.Transform(
                 carla.Location(
                     x=0,
@@ -85,7 +85,6 @@ class VehicleManagerProxy(object):
                 application,
                 carla_map,
                 cav_world,
-                carla_version,
                 current_time='',
                 data_dumping=False,
                 location_type=eLocationType.EXPLICIT):
@@ -101,7 +100,8 @@ class VehicleManagerProxy(object):
 
         self.is_edge = False
         if 'single_cav_list' in config_yaml['scenario']:
-            self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
+            self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index] \
+                                if location_type == eLocationType.EXPLICIT \
                                 else config_yaml['scenario']['single_cav_list'][0]
 
         elif 'edge_list' in config_yaml['scenario']:

@@ -118,7 +118,7 @@ class VehicleManager(object):
 
         if self.location_type == eLocationType.RANDOM:
             assert 'seed' in config_yaml['world']
-            seed = seed + self.vehicle_index # speeds up finding a start because we don't get a guaranteed collision with the same seed so every vehicle will at least try a different spawn point to start
+            seed = seed + self.vehicle_index # speeds up finding a start
 
         np.random.seed(seed)
         random.seed(seed)
@@ -126,7 +126,8 @@ class VehicleManager(object):
         edge_sets_destination = False
         cav_config = None
         if not is_edge:
-            cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
+            cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] \
+                        if location_type == eLocationType.EXPLICIT \
                         else self.scenario_params['scenario']['single_cav_list'][0]
 
         # ORIGINAL FLOW
@@ -231,9 +232,9 @@ class VehicleManager(object):
 
                 spawned = True
 
-            except Exception as e:
-                if COLLISION_ERROR not in f'{e}':
-                    logger.error("exception during spawn - %s", type(e))
+            except Exception as spawn_error:
+                if COLLISION_ERROR not in f'{spawn_error}':
+                    logger.error("exception during spawn - %s", type(spawn_error))
 
                 continue
 
@@ -397,8 +398,8 @@ class VehicleManager(object):
         pre_vehicle_step_time = time.time()
         try:
             target_speed, target_pos = self.agent.run_step(target_speed)
-        except Exception as e:
-            logger.error("%s: can't successfully _trace_route; setting to done.", type(e))
+        except Exception as trace_error:
+            logger.error("%s: can't successfully _trace_route; setting to done.", type(trace_error))
             target_speed = 0
             ego_pos = self.localizer.get_ego_pos()
             target_pos = ego_pos.location

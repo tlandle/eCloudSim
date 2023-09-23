@@ -678,7 +678,7 @@ class PerceptionManager:
         vehicle_list = [v for v in vehicle_list if self.dist(v) < 50 and
                         v.id != self.vehicle.id]
 
-        # todo: consider the minimum distance to be safer in next version
+        # TODO: consider the minimum distance to be safer in next version
         for v in vehicle_list:
             loc = v.get_location()
             for obstacle_vehicle in objects['vehicles']:
@@ -699,7 +699,7 @@ class PerceptionManager:
                             get_speed_sumo(self.cav_world.sumo2carla_ids,
                                            v.id)
                         if sumo_speed > 0:
-                            # todo: consider the yaw angle in the future
+                            # TODO: consider the yaw angle in the future
                             speed_vector = carla.Vector3D(sumo_speed, 0, 0)
                             obstacle_vehicle.set_velocity(speed_vector)
 

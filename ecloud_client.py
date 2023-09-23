@@ -211,7 +211,7 @@ async def main():
 
     target_speed = None
     edge_sets_destination = False
-    is_edge = False # TODO: added this to the actual protobuf message
+    is_edge = ecloud_update.is_edge
     if 'edge_list' in scenario_yaml['scenario']:
         is_edge = True
         # TODO: support multiple edges...
@@ -429,11 +429,11 @@ if __name__ == '__main__':
         asyncio.get_event_loop().run_until_complete(main())
 
     except Exception as e:
-        if type(e) == KeyboardInterrupt:
+        if isinstance(e, KeyboardInterrupt):
             logger.info('exited by user.')
             sys.exit(0)
         else:
-            logger.error("exception hit: %s", e)
+            logger.error("exception hit: %s", type(e))
             if fatal_errors:
                 raise
             sys.exit(e)

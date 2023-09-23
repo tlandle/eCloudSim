@@ -79,7 +79,7 @@ class EcloudConfig(object):
 
         if 'ecloud' in config_json:
             self.logger.debug("'ecloud' found in config_base")
-            for k in self.ecloud_base.keys():
+            for k in self.ecloud_base:
                 if k in config_json['ecloud']:
                     self.logger.info(f"overriding base_config {k} with {config_json['ecloud'][k]}")
                     self.ecloud_base[k] = config_json['ecloud'][k]
@@ -88,7 +88,7 @@ class EcloudConfig(object):
 
         if 'ecloud' in config_json['scenario']:
             self.logger.debug("'ecloud' found in config_scenario")
-            for k in self.ecloud_scenario.keys():
+            for k in self.ecloud_scenario:
                 if k in config_json['scenario']['ecloud']:
                     self.logger.info(f"overriding scenario_config {k} with {config_json['scenario']['ecloud'][k]}")
                     self.ecloud_scenario[k] = config_json['scenario']['ecloud'][k]

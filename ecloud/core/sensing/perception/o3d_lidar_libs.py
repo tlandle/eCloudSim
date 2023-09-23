@@ -257,7 +257,7 @@ def o3d_camera_lidar_fusion(objects,
                 objects['vehicles'].append(obstacle_vehicle)
             else:
                 objects['vehicles'] = [obstacle_vehicle]
-        # todo: refine the category
+        # TODO: refine the category
         # we regard or other obstacle rather than vehicle as static class
         else:
             static_obstacle = StaticObstacle(corner, aabb)

@@ -106,7 +106,7 @@ class ObstacleVehicle(object):
         if not vehicle:
             self.bounding_box = BoundingBox(corners)
             self.location = self.bounding_box.location
-            # todo: next version will add rotation estimation
+            # TODO: next version will add rotation estimation
             self.transform = None
             self.o3d_bbx = o3d_bbx
             self.carla_id = -1
@@ -188,7 +188,7 @@ class ObstacleVehicle(object):
         if len(sumo2carla_ids) > 0:
             sumo_speed = get_speed_sumo(sumo2carla_ids, self.carla_id)
             if sumo_speed > 0:
-                # todo: consider the yaw angle in the future
+                # TODO: consider the yaw angle in the future
                 speed_vector = carla.Vector3D(sumo_speed, 0, 0)
                 self.set_velocity(speed_vector)
 

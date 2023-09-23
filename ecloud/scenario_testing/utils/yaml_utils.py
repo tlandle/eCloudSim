@@ -6,9 +6,8 @@ Used to load and write yaml files
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import re
-import yaml
 from datetime import datetime
-
+import yaml
 
 def load_yaml(file):
     """
