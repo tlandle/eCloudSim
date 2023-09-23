@@ -14,7 +14,7 @@ message Timestamps {
 message Tick {
   int32 tick_id = 1; // used as bool for server during tick. transmits total client nodes at startup.
   Command command = 2;
-  int64 last_client_duration_ns = 3; // total time of last client. latency is: ( receipt_time - start time - duration )
+  int64 last_client_duration_ns = 3; // total time of last client. networking overhead is: ( receipt_time - start time - duration )
 }
 
 enum Command {

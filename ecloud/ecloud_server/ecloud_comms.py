@@ -205,13 +205,13 @@ class EcloudServerComms:
             return empty
 
         overall_step_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC # barrier sync means this is the same for ALL vehicles per tick
-        step_latency_ms = overall_step_time_ms - ( tick.last_client_duration_ns * NSEC_TO_MSEC ) # we care about the worst case per tick - how much did we affect the final vehicle to report. This captures both delay in getting that vehicle started and in it reporting its completion
-        self.debug_helper.update_network_time_timestamp(tick.tick_id, step_latency_ms) # same for all vehicles *per tick*
+        step_network_overhead_ms = overall_step_time_ms - ( tick.last_client_duration_ns * NSEC_TO_MSEC ) # we care about the worst case per tick - how much did we affect the final vehicle to report. This captures both delay in getting that vehicle started and in it reporting its completion
+        self.debug_helper.update_network_time_timestamp(tick.tick_id, step_network_overhead_ms) # same for all vehicles *per tick*
         self.debug_helper.update_overall_step_time_timestamp(tick.tick_id, overall_step_time_ms)
 
-        logger.info("timestamps: overall_step_time_ms - %sms | step_latency_ms - %sms",
+        logger.info("timestamps: overall_step_time_ms - %sms | network_overhead_ms - %sms",
                     round(overall_step_time_ms, 2),
-                    round(step_latency_ms, 2))
+                    round(step_network_overhead_ms, 2))
 
         if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
             await self.server_unpack_debug_data(stub_)
