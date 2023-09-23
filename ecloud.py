@@ -173,7 +173,7 @@ if __name__ == '__main__':
         sys.exit(0)
     
     except SystemExit:
-        logger.info('system exit.')
+        logger.info('scenario complete - exiting.')
         sys.exit(0)
 
     except Exception as e:
