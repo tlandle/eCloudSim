@@ -19,7 +19,6 @@ import os
 import time
 import asyncio
 import logging
-import sys
 
 # 3rd Party
 import carla
@@ -156,7 +155,7 @@ def run_scenario(opt, config_yaml):
 
     except SystemExit:
         logger.info('system exit')
-        
+
     except Exception as scenario_error:
         logger.critical("exception hit during scenario execution: %s - %s", type(scenario_error), scenario_error)
         if opt.fatal_errors:

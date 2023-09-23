@@ -6,6 +6,8 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
+# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught, unused-argument
+
 """ Module with auxiliary functions. """
 
 import math
@@ -17,7 +19,7 @@ import carla
 
 def draw_trajetory_points(world, waypoints, z=0.25,
                           color=carla.Color(255, 0, 0),
-                          lt=5, size=0.1, arrow_size=0.1):
+                          lt=5, size=0.1): # arrow_size=0.1): # unused
     """
     Draw a list of trajectory points
 
@@ -41,8 +43,8 @@ def draw_trajetory_points(world, waypoints, z=0.25,
     z : float
         The height of the visualized waypoint.
     """
-    for i in range(len(waypoints)):
-        wpt = waypoints[i]
+    for _, wp in enumerate(waypoints):
+        wpt = wp
         if isinstance(wpt, tuple) or isinstance(wpt, list):
             wpt = wpt[0]
         if hasattr(wpt, 'is_junction'):

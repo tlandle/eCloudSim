@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=locally-disabled, invalid-name, redefined-builtin # id is required to override the Carla Actor id with Actor Proxy id
 """
 Basic class of CAV
 """

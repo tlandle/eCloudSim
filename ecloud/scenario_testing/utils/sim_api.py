@@ -182,11 +182,11 @@ class ScenarioManager:
                     assert timestamps.tick_id in network_overhead_by_tick
                     client_process_time_ms = (timestamps.client_end_tstamp.ToNanoseconds() - timestamps.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
                     barrier_overhead_time_ms = overall_steps_by_tick[timestamps.tick_id] - network_overhead_by_tick[timestamps.tick_id] - client_process_time_ms # inferred rather than actual "barrier" time
-                    
+
                     # TODO: confirm if we wantt to do this?
                     #if barrier_overhead_time_ms < 0:
                     #    logger.warning(f"got a NEGATIVE inferred barrier_overhead_time value of {round(barrier_overhead_time_ms, 2)}ms for vehicle {v.vehicle_index}")
-                    #barrier_overhead_time_ms = barrier_overhead_time_ms if barrier_overhead_time_ms > 0 else 0 
+                    #barrier_overhead_time_ms = barrier_overhead_time_ms if barrier_overhead_time_ms > 0 else 0
 
                     self.debug_helper.update_barrier_overhead_time_timestamp(vehicle_manager_proxy.vehicle_index, barrier_overhead_time_ms) # this inferred
                     self.debug_helper.update_client_process_time_timestamp(vehicle_manager_proxy.vehicle_index, client_process_time_ms) # how long client actually was active
@@ -623,32 +623,12 @@ class ScenarioManager:
         platoon_list = []
         self.cav_world = CavWorld(self.apply_ml)
 
-        # Lincoln is default choice as chosen by the UCLA mobility lab
-        default_model = 'vehicle.lincoln.mkz_2017'
-
-        cav_vehicle_bp = \
-            self.world.get_blueprint_library().find(default_model)
-
         # create platoons
         count = 0
         for _, platoon in enumerate(
                 self.scenario_params['scenario']['platoon_list']):
             platoon_manager = PlatooningManager(platoon, self.cav_world)
-            for j, cav in enumerate(platoon['members']):
-                if 'spawn_special' not in cav:
-                    spawn_transform = carla.Transform(
-                        carla.Location(
-                            x=cav['spawn_position'][0],
-                            y=cav['spawn_position'][1],
-                            z=cav['spawn_position'][2]),
-                        carla.Rotation(
-                            pitch=cav['spawn_position'][5],
-                            yaw=cav['spawn_position'][4],
-                            roll=cav['spawn_position'][3]))
-                else:
-                    spawn_transform = map_helper(self.carla_version,
-                                                 *cav['spawn_special'])
-
+            for j, _ in enumerate(platoon['members']):
                 # create vehicle manager for each cav
                 vehicle_manager = VehicleManager(
                     vehicle_index=count, carla_world=self.world,

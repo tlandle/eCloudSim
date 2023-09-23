@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=locally-disabled, line-too-long, invalid-name
 """ This module contains a local planner to perform
 low-level waypoint following based on PID controllers. """
 
@@ -10,7 +11,6 @@ from enum import Enum
 import statistics
 import math
 import logging
-import time
 
 import carla
 import numpy as np
@@ -200,8 +200,6 @@ class LocalPlanner(object):
             waypoint.transform.location,
             self._ego_pos.location, self._ego_pos.rotation.yaw)
 
-        logger.debug(f"LOCAL_PLANNER - angle: {angle}")
-
         if angle > 90:
             logger.error('invalid waypoint!')
             return False
@@ -308,7 +306,7 @@ class LocalPlanner(object):
 
         # we consider history waypoint to generate trajectory
         index = 0
-        for i in range(len(self._history_buffer)):
+        for i, _ in enumerate(self._history_buffer):
             prev_wpt = self._history_buffer[i][0].transform.location
             _, angle = cal_distance_angle(
                 prev_wpt, current_location, current_yaw)
@@ -350,7 +348,7 @@ class LocalPlanner(object):
         index = max(0, index - 1) if self.potential_curved_road else index
         prev_x = x[index]
         prev_y = y[index]
-        for i in range(len(self._waypoint_buffer)):
+        for i, _ in enumerate(self._waypoint_buffer):
             cur_x = self._waypoint_buffer[i][0].transform.location.x
             cur_y = self._waypoint_buffer[i][0].transform.location.y
             if abs(prev_x - cur_x) < 0.5 and abs(prev_y - cur_y) < 0.5:
@@ -445,7 +443,7 @@ class LocalPlanner(object):
         acceleration = max(
             min(max_acc, (target_speed / 3.6 - current_speed) / dt), -6.5)
 
-        for i in range(1, int(sample_num) + 1):
+        for _ in range(1, int(sample_num) + 1):
             sample_resolution += current_speed * dt + \
                                  0.5 * acceleration * dt ** 2
             current_speed += acceleration * dt
@@ -498,7 +496,7 @@ class LocalPlanner(object):
                 waypoint.transform.location,
                 self._ego_pos.location, self._ego_pos.rotation.yaw)
 
-            logger.debug(f"LOCAL_PLANNER: buffer_filter() angle: {angle}")
+            logger.debug("LOCAL_PLANNER: buffer_filter() angle: %s", angle)
 
             if angle > 90:
                 logger.error('delete waypoint!')
@@ -614,7 +612,7 @@ class LocalPlanner(object):
 
         # Buffering the waypoints. Always keep the waypoint buffer alive
         if len(self._waypoint_buffer) < self.waypoint_update_freq:
-            for i in range(self._buffer_size - len(self._waypoint_buffer)):
+            for _ in range(self._buffer_size - len(self._waypoint_buffer)):
                 if self.waypoints_queue:
                     self._waypoint_buffer.append(
                         self.waypoints_queue.popleft())

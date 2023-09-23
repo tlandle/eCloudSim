@@ -171,7 +171,7 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         logger.info('exited by user.')
         sys.exit(0)
-    
+
     except SystemExit:
         logger.info('scenario complete - exiting.')
         sys.exit(0)
