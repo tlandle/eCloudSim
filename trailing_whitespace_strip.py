@@ -1,3 +1,6 @@
+'''
+linting util to strip trailing whitespace that often gets injected by VSCode
+'''
 from __future__ import print_function
 import os
 import fileinput

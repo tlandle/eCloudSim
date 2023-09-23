@@ -85,7 +85,6 @@ class VehicleManager(object):
     """
 
     def __init__(self,
-                 vehicle=None,
                  config_yaml=None,
                  vehicle_index=None,
                  application=['single'],

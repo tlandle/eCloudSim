@@ -19,8 +19,8 @@ sys.path.insert(0, os.path.abspath('./../'))
 # -- Project information -----------------------------------------------------
 
 project = 'OpenCDA'
-copyright = '2021, UCLA Mobility Lab'
-author = 'R.S. Xu, X. Han, X. Hao'
+copyright = '2023, Georgia Tech EPL'
+author = 'J. Rapp, T. Landle, D. Blank, A. Drysdale'
 
 # The full version, including alpha/beta/rc tags
 release = '0.1'

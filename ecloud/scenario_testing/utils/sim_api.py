@@ -649,10 +649,14 @@ class ScenarioManager:
 
                 # create vehicle manager for each cav
                 vehicle_manager = VehicleManager(
-                    vehicle, cav, ['platooning'],
-                    self.carla_map, self.cav_world,
+                    vehicle_index=count, carla_world=self.world,
+                    config_yaml=self.scenario_params, application=['platoon'],
+                    carla_map=self.carla_map, cav_world=self.cav_world,
                     current_time=self.scenario_params['current_time'],
-                    data_dumping=data_dump)
+                    data_dumping=data_dump, map_helper=map_helper,
+                    location_type=self.ecloud_config.get_location_type())
+
+                self.world.tick()
 
                 # add the vehicle manager to platoon
                 if j == 0:
