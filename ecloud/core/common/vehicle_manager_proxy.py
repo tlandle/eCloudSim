@@ -176,7 +176,7 @@ class VehicleManagerProxy(object):
         if 'platooning' in self.application:
             platoon_config = self.cav_config['platoon']
             self.agent = PlatooningBehaviorAgent(
-                self.vehicle, # TODO: fix
+                self.vehicle,
                 self,
                 self.v2x_manager,
                 behavior_config,

@@ -32,6 +32,12 @@ class EcloudConfig(object):
     class containing configuration information for a given eCloud scenario run
     '''
 
+    carla_ip = None
+    ecloud_ip = None
+    vehicle_ip = None
+
+    SPECTATOR_INDEX = 0
+
     RANDOM = "random"
     EXPLICIT = "explicit"
     DESTROY = "destroy"
@@ -48,6 +54,12 @@ class EcloudConfig(object):
 
     log_level = logging.INFO
     logger = None
+
+    # simple base-1 log levels
+    LOG_ERR = 3
+    LOG_WRN = 2
+    LOG_INF = 1
+    LOG_DBG = 0
 
     fatal_errors = False
 
@@ -159,14 +171,13 @@ class EcloudConfig(object):
         This uses a command line log level from 0-3 which is simpler than the 10-base Python levels
         '''
 
-        # TODO: make these global consts
-        if log_level == 3:
+        if log_level == EcloudConfig.LOG_ERR:
             EcloudConfig.log_level = logging.ERROR
-        elif log_level == 2:
+        elif log_level == EcloudConfig.LOG_WRN:
             EcloudConfig.log_level = logging.WARNING
-        elif log_level == 1:
+        elif log_level == EcloudConfig.LOG_INF:
             EcloudConfig.log_level = logging.INFO
-        elif log_level == 0:
+        elif log_level == EcloudConfig.LOG_DBG:
             EcloudConfig.log_level = logging.DEBUG
         else:
             EcloudConfig.log_level = log_level

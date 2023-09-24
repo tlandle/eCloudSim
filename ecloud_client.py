@@ -11,7 +11,6 @@ import json
 import asyncio
 import os
 import logging
-import traceback
 
 import carla
 import grpc
@@ -38,13 +37,6 @@ environment_config = load_yaml("environment_config.yaml") # TODO: move to eCloud
 ECLOUD_PUSH_BASE_PORT = ecloud_globals.__push_base_port__
 LOCAL = ecloud_globals.__local__
 AZURE = ecloud_globals.__azure__
-
-CARLA_IP = None
-ECLOUD_IP = None
-VEHICLE_IP = None
-
-FATAL_ERRORS = False
-SPECTATOR_INDEX = 0
 
 #TODO: move to eCloudClient
 def serialize_debug_info(vehicle_update, vehicle_manager) -> None:
@@ -79,7 +71,7 @@ async def send_registration_to_ecloud_server(stub_, port) -> ecloud.SimulationIn
     except KeyError:
         request.container_name = f"ecloud_client_{port}.py"
 
-    request.vehicle_ip = VEHICLE_IP
+    request.vehicle_ip = EcloudConfig.vehicle_ip
 
     sim_info = await stub_.Client_RegisterVehicle(request)
 
@@ -144,12 +136,6 @@ async def main():
     '''
     async main - run Client processes
     '''
-    #TODO: move to eCloudConfig
-    # default params which can be over-written from the simulation controller
-    global CARLA_IP
-    global ECLOUD_IP
-    global VEHICLE_IP
-
     application = ["single"]
     version = "0.9.12"
     tick_id = 0
@@ -159,12 +145,11 @@ async def main():
     opt = arg_parse()
     assert opt.environment == LOCAL or opt.environment == AZURE
     EnvironmentConfig.set_environment(opt.environment)
-    CARLA_IP = EnvironmentConfig.get_carla_ip()
-    ECLOUD_IP = EnvironmentConfig.get_ecloud_ip()
-    VEHICLE_IP = EnvironmentConfig.get_client_ip_by_name(opt.machine)
+    EcloudConfig.carla_ip = EnvironmentConfig.get_carla_ip()
+    EcloudConfig.ecloud_ip = EnvironmentConfig.get_ecloud_ip()
+    EcloudConfig.vehicle_ip = EnvironmentConfig.get_client_ip_by_name(opt.machine)
 
-    global FATAL_ERRORS
-    FATAL_ERRORS = opt.fatal_errors
+    EcloudConfig.fatal_errors = opt.fatal_errors
 
     # spawn push server
     port = ECLOUD_PUSH_BASE_PORT + opt.container_id
@@ -179,7 +164,7 @@ async def main():
 
     # TODO: move to eCloudClient
     channel = grpc.aio.insecure_channel(
-        target=f"{ECLOUD_IP}:{opt.port}",
+        target=f"{ecloud_globals.ECLOUD_IP}:{opt.port}",
         options=EcloudComms.GRPC_OPTIONS,
         )
 
@@ -368,7 +353,7 @@ async def main():
                     vehicle_update.duration_ns = step_timestamps.client_end_tstamp.ToNanoseconds() - \
                                                     step_timestamps.client_start_tstamp.ToNanoseconds()
 
-                if is_edge or vehicle_index == SPECTATOR_INDEX:
+                if is_edge or vehicle_index == EcloudConfig.SPECTATOR_INDEX:
                     velocity = vehicle_manager.vehicle.get_velocity()
                     pv = ecloud.Velocity()
                     pv.x = velocity.x
@@ -446,5 +431,5 @@ if __name__ == '__main__':
 
     except Exception as e:
         logger.exception("exception hit: %s - %s", type(e), e)
-        if FATAL_ERRORS:
+        if EcloudConfig.fatal_errors:
             raise

@@ -13,7 +13,6 @@ import sys
 import subprocess
 import logging
 import re
-import traceback
 
 from ecloud.globals import __version__, __ecloud__, __default_scenario__, EnvironmentConfig
 import ecloud.globals as ecloud_globals
@@ -22,8 +21,6 @@ logger = logging.getLogger(__ecloud__)
 
 import_module = re.compile(r'import ([\.A-Za-z0-9_-]+) ')
 import_class = re.compile(r'from ([\.A-Za-z0-9_-]+) import')
-
-FATAL_ERRORS = False
 
 def arg_parse():
     '''
@@ -71,6 +68,7 @@ def arg_parse():
     opt = parser.parse_args()
     return opt
 
+# TODO: move to new Util class
 def check_imports():
     '''
     debug helper function to scan for missing imports
@@ -145,9 +143,6 @@ def main():
     assert ( opt.apply_ml is True and opt.distributed == 0 ) or opt.apply_ml is False
     logger.debug(opt)
 
-    global FATAL_ERRORS
-    FATAL_ERRORS = opt.fatal_errors
-
     print(f"eCloudSim Version: {__version__}")
 
     testing_scenario, config_yaml, error = get_scenario(opt)
@@ -180,6 +175,5 @@ if __name__ == '__main__':
 
     except Exception as e:
         logger.exception("exception hit: %s - %s", type(e), e)
-        if FATAL_ERRORS:
-            raise
-        sys.exit(1)
+        raise
+    

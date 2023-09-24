@@ -40,9 +40,6 @@ from ecloud.ecloud_server.ecloud_comms import EcloudComms, EcloudServerComms, ec
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
 
-CARLA_IP = None
-ECLOUD_IP = None
-
 logger = logging.getLogger("ecloud")
 
 def car_blueprint_filter(blueprint_library, _='0.9.12'):
@@ -145,7 +142,7 @@ class ScenarioManager:
 
     def __init__(self, scenario_params,
                  apply_ml,
-                 carla_version='0.9.12', # TODO global
+                 carla_version=ecloud_globals.__carla_version__,
                  xodr_path=None,
                  town=None,
                  cav_world=None,
@@ -156,11 +153,8 @@ class ScenarioManager:
 
         self.sm_start_tstamp.GetCurrentTime()
 
-        global CARLA_IP
-        global ECLOUD_IP
-
-        CARLA_IP = EnvironmentConfig.get_carla_ip()
-        ECLOUD_IP = EnvironmentConfig.get_ecloud_ip()
+        EcloudConfig.carla_ip = EnvironmentConfig.get_carla_ip()
+        EcloudConfig.ecloud_ip = EnvironmentConfig.get_ecloud_ip()
 
         # TODO: move these to EcloudConfig
         self.scenario_params = scenario_params
@@ -184,7 +178,7 @@ class ScenarioManager:
         simulation_config = scenario_params['world']
 
         self.run_distributed = distributed
-        if distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
+        if distributed and ( EcloudConfig.ecloud_ip == 'localhost' or EcloudConfig.ecloud_ip == EcloudConfig.carla_ip ):
             server_log_level = 0 if self.ecloud_config.get_log_level() == logging.DEBUG else \
                                 1 if self.ecloud_config.get_log_level() == logging.WARNING else 2 # 1: WARNING | 2: ERROR
             logger.info("setting server log level to %s", server_log_level)
@@ -209,7 +203,7 @@ class ScenarioManager:
                                                            f'--minloglevel={server_log_level}'],
                                                            stderr=sys.stdout.buffer)
 
-        if run_carla and ( CARLA_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
+        if run_carla and ( EcloudConfig.carla_ip == 'localhost' or EcloudConfig.ecloud_ip == EcloudConfig.carla_ip ):
             try:
                 carla_pid = subprocess.check_output(['pgrep','CarlaUE4'])
 
@@ -241,7 +235,7 @@ class ScenarioManager:
             np.random.seed(simulation_config['seed'])
             random.seed(simulation_config['seed'])
 
-        self.client = carla.Client(CARLA_IP, simulation_config['client_port'])
+        self.client = carla.Client(EcloudConfig.carla_ip, simulation_config['client_port'])
         self.client.set_timeout(EcloudComms.TIMEOUT_S)
 
         if xodr_path:
@@ -305,7 +299,7 @@ class ScenarioManager:
             self.apply_ml = False
 
             channel = grpc.aio.insecure_channel(
-                        target=f"{ECLOUD_IP}:{ecloud_globals.__server_port__}",
+                        target=f"{EcloudConfig.ecloud_ip}:{ecloud_globals.__server_port__}",
                         options=EcloudComms.GRPC_OPTIONS)
             self.ecloud_server = ecloud_rpc.EcloudStub(channel)
 
@@ -922,7 +916,8 @@ class ScenarioManager:
 
         logger.info("pushed END")
 
-        if self.run_distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
+        if self.run_distributed and ( EcloudConfig.ecloud_ip == 'localhost' \
+                                     or EcloudConfig.ecloud_ip == EcloudConfig.carla_ip ):
             os.kill(self.ecloud_server_process.pid, signal.SIGTERM)
 
         self.debug_helper.shutdown_time_ms = time.time() - start_time
