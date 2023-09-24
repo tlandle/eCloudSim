@@ -35,7 +35,7 @@ import grpc
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as rpc
 
-class EdgeManager(object):
+class EdgeManager:
     """
     Edge manager. Used to manage all vehicle managers under control of the edge
 

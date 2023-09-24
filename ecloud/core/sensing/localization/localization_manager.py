@@ -19,7 +19,7 @@ from ecloud.core.sensing.localization.coordinate_transform \
     import geo_to_transform
 
 
-class GnssSensor(object):
+class GnssSensor:
     """
     The default GNSS sensor module.
 
@@ -89,7 +89,7 @@ class GnssSensor(object):
         self.timestamp = event.timestamp
 
 
-class ImuSensor(object):
+class ImuSensor:
     """
     Default ImuSensor module.
 
@@ -146,7 +146,7 @@ class ImuSensor(object):
         self.compass = sensor_data.compass
 
 
-class LocalizationManager(object):
+class LocalizationManager:
     """
     Default localization module.
 

@@ -128,7 +128,7 @@ class ScenarioManager:
     vehicle_count = 0
 
     carla_version = ecloud_globals.__carla_version__
-    application = ['single']
+    application = 'single'
     scenario = None
     ecloud_server = None
     is_edge = False
@@ -384,8 +384,8 @@ class ScenarioManager:
         Create a list of single CAVs.
         Parameters
         ----------
-        application : list
-            The application purpose, a list, eg. ['single'], ['platoon'].
+        application : string
+            The application purpose - 'single', 'platoon'.
         map_helper : function
             A function to help spawn vehicle on a specific position in
             a specific map.
@@ -455,7 +455,7 @@ class ScenarioManager:
                 # create vehicle manager for each cav
                 vehicle_manager = VehicleManager(
                     vehicle_index=count, carla_world=self.world,
-                    config_yaml=self.scenario_params, application=['platoon'],
+                    config_yaml=self.scenario_params, application='platoon',
                     carla_map=self.carla_map, cav_world=self.cav_world,
                     current_time=self.scenario_params['current_time'],
                     data_dumping=data_dump, map_helper=map_helper,
@@ -716,8 +716,8 @@ class ScenarioManager:
 
         Parameters
         ----------
-        application : list
-            The application purpose, a list, eg. ['single'], ['platoon'].
+        application : string
+            The application purpose, a string, eg. 'single', 'platoon'.
 
         data_dump : bool
             Whether to dump sensor data.

@@ -11,7 +11,7 @@ import numpy as np
 import carla
 
 
-class BoundingBox(object):
+class BoundingBox:
     """
     Bounding box class for obstacle vehicle.
 
@@ -39,7 +39,7 @@ class BoundingBox(object):
         self.extent = carla.Vector3D(x=extent_x, y=extent_y, z=extent_z)
 
 
-class StaticObstacle(object):
+class StaticObstacle:
     """
     The general class for obstacles. Currently, we regard all static obstacles
      such as stop signs and traffic light as the same class.
@@ -64,7 +64,7 @@ class StaticObstacle(object):
         self.o3d_bbx = o3d_bbx
 
 
-class TrafficLight(object):
+class TrafficLight:
     """
     The class for traffic light. Currently, we retrieve the traffic light info
     from the server directly and assign to this class.

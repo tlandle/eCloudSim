@@ -18,7 +18,7 @@ import numpy as np
 YOLO_PATH = "yolov5/"
 YOLO_FILE = "hubconf.py"
 
-class MLManager(object):
+class MLManager:
     """
     A class that should contain all the ML models you want to initialize.
 

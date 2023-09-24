@@ -23,7 +23,7 @@ from ecloud.globals import __ecloud__
 
 logger = logging.getLogger(__ecloud__)
 
-class EvaluationManager(object):
+class EvaluationManager:
     """
     Evaluation manager to manage the analysis of the
     results for different modules.

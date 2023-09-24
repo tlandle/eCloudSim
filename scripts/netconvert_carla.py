@@ -35,7 +35,7 @@ import carla
 import sumolib
 
 
-class SumoTopology(object):
+class SumoTopology:
     """
     This object holds the topology of a sumo net. Internally, the information
     is structured as follows:
@@ -211,7 +211,7 @@ def build_topology(sumo_net):
     return SumoTopology(topology, paths, odr2sumo_ids)
 
 
-class SumoTrafficLight(object):
+class SumoTrafficLight:
     """
     SumoTrafficLight holds all the necessary data to define a traffic light in sumo:
 

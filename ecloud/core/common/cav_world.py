@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
-
+'''
+CavWorld is a container class for various scenario modules - such as the current Scenario Manager
+'''
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import importlib
 
 
-class CavWorld(object):
+class CavWorld:
     """
     A customized world object to save all CDA vehicle
     information and shared ML models. During co-simulation,

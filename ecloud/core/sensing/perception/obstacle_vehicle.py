@@ -29,7 +29,7 @@ def is_vehicle_cococlass(label):
     return True if 0 in (label - vehicle_class_array) else False
 
 
-class BoundingBox(object):
+class BoundingBox:
     """
     Bounding box class for obstacle vehicle.
 
@@ -57,7 +57,7 @@ class BoundingBox(object):
         self.extent = carla.Vector3D(x=extent_x, y=extent_y, z=extent_z)
 
 
-class ObstacleVehicle(object):
+class ObstacleVehicle:
     """
     A class for obstacle vehicle. The attributes are designed to match
     with carla.Vehicle class.

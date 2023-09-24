@@ -27,7 +27,7 @@ class eDoneBehavior(Enum):
     DRIVE = 2
     COUNT = 3
 
-class EcloudConfig(object):
+class EcloudConfig:
     '''
     class containing configuration information for a given eCloud scenario run
     '''

@@ -9,7 +9,7 @@ Mock Carla for unit tests.
 import numpy as np
 
 
-class Location(object):
+class Location:
     """ A mock class for Location. """
 
     def __init__(self, x, y, z):
@@ -18,7 +18,7 @@ class Location(object):
         self.z = z
 
 
-class Transform(object):
+class Transform:
     """A mock class for transform"""
 
     def __init__(self, x, y, z, pitch=0, yaw=0, roll=0):
@@ -26,7 +26,7 @@ class Transform(object):
         self.rotation = Rotation(pitch, yaw, roll)
 
 
-class Rotation(object):
+class Rotation:
     """ A mock class for Rotation. """
 
     def __init__(self, pitch, yaw, roll):
@@ -35,7 +35,7 @@ class Rotation(object):
         self.roll = roll
 
 
-class Vector3D(object):
+class Vector3D:
     """ A mock class for Vector3D. """
 
     def __init__(self, x, y, z):
@@ -44,7 +44,7 @@ class Vector3D(object):
         self.z = z
 
 
-class Camera(object):
+class Camera:
     """A mock class for camera. """
 
     def __init__(self, attributes: dict):
@@ -55,7 +55,7 @@ class Camera(object):
         return self.transform
 
 
-class Lidar(object):
+class Lidar:
     """A mock class for lidar."""
 
     def __init__(self, attributes: dict):
@@ -66,7 +66,7 @@ class Lidar(object):
         return self.transform
 
 
-class BoundingBox(object):
+class BoundingBox:
     """
     A mock class for bounding box.
     """
@@ -90,7 +90,7 @@ class BoundingBox(object):
         self.extent = Vector3D(x=extent_x, y=extent_y, z=extent_z)
 
 
-class Vehicle(object):
+class Vehicle:
     """A mock class for vehicle"""
 
     def __init__(self):

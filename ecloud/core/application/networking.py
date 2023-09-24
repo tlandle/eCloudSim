@@ -18,7 +18,7 @@ import carla
 
 from ecloud.core.common.misc import compute_distance
 
-class NetworkModel(object):
+class NetworkModel:
 
     def __init__(self) -> None:
         pass

@@ -32,7 +32,7 @@ import lxml.etree as ET  # pylint: disable=import-error
 logger = logging.getLogger("ecloud")
 
 # https://sumo.dlr.de/docs/Simulation/Traffic_Lights.html#signal_state_definitions
-class SumoSignalState(object):
+class SumoSignalState:
     """
     SumoSignalState contains the different traffic light states.
     """
@@ -47,7 +47,7 @@ class SumoSignalState(object):
 
 
 # https://sumo.dlr.de/docs/TraCI/Vehicle_Signalling.html
-class SumoVehSignal(object):
+class SumoVehSignal:
     """
     SumoVehSignal contains the different sumo vehicle signals.
     """
@@ -108,7 +108,7 @@ SumoActor = collections.namedtuple('SumoActor', 'type_id vclass transform signal
 # ==================================================================================================
 
 
-class SumoTLLogic(object):
+class SumoTLLogic:
     """
     SumoTLLogic holds the data relative to a traffic light in sumo.
     """
@@ -156,7 +156,7 @@ class SumoTLLogic(object):
         return self._landmark2link.get(landmark_id, [])
 
 
-class SumoTLManager(object):
+class SumoTLManager:
     """
     SumoTLManager is responsible for the management of the sumo traffic lights (i.e., keeps control
     of the current program, phase, ...)
@@ -306,7 +306,7 @@ def _get_sumo_net(cfg_file):
     sumo_net = traci.sumolib.net.readNet(net_file)
     return sumo_net
 
-class SumoSimulation(object):
+class SumoSimulation:
     """
     SumoSimulation is responsible for the management of the sumo simulation.
     """

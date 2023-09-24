@@ -6,7 +6,7 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
-# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught, unused-argument
+# pylint: skip-file
 
 """ Module with auxiliary functions. """
 

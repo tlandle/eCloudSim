@@ -24,16 +24,16 @@ from ecloud.core.plan.behavior_agent \
     import BehaviorAgent
 from ecloud.core.common.data_dumper import DataDumper
 from ecloud.client_debug_helper import ClientDebugHelper
-from ecloud.core.common.ecloud_config import eLocationType
+from ecloud.core.common.ecloud_config import EcloudConfig, eLocationType
 
 RESULT_SUCCESS = 0 # Step ran ok
 RESULT_ERROR = 1 # Step resulted in an error
 RESULT_END = 2 # Step resulted in the vehicle simulation ending
 
-CARLA_IP = 'localhost' # TODO Environment Config
+CARLA_IP = EcloudConfig.carla_ip
 
 # once we have all methods, we no longer need any reference to the actual actor in ecloud
-class ActorProxy(object):
+class ActorProxy:
     '''
     lightweight proxy class used as a replace for an actual Carla actor in distributed scenarios
     '''
@@ -94,7 +94,7 @@ class ActorProxy(object):
         '''
         self.velocity = velocity
 
-class VehicleManagerProxy(object):
+class VehicleManagerProxy:
     """
     TODO: update
     """
@@ -139,11 +139,7 @@ class VehicleManagerProxy(object):
         self.current_time = current_time
         self.vehicle_index = vehicle_index
         self.vid = vehicle_index # needed for compatibility
-
         self.carla_map = carla_map
-
-        # Use sockets for interprocess communication between OpenCDA and each vehicle
-        #self._socket = conn
         self.debug_helper = ClientDebugHelper(0)
 
     def start_vehicle(self):

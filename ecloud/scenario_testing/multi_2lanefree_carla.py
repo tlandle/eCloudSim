@@ -64,10 +64,10 @@ def run_scenario(opt, config_yaml):
         # create single cavs
         if run_distributed:
             single_cav_list = \
-                scenario_manager.create_distributed_vehicle_manager(application=['single'])
+                scenario_manager.create_distributed_vehicle_manager(application='single')
         else:
             single_cav_list = \
-                scenario_manager.create_vehicle_manager(application=['single'])#,
+                scenario_manager.create_vehicle_manager(application='single')#,
                                                         #map_helper=map_api.spawn_helper_2lanefree)
 
         # create background traffic in carla

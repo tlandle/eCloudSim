@@ -24,7 +24,7 @@ from ecloud.core.plan.planer_debug_helper import PlanDebugHelper
 
 logger = logging.getLogger("ecloud")
 
-class BehaviorAgent(object):
+class BehaviorAgent:
     """
     A modulized version of carla BehaviorAgent.
 

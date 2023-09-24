@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
-"""Communication manager for cooperation
+"""
+Communication manager for cooperation
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
@@ -16,7 +17,7 @@ from ecloud.core.application.platooning.platooning_plugin \
 from ecloud.core.common.misc import compute_distance
 
 
-class V2XManager(object):
+class V2XManager:
     """
     V2X Manager for platooning, cooperative perception and so on.
 
@@ -166,11 +167,12 @@ class V2XManager(object):
 
             if distance < self.communication_range:
                 self.cav_nearby.update({vid: vm})
-    """
-    -----------------------------------------------------------
-                 Below is platooning related
-    -----------------------------------------------------------
-    """
+    
+    #
+    #-----------------------------------------------------------
+    #             Below is platooning related
+    #-----------------------------------------------------------
+    #
 
     def set_platoon(
             self,
@@ -260,7 +262,7 @@ class V2XManager(object):
         flag : bool
             Whether this vehicle is inside a platoon.
         """
-        return False if self.platooning_plugin.in_id is None else True
+        return self.platooning_plugin.in_id is not None
 
     def get_platoon_manager(self):
         """

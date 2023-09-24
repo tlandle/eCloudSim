@@ -12,7 +12,7 @@ from ecloud.core.common.misc import compute_distance, cal_distance_angle
 from ecloud.core.application.platooning.fsm import FSM
 
 
-class PlatooningPlugin(object):
+class PlatooningPlugin:
     """
     Platooning plugin inside the V2X manager.
 

@@ -35,7 +35,7 @@ logger = logging.getLogger("ecloud")
 MIN_DESTINATION_DISTANCE_M = 500 # TODO: config?
 COLLISION_ERROR = "Spawn failed because of collision at spawn position"
 
-class VehicleManager(object):
+class VehicleManager:
     """
     A class manager to embed different modules with vehicle together.
 
@@ -87,7 +87,7 @@ class VehicleManager(object):
     def __init__(self,
                  config_yaml=None,
                  vehicle_index=None,
-                 application=['single'],
+                 application='single',
                  carla_world=None,
                  carla_map=None,
                  cav_world=None,
@@ -262,7 +262,7 @@ class VehicleManager(object):
 
         # behavior agent
         self.agent = None
-        if 'platooning' in application:
+        if application == 'platooning':
             platoon_config = cav_config['platoon']
             self.agent = PlatooningBehaviorAgent(
                 self.vehicle,

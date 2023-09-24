@@ -16,7 +16,7 @@ import numpy as np
 import ecloud.core.plan.drive_profile_plotting as open_plt
 
 
-class PlatooningManager(object):
+class PlatooningManager:
     """
     Platoon manager. Used to manage all vehicle managers inside the platoon.
 

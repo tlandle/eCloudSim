@@ -12,7 +12,7 @@ import warnings
 import matplotlib.pyplot as plt
 
 
-class LocDebugHelper(object):
+class LocDebugHelper:
     """
     This class aims to help users debugging their localization algorithms.
     Users can apply this class to draw the x, y coordinate

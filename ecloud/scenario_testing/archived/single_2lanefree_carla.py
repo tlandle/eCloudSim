@@ -41,7 +41,7 @@ def run_scenario(opt, config_yaml):
                 start_recorder("single_2lanefree_carla.log", True)
 
         single_cav_list = \
-            scenario_manager.create_vehicle_manager(application=['single'],
+            scenario_manager.create_vehicle_manager(application='single',
                                                     map_helper=map_api.
                                                     spawn_helper_2lanefree)
 

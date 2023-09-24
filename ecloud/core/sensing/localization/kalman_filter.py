@@ -10,7 +10,7 @@ import math
 import numpy as np
 
 
-class KalmanFilter(object):
+class KalmanFilter:
     """
     Kalman Filter implementation for gps and imu.
 

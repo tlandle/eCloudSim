@@ -17,7 +17,7 @@ from ecloud.core.sensing.perception import sensor_transformation as st
 from ecloud.scenario_testing.utils.yaml_utils import save_yaml
 
 
-class DataDumper(object):
+class DataDumper:
     """
     Data dumper class to save data in local disk.
 

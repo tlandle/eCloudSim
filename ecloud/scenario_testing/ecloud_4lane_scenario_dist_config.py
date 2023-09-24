@@ -96,11 +96,11 @@ def run_scenario(opt, config_yaml):
         if run_distributed:
             asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
             single_cav_list = \
-                scenario_manager.create_distributed_vehicle_manager(application=['single'])
+                scenario_manager.create_distributed_vehicle_manager(application='single')
 
         else:
             single_cav_list = \
-                scenario_manager.create_vehicle_manager(application=['single'])
+                scenario_manager.create_vehicle_manager(application='single')
 
         # create background traffic in carla
         _, bg_veh_list = \

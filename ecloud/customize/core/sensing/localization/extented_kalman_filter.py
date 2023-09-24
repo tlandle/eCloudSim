@@ -9,7 +9,7 @@ import math
 import numpy as np
 
 
-class ExtentedKalmanFilter(object):
+class ExtentedKalmanFilter:
     """
     Extended Kalman Filter implementation for gps and imu.
 

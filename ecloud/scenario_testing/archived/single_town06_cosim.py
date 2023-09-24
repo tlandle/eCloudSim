@@ -35,7 +35,7 @@ def run_scenario(opt, config_yaml):
                                       cav_world=cav_world,
                                       sumo_file_parent_path=sumo_cfg)
         single_cav_list = \
-            scenario_manager.create_vehicle_manager(application=['single'],
+            scenario_manager.create_vehicle_manager(application='single',
                                                     map_helper=map_api.
                                                     spawn_helper_2lanefree)
 

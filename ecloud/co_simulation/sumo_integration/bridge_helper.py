@@ -28,7 +28,7 @@ from ecloud.co_simulation.sumo_integration.sumo_simulation import SumoSignalStat
 
 logger = logging.getLogger("ecloud")
 
-class BridgeHelper(object):
+class BridgeHelper:
     """
     BridgeHelper provides methos to ease the co-simulation between sumo and carla.
     """

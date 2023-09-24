@@ -24,7 +24,7 @@ from ecloud.scenario_testing.utils.customized_map_api import load_customized_wor
 
 logger = logging.getLogger("ecloud")
 
-class CarlaSimulation(object):
+class CarlaSimulation:
     """
     CarlaSimulation is responsible for the management of the carla simulation.
     """

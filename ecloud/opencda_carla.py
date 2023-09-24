@@ -8,7 +8,7 @@ them in the same structure.
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 
-class Vector3D(object):
+class Vector3D:
     """Represents a 3D vector and provides useful helper functions.
     Args:
         x: The value of the first axis.
@@ -73,7 +73,7 @@ class Location(Vector3D):
         return cls(location.x, location.y, location.z)
 
 
-class Rotation(object):
+class Rotation:
     """Used to represent the rotation of an actor or obstacle.
 
     Rotations are applied in the order: Roll (X), Pitch (Y), Yaw (Z).
@@ -113,7 +113,7 @@ class Rotation(object):
         return cls(rotation.pitch, rotation.yaw, rotation.roll)
 
 
-class Transform(object):
+class Transform:
     """A class that stores the location and rotation of an obstacle.
 
     It can be created from a simulator transform, defines helper functions

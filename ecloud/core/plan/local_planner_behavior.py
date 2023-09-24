@@ -34,7 +34,7 @@ class RoadOption(Enum):
     CHANGELANERIGHT = 6
 
 
-class LocalPlanner(object):
+class LocalPlanner:
     """
     LocalPlanner implements the basic behavior of following a trajectory of
     waypoints that is generated on-the-fly.The low-level motion of the vehicle

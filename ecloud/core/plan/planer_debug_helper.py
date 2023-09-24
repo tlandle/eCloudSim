@@ -14,7 +14,7 @@ import ecloud.core.plan.drive_profile_plotting as open_plt
 
 logger = logging.getLogger("ecloud")
 
-class PlanDebugHelper(object):
+class PlanDebugHelper:
     """
     This class aims to save statistics for planner behaviour.
 

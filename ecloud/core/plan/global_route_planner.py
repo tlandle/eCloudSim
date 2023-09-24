@@ -17,7 +17,7 @@ from ecloud.core.plan.local_planner_behavior import RoadOption
 from ecloud.core.common.misc import vector
 
 
-class GlobalRoutePlanner(object):
+class GlobalRoutePlanner:
     """
     This class provides a very high level route plan.
     Instantiate the class by passing a reference to

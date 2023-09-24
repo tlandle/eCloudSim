@@ -29,7 +29,7 @@ def calculate_velocity(actor):
     return math.sqrt(velocity_squared)
 
 
-class CarlaDataProvider(object):  # pylint: disable=too-many-public-methods
+class CarlaDataProvider:  # pylint: disable=too-many-public-methods
 
     """
     This class provides access to various data of all registered actors

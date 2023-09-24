@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-
-"""Platooning Manager
+# pylint: skip-file
+"""
+DEPRECATED: this version of the EdgeManager is currently unused
 """
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
@@ -15,10 +16,7 @@ import sys
 import carla
 import matplotlib.pyplot as plt
 import numpy as np
-
-logger = logging.getLogger("ecloud")
-
-sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/")
+import grpc
 
 import ecloud.core.plan.drive_profile_plotting as open_plt
 from ecloud.core.application.edge.astar_test_groupcaps_transform import *
@@ -27,11 +25,14 @@ from ecloud.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from ecloud.core.plan.local_planner_behavior import RoadOption
 from ecloud.core.application.edge.transform_utils import *
 
-import grpc
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as rpc
 
-class EdgeManager(object):
+logger = logging.getLogger("ecloud")
+
+sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/")
+
+class EdgeManager:
     """
     Edge manager. Used to manage all vehicle managers under control of the edge
 

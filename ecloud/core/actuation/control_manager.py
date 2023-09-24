@@ -8,7 +8,7 @@ Controller interface
 import importlib
 
 
-class ControlManager(object):
+class ControlManager:
     """
     Controller manager that is used to select
     and call different controller's functions.
