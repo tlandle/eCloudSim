@@ -134,7 +134,7 @@ def arg_parse():
                             help="Name of the specific machine name: 'localhost' or 'ndm'. [Default: 'localhost']")
     parser.add_argument('-c',"--container_id", type=int, default=0,
                         help="container ID #. Used as the counter from the base port for the eCloud push service")
-    parser.add_argument('-f', "--FATAL_ERRORS", action='store_true',
+    parser.add_argument('-f', "--fatal_errors", action='store_true',
                         help="will raise exceptions when set to allow for easier debugging")
 
     opt = parser.parse_args()
@@ -164,7 +164,7 @@ async def main():
     VEHICLE_IP = EnvironmentConfig.get_client_ip_by_name(opt.machine)
 
     global FATAL_ERRORS
-    FATAL_ERRORS = opt.FATAL_ERRORS
+    FATAL_ERRORS = opt.fatal_errors
 
     # spawn push server
     port = ECLOUD_PUSH_BASE_PORT + opt.container_id
