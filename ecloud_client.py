@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught
 """
 Script to run a simulated vehicle
 """
@@ -43,7 +42,8 @@ CARLA_IP = None
 ECLOUD_IP = None
 VEHICLE_IP = None
 
-fatal_errors = False
+FATAL_ERRORS = False
+SPECTATOR_INDEX = 0
 
 #TODO: move to eCloudClient
 def serialize_debug_info(vehicle_update, vehicle_manager) -> None:
@@ -133,7 +133,7 @@ def arg_parse():
                             help="Name of the specific machine name: 'localhost' or 'ndm'. [Default: 'localhost']")
     parser.add_argument('-c',"--container_id", type=int, default=0,
                         help="container ID #. Used as the counter from the base port for the eCloud push service")
-    parser.add_argument('-f', "--fatal_errors", action='store_true',
+    parser.add_argument('-f', "--FATAL_ERRORS", action='store_true',
                         help="will raise exceptions when set to allow for easier debugging")
 
     opt = parser.parse_args()
@@ -149,8 +149,6 @@ async def main():
     global ECLOUD_IP
     global VEHICLE_IP
 
-    SPECTATOR_INDEX = 0
-
     application = ["single"]
     version = "0.9.12"
     tick_id = 0
@@ -164,8 +162,8 @@ async def main():
     ECLOUD_IP = EnvironmentConfig.get_ecloud_ip()
     VEHICLE_IP = EnvironmentConfig.get_client_ip_by_name(opt.machine)
 
-    global fatal_errors
-    fatal_errors = opt.fatal_errors
+    global FATAL_ERRORS
+    FATAL_ERRORS = opt.FATAL_ERRORS
 
     # spawn push server
     port = ECLOUD_PUSH_BASE_PORT + opt.container_id
@@ -222,8 +220,14 @@ async def main():
     if opt.apply_ml:
         await asyncio.sleep(vehicle_index + 1)
 
-    vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
-                                     carla_version=version, location_type=location_type, run_distributed=True, is_edge=is_edge)
+    vehicle_manager = VehicleManager(vehicle_index=vehicle_index,
+                                     config_yaml=scenario_yaml,
+                                     application=application,
+                                     cav_world=cav_world,
+                                     carla_version=version,
+                                     location_type=location_type,
+                                     run_distributed=True,
+                                     is_edge=is_edge)
 
     actor_id = vehicle_manager.vehicle.id
     vid = vehicle_manager.vid
@@ -292,7 +296,9 @@ async def main():
                         if edge_sets_destination and is_wp_valid:
                             cur_location = vehicle_manager.vehicle.get_location()
                             start_location = carla.Location(x=cur_location.x, y=cur_location.y, z=cur_location.z)
-                            end_location = carla.Location(x=wp.transform.location.x, y=wp.transform.location.y, z=wp.transform.location.z)
+                            end_location = carla.Location(x=wp.transform.location.x,
+                                                          y=wp.transform.location.y,
+                                                          z=wp.transform.location.z)
                             clean = True # bool(destination["clean"])
                             end_reset = True # bool(destination["reset"])
                             vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
@@ -303,7 +309,8 @@ async def main():
                                 waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
                                 # print(waypoint_buffer)
                                 # for waypoints in waypoint_buffer:
-                                #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
+                                #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) +
+                                # " : ", waypoints[0].transform)
                                 waypoint_buffer.clear() #EDIT MADE
                                 has_not_cleared_buffer = False
                             waypoint_buffer.append((wp, RoadOption.STRAIGHT))
@@ -325,7 +332,8 @@ async def main():
             #    logger.warning("final: waypoints transform for Vehicle: %s", waypoints[0].transform)
 
             should_run_step = False
-            if not is_edge or ( has_not_cleared_buffer and waypoint_proto is None ) or ( ( not has_not_cleared_buffer ) and waypoint_proto is not None ):
+            if not is_edge or ( has_not_cleared_buffer and waypoint_proto is None ) or \
+                    ( ( not has_not_cleared_buffer ) and waypoint_proto is not None ):
                 should_run_step = True
 
             if should_run_step:
@@ -356,7 +364,8 @@ async def main():
                     vehicle_manager.debug_helper.update_timestamp(step_timestamps)
 
                     vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
-                    vehicle_update.duration_ns = step_timestamps.client_end_tstamp.ToNanoseconds() - step_timestamps.client_start_tstamp.ToNanoseconds()
+                    vehicle_update.duration_ns = step_timestamps.client_end_tstamp.ToNanoseconds() - \
+                                                    step_timestamps.client_start_tstamp.ToNanoseconds()
 
                 if is_edge or vehicle_index == SPECTATOR_INDEX:
                     velocity = vehicle_manager.vehicle.get_velocity()
@@ -390,8 +399,10 @@ async def main():
                              vehicle_update)
                 ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
 
-            if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
-                if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
+            if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or \
+                    vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
+                if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and \
+                        pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
                     logger.info("pushed DEBUG_INFO_UPDATE")
 
                 reported_done = True
@@ -434,5 +445,5 @@ if __name__ == '__main__':
 
     except Exception as e:
         logger.error("exception hit: %s - %s", type(e), e)
-        if fatal_errors:
+        if FATAL_ERRORS:
             raise

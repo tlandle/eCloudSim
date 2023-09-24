@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught
 """
 Script to run different scenarios.
 """
@@ -23,7 +22,7 @@ logger = logging.getLogger(__ecloud__)
 import_module = re.compile(r'import ([\.A-Za-z0-9_-]+) ')
 import_class = re.compile(r'from ([\.A-Za-z0-9_-]+) import')
 
-fatal_errors = False
+FATAL_ERRORS = False
 
 def arg_parse():
     '''
@@ -34,7 +33,8 @@ def arg_parse():
                         help='Define the name of the scenario you want to test. The given name must'
                              'match one of the testing scripts(e.g. single_2lanefree_carla) in '
                              'ecloud/scenario_testing/ folder'
-                             f' as well as the corresponding yaml file in ecloud/scenario_testing/config_yaml. [Default: {__default_scenario__}]')
+                             ' as well as the corresponding yaml file in ecloud/scenario_testing/config_yaml.'
+                             f'[Default: {__default_scenario__}]')
 
     # CONFIGURATION ARGS
     parser.add_argument('-n', "--num_cars", type=int, default=0,
@@ -59,7 +59,8 @@ def arg_parse():
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                              'Set it to true only when you have installed the pytorch/sklearn package.'
-                             'NOT compatible with distributed scenarios: containers must be started at runtime with perception enabled.')
+                             'NOT compatible with distributed scenarios:'
+                             'containers must be started at runtime with perception enabled.')
 
     # DEPRECATED
     parser.add_argument("--record", action='store_true', help='whether to record and save the simulation process to'
@@ -143,8 +144,8 @@ def main():
     assert ( opt.apply_ml is True and opt.distributed == 0 ) or opt.apply_ml is False
     logger.debug(opt)
 
-    global fatal_errors
-    fatal_errors = opt.fatal_errors
+    global FATAL_ERRORS
+    FATAL_ERRORS = opt.fatal_errors
 
     print(f"eCloudSim Version: {__version__}")
 
@@ -178,6 +179,6 @@ if __name__ == '__main__':
 
     except Exception as e:
         logger.critical(e)
-        if fatal_errors:
+        if FATAL_ERRORS:
             raise
         sys.exit(1)

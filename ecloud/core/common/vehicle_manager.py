@@ -302,6 +302,12 @@ class VehicleManager(object):
         return flag
 
     def initialize_process(self):
+        '''
+        connect to Carla.
+
+        each vehicle needs to connect to Carla directly in a distributed scenario
+        '''
+        assert self.run_distributed
         simulation_config = self.scenario_params['world']
 
         self.client = \

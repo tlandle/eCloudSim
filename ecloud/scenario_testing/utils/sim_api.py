@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught
 """
 Utilize scenario manager to manage CARLA simulation construction. This script
 is used for carla simulation only, and if you want to manage the Co-simulation,
@@ -202,7 +201,9 @@ class ScenarioManager:
                 subprocess.run(['pkill','-9','ecloud_server'], check=False)
 
             # PERF Profiling
-            # self.ecloud_server_process = subprocess.Popen(['sudo','perf','record','-g','./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'], stderr=sys.stdout.buffer)
+            # self.ecloud_server_process = subprocess.Popen(['sudo','perf','record','-g',
+            # './opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'],
+            # stderr=sys.stdout.buffer)
             # TODO move path to globals
             self.ecloud_server_process = subprocess.Popen([ecloud_globals.__ecloud_server_path__,
                                                            f'--minloglevel={server_log_level}'],
@@ -251,7 +252,7 @@ class ScenarioManager:
                 self.world = self.client.load_world(town)
 
             except Exception as e:
-                logger.critical("%s - %s is not found in your CARLA repo! Please download all town maps to your CARLA repo!", e, town)
+                logger.critical("%s - %s not found in CARLA repo - download all town maps.", e, town)
 
         else:
             self.world = self.client.get_world()
@@ -795,7 +796,11 @@ class ScenarioManager:
         # create edges
         for _, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
-            edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt)
+            edge_manager = EdgeManager(edge, self.cav_world,
+                                       carla_client=self.client,
+                                       world_dt=world_dt,
+                                       edge_dt=edge_dt,
+                                       search_dt=search_dt)
             for vehicle_index, _ in enumerate(edge['members']):
 
                 logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)

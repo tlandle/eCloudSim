@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught
 """
 configuration info for running eCloud scenarios
 """
@@ -101,7 +100,12 @@ class EcloudConfig(object):
         '''
         the number of cars in a given scenario
         '''
-        self.logger.debug(f"num_cars: {self.ecloud_scenario['num_cars'] if self.ecloud_scenario['num_cars'] != 0 else len(self.config_json['scenario']['single_cav_list'])}")
+
+        num_cars = self.ecloud_scenario['num_cars'] \
+                    if self.ecloud_scenario['num_cars'] != 0 \
+                    else len(self.config_json['scenario']['single_cav_list'])
+
+        self.logger.debug("num_cars: %s", num_cars)
         return self.ecloud_scenario['num_cars'] if self.ecloud_scenario['num_cars'] != 0 else \
                 len(self.config_json['scenario']['single_cav_list'])
 

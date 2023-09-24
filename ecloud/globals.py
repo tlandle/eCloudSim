@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught
 """
 global variables & constants: contains commonly referenced strings & integers
 """

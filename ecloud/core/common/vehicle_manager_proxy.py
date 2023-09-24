@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# pylint: disable=locally-disabled, invalid-name, redefined-builtin # id is required to override the Carla Actor id with Actor Proxy id
 """
 Basic class of CAV
 """
@@ -7,6 +6,7 @@ Basic class of CAV
 #       : Aaron Drysdale <adrysdale3@gatech.edu>
 #       : Jordan Rapp <jrapp7@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
+import uuid
 
 import carla
 
@@ -37,9 +37,7 @@ class ActorProxy(object):
     '''
     lightweight proxy class used as a replace for an actual Carla actor in distributed scenarios
     '''
-    def __init__(self,
-                 id = 0): # id must be used since Carla actors have this
-        self.id = id
+    def __init__(self):
         self.transform = carla.Transform(
                 carla.Location(
                     x=0,
@@ -50,28 +48,50 @@ class ActorProxy(object):
                     roll=0,
                     pitch=0))
         self.velocity = carla.Vector3D(x=0, y=0, z=0)
+        self.id = uuid.uuid1()
 
     def is_proxy(self):
+        '''
+        used by getattr to indicate that this is a proxy, not called directly
+        '''
         return True
 
     def get_transform(self):
+        '''
+        override of equivalent Carla actor method
+        '''
         return self.transform
 
     def set_transform(self, transform):
+        '''
+        override of equivalent Carla actor method
+        '''
         self.transform = transform
 
     def get_location(self):
+        '''
+        override of equivalent Carla actor method
+        '''
         # need to return Carla.location
         return self.transform.location
 
     def set_location(self, location):
+        '''
+        override of equivalent Carla actor method
+        '''
         self.transform.location = location
 
     def get_velocity(self):
+        '''
+        override of equivalent Carla actor method
+        '''
         # need to return carla.Vector3D
         return self.velocity
 
     def set_velocity(self, velocity):
+        '''
+        override of equivalent Carla actor method
+        '''
         self.velocity = velocity
 
 class VehicleManagerProxy(object):
@@ -127,8 +147,11 @@ class VehicleManagerProxy(object):
         self.debug_helper = ClientDebugHelper(0)
 
     def start_vehicle(self):
+        '''
+        override of equivalent VehicleManager method
+        '''
         # print("eCloud debug | actor_id: " + str(actor_id))
-        self.vehicle = ActorProxy(self.vehicle_index)
+        self.vehicle = ActorProxy()
 
         # retrieve the configure for different modules
         sensing_config = self.cav_config['sensing']

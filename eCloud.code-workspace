@@ -6,7 +6,9 @@
 	],
 	"settings": {
 		"pylint.args": [
-			"--rcfile=${workspaceFolder}/.pylintrc"
+			"--rcfile=${workspaceFolder}/.pylintrc",
+			"--init-hook",
+			"import sys; sys.path.insert(0, './ecloud')",
 		],
 
 	}

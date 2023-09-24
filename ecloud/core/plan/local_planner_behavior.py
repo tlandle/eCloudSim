@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# pylint: disable=locally-disabled, line-too-long, invalid-name
 """ This module contains a local planner to perform
 low-level waypoint following based on PID controllers. """
 
@@ -194,8 +193,10 @@ class LocalPlanner(object):
         return self._waypoint_buffer
 
     def is_waypoint_valid(self, waypoint):
-        # check if the current waypoint is behind the vehicle.
-        # if so, remove such waypoint.
+        ''' 
+        check if the current waypoint is behind the vehicle.
+        if so, remove such waypoint.
+        '''
         _, angle = cal_distance_angle(
             waypoint.transform.location,
             self._ego_pos.location, self._ego_pos.rotation.yaw)

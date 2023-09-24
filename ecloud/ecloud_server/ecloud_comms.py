@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# pylint: disable=locally-disabled, line-too-long, invalid-name, broad-exception-caught
 """
 gRPC & general networking communications configuration info for eCloud scenarios
 """
@@ -61,7 +60,7 @@ class EcloudServerComms:
                  push_q,
                  sm_start_tstamp,
                  vehicle_count):
-        
+
         # references to the parent ScenarioManager member
         self.vehicle_managers = vehicle_managers
         self.debug_helper = debug_helper
@@ -75,7 +74,7 @@ class EcloudServerComms:
         # actual instance members
         self.client_node_count = 1
         self.tick_id = 0
-    
+
     async def server_unpack_debug_data(self, stub_) -> None:
         '''
         fetch the protobuf data containing serialized debug data.
@@ -106,20 +105,28 @@ class EcloudServerComms:
             for timestamps in vehicle_manager_proxy.debug_helper.timestamps_list:
                 if timestamps.tick_id in overall_steps_by_tick:
                     assert timestamps.tick_id in network_overhead_by_tick
-                    client_process_time_ms = (timestamps.client_end_tstamp.ToNanoseconds() - timestamps.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
-                    barrier_overhead_time_ms = overall_steps_by_tick[timestamps.tick_id] - network_overhead_by_tick[timestamps.tick_id] - client_process_time_ms # inferred rather than actual "barrier" time
+                    client_process_time_ms = (timestamps.client_end_tstamp.ToNanoseconds() - \
+                                              timestamps.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
+                    barrier_overhead_time_ms = overall_steps_by_tick[timestamps.tick_id] - \
+                                                network_overhead_by_tick[timestamps.tick_id] - client_process_time_ms
+                                                # inferred rather than actual "barrier" time
 
                     # TODO: confirm if we wantt to do this?
                     #if barrier_overhead_time_ms < 0:
-                    #    logger.warning(f"got a NEGATIVE inferred barrier_overhead_time value of {round(barrier_overhead_time_ms, 2)}ms for vehicle {v.vehicle_index}")
+                    #    logger.warning(f"got a NEGATIVE inferred barrier_overhead_time value of
+                    # {round(barrier_overhead_time_ms, 2)}ms for vehicle {v.vehicle_index}")
                     #barrier_overhead_time_ms = barrier_overhead_time_ms if barrier_overhead_time_ms > 0 else 0
 
-                    self.debug_helper.update_barrier_overhead_time_timestamp(vehicle_manager_proxy.vehicle_index, barrier_overhead_time_ms) # this inferred
-                    self.debug_helper.update_client_process_time_timestamp(vehicle_manager_proxy.vehicle_index, client_process_time_ms) # how long client actually was active
+                    self.debug_helper.update_barrier_overhead_time_timestamp(vehicle_manager_proxy.vehicle_index,
+                                                                             barrier_overhead_time_ms) # this inferred
+                    self.debug_helper.update_client_process_time_timestamp(vehicle_manager_proxy.vehicle_index,
+                                                                           client_process_time_ms) # time client was active
 
                     # dupe the data since it makes evaluation simpler
-                    self.debug_helper.update_network_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, network_overhead_by_tick[timestamps.tick_id])
-                    self.debug_helper.update_overall_step_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, overall_steps_by_tick[timestamps.tick_id])
+                    self.debug_helper.update_network_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index,
+                                                                               network_overhead_by_tick[timestamps.tick_id])
+                    self.debug_helper.update_overall_step_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index,
+                                                                                    overall_steps_by_tick[timestamps.tick_id])
 
                     logger.info('client process time: %sms', round(client_process_time_ms, 2))
                     logger.info('barrier time: %sms', round(barrier_overhead_time_ms, 2))
@@ -204,9 +211,13 @@ class EcloudServerComms:
             self.debug_helper.startup_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC
             return empty
 
-        overall_step_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC # barrier sync means this is the same for ALL vehicles per tick
-        step_network_overhead_ms = overall_step_time_ms - ( tick.last_client_duration_ns * NSEC_TO_MSEC ) # we care about the worst case per tick - how much did we affect the final vehicle to report. This captures both delay in getting that vehicle started and in it reporting its completion
-        self.debug_helper.update_network_time_timestamp(tick.tick_id, step_network_overhead_ms) # same for all vehicles *per tick*
+        # barrier sync means this is the same for ALL vehicles per tick
+        overall_step_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC
+        # we care about the worst case per tick - how much did we affect the final vehicle to report.
+        # This captures both delay in getting that vehicle started and in it reporting its completion
+        step_network_overhead_ms = overall_step_time_ms - ( tick.last_client_duration_ns * NSEC_TO_MSEC )
+        # same for all vehicles *per tick*
+        self.debug_helper.update_network_time_timestamp(tick.tick_id, step_network_overhead_ms)
         self.debug_helper.update_overall_step_time_timestamp(tick.tick_id, overall_step_time_ms)
 
         logger.info("timestamps: overall_step_time_ms - %sms | network_overhead_ms - %sms",
@@ -252,7 +263,7 @@ class EcloudServerComms:
         empty = await stub_.Server_EndScenario(ecloud.Empty())
 
         return empty
-    
+
     def get_node_count(self) -> int:
         '''
         get the node count for this scenario
@@ -313,7 +324,8 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
                  context: grpc.aio.ServicerContext) -> ecloud.Empty:
 
         tick = request # readability - gRPC prefers overrides preserve variable names
-        if tick.tick_id != ( self.last_tick + 1 ) and tick.tick_id > 0 and self.last_tick > 0 and tick.command == ecloud.Command.TICK:
+        if tick.tick_id != ( self.last_tick + 1 ) and tick.tick_id > 0 and \
+                            self.last_tick > 0 and tick.command == ecloud.Command.TICK:
             logger.warning('received an out of sync tick: had %s | received %s', self.last_tick, tick.tick_id)
         elif tick.tick_id:
             self.last_tick = tick.tick_id
@@ -344,7 +356,8 @@ async def ecloud_run_push_server(port,
         listen_addr = f"0.0.0.0:{port}"
         server.add_insecure_port(listen_addr)
     except Exception as port_exception:
-        logger.error("failed - %s: %s - to start push server on port %s - incrementing port & retrying", type(port_exception), port_exception, port)
+        logger.error("failed - %s: %s - to start push server on port %s - incrementing port & retrying",
+                     type(port_exception), port_exception, port)
         port += 1
 
     logger.critical("starting eCloud push server on port %s", port)

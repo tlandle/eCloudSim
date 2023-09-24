@@ -96,7 +96,7 @@ class EvaluationManager(object):
         lprint(log_file, "***********Kinematics Module***********")
         for _, v_m in self.cav_world.get_vehicle_managers().items():
             actor_id = v_m.vehicle.id
-            lprint(log_file, 'Actor ID: %d' % actor_id)
+            lprint(log_file, f'Actor ID: {actor_id}')
 
             loc_debug_helper = v_m.agent.debug_helper
             figure, perform_txt = loc_debug_helper.evaluate()
@@ -356,6 +356,7 @@ class EvaluationManager(object):
 
         perform_txt = ''
 
+        node_count = 1
         if self.scenario_manager.run_distributed:
             node_count = self.scenario_manager.client_node_count
             cumulative_stats_folder_path = \
