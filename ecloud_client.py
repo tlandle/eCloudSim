@@ -164,7 +164,7 @@ async def main():
 
     # TODO: move to eCloudClient
     channel = grpc.aio.insecure_channel(
-        target=f"{ecloud_globals.ECLOUD_IP}:{opt.port}",
+        target=f"{EcloudConfig.ecloud_ip}:{opt.port}",
         options=EcloudComms.GRPC_OPTIONS,
         )
 
