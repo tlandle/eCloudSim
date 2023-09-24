@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=locally-disabled, invalid-name
 
-"""Behavior planning module
+"""
+Behavior planning module
 """
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>

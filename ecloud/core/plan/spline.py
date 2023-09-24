@@ -4,6 +4,9 @@ Cubic spline planner
 Author: Atsushi Sakai(@Atsushi_twi)
 
 """
+
+# pylint: skip-file
+
 import math
 import numpy as np
 import bisect

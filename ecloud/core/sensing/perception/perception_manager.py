@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=locally-disabled, invalid-name, no-member
+
 """
 Perception module
 """
@@ -619,7 +621,7 @@ class PerceptionManager:
         semantic_tag = self.semantic_lidar.obj_tag
 
         # label 10 is the vehicle
-        vehicle_idx = semantic_idx[semantic_tag == 10]
+        vehicle_idx = semantic_idx[semantic_tag == 10] # pylint: disable=unsubscriptable-object
         # each individual instance id
         vehicle_unique_id = list(np.unique(vehicle_idx))
 

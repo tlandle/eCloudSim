@@ -326,14 +326,12 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
         '''
         checks if the current tick is a dupe due to resend
         '''
-        is_dupe = False
-
         if tick.tick_id == self.last_tick_id and \
-            tick.command == self.last_tick_command and \
-            tick.last_client_duration_ns == self.last_tick_last_client_duration_ns:
-                is_dupe = True
+                tick.command == self.last_tick_command and \
+                tick.last_client_duration_ns == self.last_tick_last_client_duration_ns:
+            return True
 
-        return is_dupe
+        return False
 
     def PushTick(self,
                  request: ecloud.Tick,

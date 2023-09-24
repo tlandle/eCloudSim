@@ -20,15 +20,16 @@ from ecloud.scenario_testing.utils.yaml_utils import load_yaml
 
 logger = logging.getLogger("ecloud")
 
-sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/")
+sys.path.append(
+    "/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/"
+)
 
 import ecloud.core.plan.drive_profile_plotting as open_plt
 from ecloud.core.application.edge.EdgeManager import *
 from ecloud.core.plan.global_route_planner import GlobalRoutePlanner
 from ecloud.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from ecloud.core.plan.local_planner_behavior import RoadOption
-from ecloud.core.application.edge.edge_debug_helper import \
-    EdgeDebugHelper
+from ecloud.core.application.edge.edge_debug_helper import EdgeDebugHelper
 
 # Algorithm specific import
 from ecloud.core.application.edge.a_star_algorithm.astar_test_groupcaps_transform import *
@@ -37,6 +38,7 @@ from ecloud.core.application.edge.a_star_algorithm.a_star_carla_helper import *
 import grpc
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as rpc
+
 
 class EdgeAstarManager(EdgeManager):
     """
@@ -60,13 +62,14 @@ class EdgeAstarManager(EdgeManager):
         The destiantion of the current plan.
     """
 
-    def __init__(self, config_yaml, cav_world, world_dt=0.03, edge_dt=0.20, search_dt=2.00):
-
+    def __init__(
+        self, config_yaml, cav_world, world_dt=0.03, edge_dt=0.20, search_dt=2.00
+    ):
         super(config_yaml, cav_world, world_dt=0.03, edge_dt=0.20, search_dt=2.00)
         # Query the vehicle locations and velocities + target velocities
         self.spawn_x = []
         self.spawn_y = []
-        self.spawn_v = [] # probably 0s but can be target vel too
+        self.spawn_v = []  # probably 0s but can be target vel too
         self.xcars = np.empty((self.numcars, 0))
         self.ycars = np.empty((self.numcars, 0))
         self.x_states = None
@@ -79,161 +82,229 @@ class EdgeAstarManager(EdgeManager):
         self.grid_size = 1.0
         self.robot_radius = 1.0
         self.processor = None
-        self.secondary_offset=0
+        self.secondary_offset = 0
         cav_world.update_edge(self)
 
-        self.search_dt = config_yaml['search_dt'] if 'search_dt' in config_yaml else 2.00
-        self.numlanes = config_yaml['num_lanes'] if 'num_lanes' in config_yaml else 4
+        self.search_dt = (
+            config_yaml["search_dt"] if "search_dt" in config_yaml else 2.00
+        )
+        self.numlanes = config_yaml["num_lanes"] if "num_lanes" in config_yaml else 4
 
     def start_edge(self):
-      self.get_four_lane_waypoints_dict()
-      self.processor = transform_processor(self.waypoints_dict)
-      _, _ = self.processor.process_waypoints_bidirectional(0)
-      inverted = self.processor.process_forward(0)
-      logger.debug(len(inverted))
-      i = 0
+        self.get_four_lane_waypoints_dict()
+        self.processor = transform_processor(self.waypoints_dict)
+        _, _ = self.processor.process_waypoints_bidirectional(0)
+        inverted = self.processor.process_forward(0)
+        logger.debug(len(inverted))
+        i = 0
 
-      # for k in inverted:
-      #     if k[0,0] <= 0 and k[0,0] < -self.secondary_offset:
-      #       print("Current indice is: ", k[0,0])
-      #       self.secondary_offset = -k[0,0]
+        # for k in inverted:
+        #     if k[0,0] <= 0 and k[0,0] < -self.secondary_offset:
+        #       print("Current indice is: ", k[0,0])
+        #       self.secondary_offset = -k[0,0]
 
-      for vehicle_manager in self.vehicle_manager_list:
-          spawn_coords = vehicle_manager.vehicle.get_location()
-          spawn_coords = np.array([spawn_coords.x,spawn_coords.y]).reshape((2,1))
-          # print(spawn_coords)
-          spawn_coords = self.processor.process_single_waypoint_forward(spawn_coords[0,0],spawn_coords[1,0])
-          # print(spawn_coords)
-          # sys.exit()
-          # self.spawn_x.append(vehicle_manager.vehicle.get_location().x)
-          # self.spawn_y.append(vehicle_manager.vehicle.get_location().y)
-          #self.spawn_v.append(vehicle_manager.vehicle.get_velocity())
-          ## THIS IS TEMPORARY ##
-          # print("inverted is: ", inverted[i][0,0])
-          # print("revised x is: ", self.secondary_offset)
-          self.spawn_x.append(spawn_coords[0]) # inverted[i][0,0]+self.secondary_offset)
-          #self.spawn_v.append(5*(i+1))
-          self.spawn_v.append(0)
-          self.spawn_y.append(spawn_coords[1])# inverted[i][1,0])
-          i += 1
+        for vehicle_manager in self.vehicle_manager_list:
+            spawn_coords = vehicle_manager.vehicle.get_location()
+            spawn_coords = np.array([spawn_coords.x, spawn_coords.y]).reshape((2, 1))
+            # print(spawn_coords)
+            spawn_coords = self.processor.process_single_waypoint_forward(
+                spawn_coords[0, 0], spawn_coords[1, 0]
+            )
+            # print(spawn_coords)
+            # sys.exit()
+            # self.spawn_x.append(vehicle_manager.vehicle.get_location().x)
+            # self.spawn_y.append(vehicle_manager.vehicle.get_location().y)
+            # self.spawn_v.append(vehicle_manager.vehicle.get_velocity())
+            ## THIS IS TEMPORARY ##
+            # print("inverted is: ", inverted[i][0,0])
+            # print("revised x is: ", self.secondary_offset)
+            self.spawn_x.append(
+                spawn_coords[0]
+            )  # inverted[i][0,0]+self.secondary_offset)
+            # self.spawn_v.append(5*(i+1))
+            self.spawn_v.append(0)
+            self.spawn_y.append(spawn_coords[1])  # inverted[i][1,0])
+            i += 1
 
-          # TODO: DIST --> do we need to clear at start in containers?
-          #vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
-      self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+            # TODO: DIST --> do we need to clear at start in containers?
+            # vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
+        self.Traffic_Tracker = Traffic(
+            self.search_dt,
+            self.numlanes,
+            numcars=self.numcars,
+            map_length=200,
+            x_initial=self.spawn_x,
+            y_initial=self.spawn_y,
+            v_initial=self.spawn_v,
+        )
 
     def get_four_lane_waypoints_dict(self):
-      world = self.vehicle_manager_list[0].vehicle.get_world()
-      self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
-      grp = GlobalRoutePlanner(self._dao)
-      grp.setup()
-      waypoints = world.get_map().generate_waypoints(10)
+        world = self.vehicle_manager_list[0].vehicle.get_world()
+        self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+        grp = GlobalRoutePlanner(self._dao)
+        grp.setup()
+        waypoints = world.get_map().generate_waypoints(10)
 
-      indices_source = np.load('Indices_start.npy')
-      indices_dest = np.load('Indices_dest.npy')
+        indices_source = np.load("Indices_start.npy")
+        indices_dest = np.load("Indices_dest.npy")
 
-      indices_source = indices_source.astype(int)
-      indices_dest = indices_dest.astype(int)
+        indices_source = indices_source.astype(int)
+        indices_dest = indices_dest.astype(int)
 
-      #print("Source Shape: ", indices_source.shape)
+        # print("Source Shape: ", indices_source.shape)
 
-      a = carla.Location(waypoints[indices_source[0,1]].transform.location)
-      b = carla.Location(waypoints[indices_dest[0,1]].transform.location)
-      c = carla.Location(waypoints[indices_source[1,1]].transform.location)
-      d = carla.Location(waypoints[indices_dest[1,1]].transform.location)
-      e = carla.Location(waypoints[indices_source[2,1]].transform.location)
-      f = carla.Location(waypoints[indices_dest[2,1]].transform.location)
-      g = carla.Location(waypoints[indices_source[3,1]].transform.location)
-      j = carla.Location(waypoints[indices_dest[3,1]].transform.location)
+        a = carla.Location(waypoints[indices_source[0, 1]].transform.location)
+        b = carla.Location(waypoints[indices_dest[0, 1]].transform.location)
+        c = carla.Location(waypoints[indices_source[1, 1]].transform.location)
+        d = carla.Location(waypoints[indices_dest[1, 1]].transform.location)
+        e = carla.Location(waypoints[indices_source[2, 1]].transform.location)
+        f = carla.Location(waypoints[indices_dest[2, 1]].transform.location)
+        g = carla.Location(waypoints[indices_source[3, 1]].transform.location)
+        j = carla.Location(waypoints[indices_dest[3, 1]].transform.location)
 
-      w1 = grp.trace_route(a, b) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
-      w2 = grp.trace_route(c, d) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
-      w3 = grp.trace_route(e, f) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
-      w4 = grp.trace_route(g, j) # there are other funcations can be used to generate a route in GlobalRoutePlanner.
+        w1 = grp.trace_route(
+            a, b
+        )  # there are other funcations can be used to generate a route in GlobalRoutePlanner.
+        w2 = grp.trace_route(
+            c, d
+        )  # there are other funcations can be used to generate a route in GlobalRoutePlanner.
+        w3 = grp.trace_route(
+            e, f
+        )  # there are other funcations can be used to generate a route in GlobalRoutePlanner.
+        w4 = grp.trace_route(
+            g, j
+        )  # there are other funcations can be used to generate a route in GlobalRoutePlanner.
 
-      logger.debug(a)
-      logger.debug(b)
-      logger.debug(c)
-      logger.debug(d)
+        logger.debug(a)
+        logger.debug(b)
+        logger.debug(c)
+        logger.debug(d)
 
-      i = 0
-      for w in w1:
-        #print(w)
-        mark=str(i)
-        if i % 10 == 0:
-            world.debug.draw_string(w[0].transform.location,mark, draw_shadow=False, color=carla.Color(r=255, g=0, b=0), life_time=120.0, persistent_lines=True)
-        else:
-            world.debug.draw_string(w[0].transform.location, mark, draw_shadow=False,
-            color = carla.Color(r=0, g=0, b=255), life_time=1000.0,
-            persistent_lines=True)
-        i += 1
-      i = 0
-      for w in w2:
-        #print(w)
-        mark=str(i)
-        if i % 10 == 0:
-            world.debug.draw_string(w[0].transform.location,mark, draw_shadow=False, color=carla.Color(r=255, g=0, b=0), life_time=120.0, persistent_lines=True)
-        else:
-            world.debug.draw_string(w[0].transform.location, mark, draw_shadow=False,
-            color = carla.Color(r=0, g=0, b=255), life_time=1000.0,
-            persistent_lines=True)
-        i += 1
-      i = 0
-      for w in w3:
-        #print(w)
-        mark=str(i)
-        if i % 10 == 0:
-            world.debug.draw_string(w[0].transform.location,mark, draw_shadow=False, color=carla.Color(r=255, g=0, b=0), life_time=120.0, persistent_lines=True)
-        else:
-            world.debug.draw_string(w[0].transform.location, mark, draw_shadow=False,
-            color = carla.Color(r=0, g=0, b=255), life_time=1000.0,
-            persistent_lines=True)
-        i += 1
-      i = 0
-      for w in w4:
-        #print(w)
-        mark=str(i)
-        if i % 10 == 0:
-            world.debug.draw_string(w[0].transform.location,mark, draw_shadow=False, color=carla.Color(r=255, g=0, b=0), life_time=120.0, persistent_lines=True)
-        else:
-            world.debug.draw_string(w[0].transform.location, mark, draw_shadow=False,
-            color = carla.Color(r=0, g=0, b=255), life_time=1000.0,
-            persistent_lines=True)
-        i += 1
-      # i = 0
+        i = 0
+        for w in w1:
+            # print(w)
+            mark = str(i)
+            if i % 10 == 0:
+                world.debug.draw_string(
+                    w[0].transform.location,
+                    mark,
+                    draw_shadow=False,
+                    color=carla.Color(r=255, g=0, b=0),
+                    life_time=120.0,
+                    persistent_lines=True,
+                )
+            else:
+                world.debug.draw_string(
+                    w[0].transform.location,
+                    mark,
+                    draw_shadow=False,
+                    color=carla.Color(r=0, g=0, b=255),
+                    life_time=1000.0,
+                    persistent_lines=True,
+                )
+            i += 1
+        i = 0
+        for w in w2:
+            # print(w)
+            mark = str(i)
+            if i % 10 == 0:
+                world.debug.draw_string(
+                    w[0].transform.location,
+                    mark,
+                    draw_shadow=False,
+                    color=carla.Color(r=255, g=0, b=0),
+                    life_time=120.0,
+                    persistent_lines=True,
+                )
+            else:
+                world.debug.draw_string(
+                    w[0].transform.location,
+                    mark,
+                    draw_shadow=False,
+                    color=carla.Color(r=0, g=0, b=255),
+                    life_time=1000.0,
+                    persistent_lines=True,
+                )
+            i += 1
+        i = 0
+        for w in w3:
+            # print(w)
+            mark = str(i)
+            if i % 10 == 0:
+                world.debug.draw_string(
+                    w[0].transform.location,
+                    mark,
+                    draw_shadow=False,
+                    color=carla.Color(r=255, g=0, b=0),
+                    life_time=120.0,
+                    persistent_lines=True,
+                )
+            else:
+                world.debug.draw_string(
+                    w[0].transform.location,
+                    mark,
+                    draw_shadow=False,
+                    color=carla.Color(r=0, g=0, b=255),
+                    life_time=1000.0,
+                    persistent_lines=True,
+                )
+            i += 1
+        i = 0
+        for w in w4:
+            # print(w)
+            mark = str(i)
+            if i % 10 == 0:
+                world.debug.draw_string(
+                    w[0].transform.location,
+                    mark,
+                    draw_shadow=False,
+                    color=carla.Color(r=255, g=0, b=0),
+                    life_time=120.0,
+                    persistent_lines=True,
+                )
+            else:
+                world.debug.draw_string(
+                    w[0].transform.location,
+                    mark,
+                    draw_shadow=False,
+                    color=carla.Color(r=0, g=0, b=255),
+                    life_time=1000.0,
+                    persistent_lines=True,
+                )
+            i += 1
+        # i = 0
 
-      # while True:
-      #   world.tick()
+        # while True:
+        #   world.tick()
 
-      self.waypoints_dict[1] = {}
-      self.waypoints_dict[2] = {}
-      self.waypoints_dict[3] = {}
-      self.waypoints_dict[4] = {}
-      self.waypoints_dict[1]['x'] = []
-      self.waypoints_dict[2]['x'] = []
-      self.waypoints_dict[3]['x'] = []
-      self.waypoints_dict[4]['x'] = []
-      self.waypoints_dict[1]['y'] = []
-      self.waypoints_dict[2]['y'] = []
-      self.waypoints_dict[3]['y'] = []
-      self.waypoints_dict[4]['y'] = []
+        self.waypoints_dict[1] = {}
+        self.waypoints_dict[2] = {}
+        self.waypoints_dict[3] = {}
+        self.waypoints_dict[4] = {}
+        self.waypoints_dict[1]["x"] = []
+        self.waypoints_dict[2]["x"] = []
+        self.waypoints_dict[3]["x"] = []
+        self.waypoints_dict[4]["x"] = []
+        self.waypoints_dict[1]["y"] = []
+        self.waypoints_dict[2]["y"] = []
+        self.waypoints_dict[3]["y"] = []
+        self.waypoints_dict[4]["y"] = []
 
+        for waypoint in w1:
+            self.waypoints_dict[1]["x"].append(waypoint[0].transform.location.x)
+            self.waypoints_dict[1]["y"].append(waypoint[0].transform.location.y)
 
-      for waypoint in w1:
-        self.waypoints_dict[1]['x'].append(waypoint[0].transform.location.x)
-        self.waypoints_dict[1]['y'].append(waypoint[0].transform.location.y)
+        for waypoint in w2:
+            self.waypoints_dict[2]["x"].append(waypoint[0].transform.location.x)
+            self.waypoints_dict[2]["y"].append(waypoint[0].transform.location.y)
 
-      for waypoint in w2:
-        self.waypoints_dict[2]['x'].append(waypoint[0].transform.location.x)
-        self.waypoints_dict[2]['y'].append(waypoint[0].transform.location.y)
+        for waypoint in w3:
+            self.waypoints_dict[3]["x"].append(waypoint[0].transform.location.x)
+            self.waypoints_dict[3]["y"].append(waypoint[0].transform.location.y)
 
-      for waypoint in w3:
-        self.waypoints_dict[3]['x'].append(waypoint[0].transform.location.x)
-        self.waypoints_dict[3]['y'].append(waypoint[0].transform.location.y)
-
-      for waypoint in w4:
-        self.waypoints_dict[4]['x'].append(waypoint[0].transform.location.x)
-        self.waypoints_dict[4]['y'].append(waypoint[0].transform.location.y)
-
+        for waypoint in w4:
+            self.waypoints_dict[4]["x"].append(waypoint[0].transform.location.x)
+            self.waypoints_dict[4]["y"].append(waypoint[0].transform.location.y)
 
     def update_information(self):
         """
@@ -246,12 +317,17 @@ class EdgeAstarManager(EdgeManager):
         start_time = time.time()
         for i in range(len(self.vehicle_manager_list)):
             self.vehicle_manager_list[i].update_info()
-            logger.info(f"Updated location for vehicle {i} - x:{self.vehicle_manager_list[i].vehicle.get_location().x}, y:{self.vehicle_manager_list[i].vehicle.get_location().y}")
+            logger.info(
+                f"Updated location for vehicle {i} - x:{self.vehicle_manager_list[i].vehicle.get_location().x}, y:{self.vehicle_manager_list[i].vehicle.get_location().y}"
+            )
         end_time = time.time()
-        logger.debug("Vehicle Manager Update Info Time: %s" %(end_time - start_time))
+        logger.debug("Vehicle Manager Update Info Time: %s" % (end_time - start_time))
         start_time = time.time()
         for i in range(len(self.vehicle_manager_list)):
-            x,y = self.processor.process_single_waypoint_forward(self.vehicle_manager_list[i].vehicle.get_location().x, self.vehicle_manager_list[i].vehicle.get_location().y)
+            x, y = self.processor.process_single_waypoint_forward(
+                self.vehicle_manager_list[i].vehicle.get_location().x,
+                self.vehicle_manager_list[i].vehicle.get_location().y,
+            )
             v = self.vehicle_manager_list[i].vehicle.get_velocity()
             v_scalar = math.sqrt(v.x**2 + v.y**2 + v.z**2)
             self.spawn_x.append(x)
@@ -259,50 +335,74 @@ class EdgeAstarManager(EdgeManager):
             self.spawn_v.append(v_scalar)
             logger.info(f"update_information for vehicle_{i} - x:{x}, y:{y}")
         end_time = time.time()
-        logger.debug("Update Info Transform Forward Time: %s" %(end_time - start_time))
-        #print(self.spawn_x)
-        #print(self.spawn_y)
-        #print(self.spawn_v)
+        logger.debug("Update Info Transform Forward Time: %s" % (end_time - start_time))
+        # print(self.spawn_x)
+        # print(self.spawn_y)
+        # print(self.spawn_v)
 
         start_time = time.time()
-        #Added in to check if traffic tracker updating would fix waypoint deque issue
+        # Added in to check if traffic tracker updating would fix waypoint deque issue
         # TODO: data drive num cars
-        self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+        self.Traffic_Tracker = Traffic(
+            self.search_dt,
+            self.numlanes,
+            numcars=self.numcars,
+            map_length=200,
+            x_initial=self.spawn_x,
+            y_initial=self.spawn_y,
+            v_initial=self.spawn_v,
+        )
         end_time = time.time()
-        logger.debug("Traffic Tracker Time: %s" %(end_time - start_time))
+        logger.debug("Traffic Tracker Time: %s" % (end_time - start_time))
 
         for car in self.Traffic_Tracker.cars_on_road:
             car.target_velocity = self.traffic_velocity
         # sys.exit()
 
-        #print("Updated Info")
+        # print("Updated Info")
 
     def algorithm_step(self):
         self.locations = []
-        #print("started Algo step")
+        # print("started Algo step")
 
-        #DEBUGGING: Bypass algo and simply move cars forward to solve synch and transform issues
-        #Bypassed as of 14/3/2022
+        # DEBUGGING: Bypass algo and simply move cars forward to solve synch and transform issues
+        # Bypassed as of 14/3/2022
 
-        slice_list, vel_array, lanechange_command = get_slices_clustered(self.Traffic_Tracker, self.numcars)
+        slice_list, vel_array, lanechange_command = get_slices_clustered(
+            self.Traffic_Tracker, self.numcars
+        )
 
-        for i in range(len(slice_list)-1,-1,-1): #Iterate through all slices
-            if len(slice_list[i]) >= 2: #If the slice has more than one vehicle, run the graph planner. Else it'll move using existing
-            #responses - slow down on seeing a vehicle ahead that has slower velocities, else hit target velocity.
-            #Somewhat suboptimal, ideally the other vehicle would be
-            #folded into existing groups. No easy way to do that yet.
-                #print("Slicing")
-                a_star = AStarPlanner(slice_list[i], self.ov, self.oy, self.grid_size, self.robot_radius, self.Traffic_Tracker.cars_on_road, i)
+        for i in range(len(slice_list) - 1, -1, -1):  # Iterate through all slices
+            if (
+                len(slice_list[i]) >= 2
+            ):  # If the slice has more than one vehicle, run the graph planner. Else it'll move using existing
+                # responses - slow down on seeing a vehicle ahead that has slower velocities, else hit target velocity.
+                # Somewhat suboptimal, ideally the other vehicle would be
+                # folded into existing groups. No easy way to do that yet.
+                # print("Slicing")
+                a_star = AStarPlanner(
+                    slice_list[i],
+                    self.ov,
+                    self.oy,
+                    self.grid_size,
+                    self.robot_radius,
+                    self.Traffic_Tracker.cars_on_road,
+                    i,
+                )
                 rv, ry, rx_tracked = a_star.planning()
-                if len(ry) >= 2: #If there is some planner result, then we move ahead on using it
+                if (
+                    len(ry) >= 2
+                ):  # If there is some planner result, then we move ahead on using it
                     lanechange_command[i] = ry[-2]
                     vel_array[i] = rv[-2]
-                else: #If the planner returns an empty list, continue as before - use emergency responses.
+                else:  # If the planner returns an empty list, continue as before - use emergency responses.
                     lanechange_command[i] = ry[0]
                     vel_array[i] = ry[0]
 
-        #print("Sliced")
-        for i in range(len(slice_list)-1,-1,-1): #Relay lane change commands and new velocities to vehicles where needed
+        # print("Sliced")
+        for i in range(
+            len(slice_list) - 1, -1, -1
+        ):  # Relay lane change commands and new velocities to vehicles where needed
             if len(slice_list[i]) >= 1 and len(lanechange_command[i]) >= 1:
                 carnum = 0
                 for car in slice_list[i]:
@@ -313,12 +413,17 @@ class EdgeAstarManager(EdgeManager):
                     car.v = vel_array[i][carnum]
                     carnum += 1
 
-        self.Traffic_Tracker.time_tick(mode='Graph') #Tick the simulation
+        self.Traffic_Tracker.time_tick(mode="Graph")  # Tick the simulation
 
-        #print("Success capsule")
+        # print("Success capsule")
 
-        #Recording location and state
-        x_states, y_states, tv, v = self.Traffic_Tracker.ret_car_locations() # Commented out for bypassing algo
+        # Recording location and state
+        (
+            x_states,
+            y_states,
+            tv,
+            v,
+        ) = self.Traffic_Tracker.ret_car_locations()  # Commented out for bypassing algo
         # x_states, y_states, v = [], [], [] #Algo bypass begins
         self.xcars = np.empty((self.numcars, 0))
         self.ycars = np.empty((self.numcars, 0))
@@ -334,15 +439,19 @@ class EdgeAstarManager(EdgeManager):
         ###Begin waypoint transform process, algo ended###
         self.xcars = np.hstack((self.xcars, x_states))
         self.ycars = np.hstack((self.ycars, y_states))
-        self.target_velocities = np.hstack((self.target_velocities,tv)) #Commented out for bypassing algo, comment back in if algo present
-        self.velocities = np.hstack((self.velocities,v)) #Was just v, v_states for the skipping-planner debugging
+        self.target_velocities = np.hstack(
+            (self.target_velocities, tv)
+        )  # Commented out for bypassing algo, comment back in if algo present
+        self.velocities = np.hstack(
+            (self.velocities, v)
+        )  # Was just v, v_states for the skipping-planner debugging
 
-        #print("Returned X: ", self.xcars)
-        #print("Returned Y: ", self.ycars)
+        # print("Returned X: ", self.xcars)
+        # print("Returned Y: ", self.ycars)
 
         self.xcars = self.xcars - self.secondary_offset
 
-        #print("Revised Returned X: ", self.xcars)
+        # print("Revised Returned X: ", self.xcars)
 
         ###########################################
 
@@ -366,29 +475,31 @@ class EdgeAstarManager(EdgeManager):
 
         waypoints_rev = {}
         car_locations = {}
-        for cars in range(1,self.numcars+1):
-            waypoints_rev[str(cars)] = np.empty((2,0))
+        for cars in range(1, self.numcars + 1):
+            waypoints_rev[str(cars)] = np.empty((2, 0))
             car_locations[str(cars)] = []
 
-        for i in range(0,self.xcars.shape[1]):
-          processed_array = []
-          for j in range(0,self.numcars):
-            x_res = self.xcars[j,i]
-            y_res = self.ycars[j,i]
-            processed_array.append(np.array([[x_res],[y_res]]))
-            #print("Appending to waypoints_rev")
-          #print(processed_array)
-          back = self.processor.process_back(processed_array)
+        for i in range(0, self.xcars.shape[1]):
+            processed_array = []
+            for j in range(0, self.numcars):
+                x_res = self.xcars[j, i]
+                y_res = self.ycars[j, i]
+                processed_array.append(np.array([[x_res], [y_res]]))
+                # print("Appending to waypoints_rev")
+            # print(processed_array)
+            back = self.processor.process_back(processed_array)
 
-          #print(waypoints_rev)
-          #print(waypoints_rev.keys())
-          for j in range(0,self.numcars):
-            #print(len(back))
-            #print(j)
-            # print(waypoints_rev[str(j+1)])
-            # print(back[str(j)])
-            # print(np.hstack((waypoints_rev[str(j+1)],back[str(j)])))
-            waypoints_rev[str(j+1)] = np.hstack((waypoints_rev[str(j+1)],back[j]))
+            # print(waypoints_rev)
+            # print(waypoints_rev.keys())
+            for j in range(0, self.numcars):
+                # print(len(back))
+                # print(j)
+                # print(waypoints_rev[str(j+1)])
+                # print(back[str(j)])
+                # print(np.hstack((waypoints_rev[str(j+1)],back[str(j)])))
+                waypoints_rev[str(j + 1)] = np.hstack(
+                    (waypoints_rev[str(j + 1)], back[j])
+                )
 
         # processed_array = []
         # for k in range(0,4): #Added 16/03 outer loop to check if waypoint horizon influenced things, it did not seem to.
@@ -404,19 +515,23 @@ class EdgeAstarManager(EdgeManager):
         #     waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
         #     waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
 
-        #print(waypoints_rev)
+        # print(waypoints_rev)
         # car_locations = {1 : [], 2 : [], 3 : [], 4 : [], 5 : [], 6 : [], 7 : [], 8 : []}
 
         logger.warning(f"CREATING OVERRIDE WAYPOINTS")
         for car, car_array in waypoints_rev.items():
-          for i in range(0,len(car_array[0])):
-            location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
-            logger.info(f"algorithm_step: car_{car} location - {location}")
-            self.locations.append(location)
+            for i in range(0, len(car_array[0])):
+                location = self._dao.get_waypoint(
+                    carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0)
+                )
+                logger.info(f"algorithm_step: car_{car} location - {location}")
+                self.locations.append(location)
 
-            logger.warning(f"car_{car} - (x: {location.transform.location.x}, y: {location.transform.location.x})")
+                logger.warning(
+                    f"car_{car} - (x: {location.transform.location.x}, y: {location.transform.location.x})"
+                )
 
-        #print("Locations appended: ", self.locations)
+        # print("Locations appended: ", self.locations)
 
     def run_step(self):
         """
@@ -434,31 +549,33 @@ class EdgeAstarManager(EdgeManager):
         pre_algo_time = time.time()
         self.algorithm_step()
         post_algo_time = time.time()
-        logger.debug("Algorithm completion time: %s" %(post_algo_time - pre_algo_time))
-        self.debug_helper.update_edge((post_algo_time - pre_algo_time)*1000)
+        logger.debug("Algorithm completion time: %s" % (post_algo_time - pre_algo_time))
+        self.debug_helper.update_edge((post_algo_time - pre_algo_time) * 1000)
         all_waypoint_buffers = []
-        #print("completed Algorithm Step")
+        # print("completed Algorithm Step")
         # output algorithm waypoints to waypoint buffer of each vehicle
         for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
-        #   # print(i)
-        #   waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-        #   # print(waypoint_buffer)
-        #   # for waypoints in waypoint_buffer:
-        #   #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
-        #   waypoint_buffer.clear() #EDIT MADE 16/03
+            #   # print(i)
+            #   waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
+            #   # print(waypoint_buffer)
+            #   # for waypoints in waypoint_buffer:
+            #   #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
+            #   waypoint_buffer.clear() #EDIT MADE 16/03
             waypoint_buffer_proto = ecloud.WaypointBuffer()
             waypoint_buffer_proto.vehicle_index = idx
 
-            for k in range(0,1):
-                waypoint_buffer_proto.waypoint_buffer.extend([serialize_waypoint(self.locations[idx*1+k])])#, RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
+            for k in range(0, 1):
+                waypoint_buffer_proto.waypoint_buffer.extend(
+                    [serialize_waypoint(self.locations[idx * 1 + k])]
+                )  # , RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
 
-            #logger.debug(waypoint_buffer_proto.SerializeToString())
+            # logger.debug(waypoint_buffer_proto.SerializeToString())
 
             all_waypoint_buffers.append(waypoint_buffer_proto)
-          # for waypoints in waypoint_buffer:
-          #   print("Waypoints transform for Vehicle After Clearing: " + str(i) + " : ", waypoints[0].transform)
-          # sys.exit()
-          # # print(waypoint_buffer)
+        # for waypoints in waypoint_buffer:
+        #   print("Waypoints transform for Vehicle After Clearing: " + str(i) + " : ", waypoints[0].transform)
+        # sys.exit()
+        # # print(waypoint_buffer)
 
         return all_waypoint_buffers
 
@@ -493,13 +610,13 @@ class EdgeAstarManager(EdgeManager):
             The string that contains all evaluation results to print out.
         """
 
-        #velocity_list = []
-        #time_gap_list = []
-        #distance_gap_list = []
+        # velocity_list = []
+        # time_gap_list = []
+        # distance_gap_list = []
         algorithm_time_list = []
         debug_helper = self.debug_helper
 
-        perform_txt = ''
+        perform_txt = ""
 
         for i in range(len(self.vehicle_manager_list)):
             vm = self.vehicle_manager_list[i]
@@ -509,53 +626,48 @@ class EdgeAstarManager(EdgeManager):
             # since the vehicles spawn at the beginning have
             # no velocity and thus make the time gap close to infinite
 
-            #velocity_list += debug_helper.speed_list
-            #time_gap_list += debug_helper.time_gap_list
-            #distance_gap_list += debug_helper.dist_gap_list
+            # velocity_list += debug_helper.speed_list
+            # time_gap_list += debug_helper.time_gap_list
+            # distance_gap_list += debug_helper.dist_gap_list
 
-            #time_gap_list_tmp = \
+            # time_gap_list_tmp = \
             #    np.array(debug_helper.time_gap_list)
-            #time_gap_list_tmp = \
+            # time_gap_list_tmp = \
             #    time_gap_list_tmp[time_gap_list_tmp < 100]
-            #distance_gap_list_tmp = \
+            # distance_gap_list_tmp = \
             #    np.array(debug_helper.dist_gap_list)
-            #distance_gap_list_tmp = \
+            # distance_gap_list_tmp = \
             #    distance_gap_list_tmp[distance_gap_list_tmp < 100]
 
-            #perform_txt += '\n Platoon member ID:%d, Actor ID:%d : \n' % (
+            # perform_txt += '\n Platoon member ID:%d, Actor ID:%d : \n' % (
             #    i, vm.vehicle.id)
-            #perform_txt += 'Time gap mean: %f, std: %f \n' % (
+            # perform_txt += 'Time gap mean: %f, std: %f \n' % (
             #    np.mean(time_gap_list_tmp), np.std(time_gap_list_tmp))
-            #perform_txt += 'Distance gap mean: %f, std: %f \n' % (
+            # perform_txt += 'Distance gap mean: %f, std: %f \n' % (
             #    np.mean(distance_gap_list_tmp), np.std(distance_gap_list_tmp))
 
-
         algorithm_time_list += self.debug_helper.algorithm_time_list
-        algorithm_time_list_tmp = \
-                np.array(self.debug_helper.algorithm_time_list)
-        algorithm_time_list_tmp = \
-                algorithm_time_list_tmp[algorithm_time_list_tmp < 100]
+        algorithm_time_list_tmp = np.array(self.debug_helper.algorithm_time_list)
+        algorithm_time_list_tmp = algorithm_time_list_tmp[algorithm_time_list_tmp < 100]
 
-
-        perform_txt += 'Algorithm time mean: %f, std: %f \n' % (
-                np.mean(algorithm_time_list_tmp), np.std(algorithm_time_list_tmp))
-
+        perform_txt += "Algorithm time mean: %f, std: %f \n" % (
+            np.mean(algorithm_time_list_tmp),
+            np.std(algorithm_time_list_tmp),
+        )
 
         figure = plt.figure()
 
-        #plt.subplot(411)
-        #open_plt.draw_velocity_profile_single_plot(velocity_list)
+        # plt.subplot(411)
+        # open_plt.draw_velocity_profile_single_plot(velocity_list)
 
         plt.subplot(412)
         open_plt.draw_algorithm_time_profile_single_plot(algorithm_time_list)
 
-        #plt.subplot(413)
-        #open_plt.draw_time_gap_profile_singel_plot(time_gap_list)
+        # plt.subplot(413)
+        # open_plt.draw_time_gap_profile_singel_plot(time_gap_list)
 
-        #plt.subplot(414)
-        #open_plt.draw_dist_gap_profile_singel_plot(distance_gap_list)
-
-
+        # plt.subplot(414)
+        # open_plt.draw_dist_gap_profile_singel_plot(distance_gap_list)
 
         return figure, perform_txt
 

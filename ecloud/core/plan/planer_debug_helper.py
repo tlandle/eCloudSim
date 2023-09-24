@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=locally-disabled, invalid-name
+
 """
 Analysis + Visualization functions for planning
 """
+
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License:  TDG-Attribution-NonCommercial-NoDistrib
+
 import warnings
 import logging
 

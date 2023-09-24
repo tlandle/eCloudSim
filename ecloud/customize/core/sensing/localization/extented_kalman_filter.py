@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=locally-disabled, invalid-name
 """
 Use Extended Kalman Filter on GPS + IMU for better localization.
 """

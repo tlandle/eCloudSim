@@ -272,7 +272,7 @@ class AStarPlanner:
                     # If the node is not safe, do nothing
                     if not self.verify_node(node,current):
                         if node.y.any() > 1:
-                            logger.warning("Node Not Viable: ", node.__str__())
+                            logger.warning("Node Not Viable: %s", node.__str__())
                         continue
 
                     if n_id in closed_set:
@@ -441,9 +441,9 @@ class AStarPlanner:
 def get_states_carlist(car_list):
     carnum = 0
     for i in car_list:
-        logger.info("X Coordinate of ", carnum, " Is: ", i.pos_x)
-        logger.info("Y Coordinate of ", carnum, " Is: ", i.lane)
-        logger.info("Velocity of ", carnum, " Is: ", i.v)
+        logger.info("X Coordinate of %s is %s", carnum, i.pos_x)
+        logger.info("Y Coordinate of %s is %s", carnum, i.lane)
+        logger.info("Velocity of %s is %s", carnum, i.v)
         carnum += 1
 
 def get_slice_plans(Traffic_Tracker, ov, oy, slice_length=15, map_length=1000):

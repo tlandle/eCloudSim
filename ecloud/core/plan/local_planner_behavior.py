@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
-""" This module contains a local planner to perform
-low-level waypoint following based on PID controllers. """
+# pylint: disable=locally-disabled, invalid-name
+
+"""
+This module contains a local planner to perform
+low-level waypoint following based on PID controllers.
+"""
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License:  TDG-Attribution-NonCommercial-NoDistrib

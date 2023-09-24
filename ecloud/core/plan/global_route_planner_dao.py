@@ -3,6 +3,8 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
+# pylint: disable=locally-disabled, invalid-name
+
 """
 This module provides implementation for GlobalRoutePlannerDAO
 """

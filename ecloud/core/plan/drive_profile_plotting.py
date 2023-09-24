@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=locally-disabled, invalid-name
 
-"""Tools to plot velocity, acceleration, and curvation.
 """
+Tools to plot velocity, acceleration, and curvation.
+"""
+
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License:  TDG-Attribution-NonCommercial-NoDistrib
 

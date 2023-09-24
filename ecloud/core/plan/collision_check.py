@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
-""" This module is used to check collision possibility """
+# pylint: disable=locally-disabled, invalid-name
+"""
+This module is used to check collision possibility
+"""
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
+
 import math
 from math import sin, cos
 from scipy import spatial
@@ -12,7 +16,6 @@ import numpy as np
 
 from ecloud.core.common.misc import cal_distance_angle, draw_trajetory_points
 from ecloud.core.plan.spline import Spline2D
-
 
 class CollisionChecker:
     """
