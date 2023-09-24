@@ -13,6 +13,7 @@ import sys
 import subprocess
 import logging
 import re
+import traceback
 
 from ecloud.globals import __version__, __ecloud__, __default_scenario__, EnvironmentConfig
 import ecloud.globals as ecloud_globals
@@ -179,6 +180,7 @@ if __name__ == '__main__':
 
     except Exception as e:
         logger.critical(e)
+        traceback.print_exc(file=sys.stdout)
         if FATAL_ERRORS:
             raise
         sys.exit(1)
