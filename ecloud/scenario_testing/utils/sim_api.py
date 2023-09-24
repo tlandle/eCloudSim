@@ -23,7 +23,7 @@ import grpc
 import carla
 import numpy as np
 #import k_means_constrained
-from google.protobuf.timestamp_pb2 import Timestamp
+from google.protobuf.timestamp_pb2 import Timestamp # pylint: disable=no-name-in-module
 
 from ecloud.core.common.vehicle_manager_proxy import VehicleManagerProxy
 from ecloud.core.common.vehicle_manager import VehicleManager

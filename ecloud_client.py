@@ -14,7 +14,7 @@ import logging
 
 import carla
 import grpc
-from google.protobuf.timestamp_pb2 import Timestamp
+from google.protobuf.timestamp_pb2 import Timestamp # pylint: disable=no-name-in-module
 
 import ecloud.globals as ecloud_globals
 from ecloud.globals import EnvironmentConfig
