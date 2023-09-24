@@ -11,6 +11,7 @@ import json
 import asyncio
 import os
 import logging
+import traceback
 
 import carla
 import grpc
@@ -444,6 +445,7 @@ if __name__ == '__main__':
         logger.info("caught keyboard interrupt")
 
     except Exception as e:
-        logger.error("exception hit: %s - %s", type(e), e)
+        logger.exception("exception hit: %s - %s", type(e), e)
+        traceback.print_exc(file=sys.stdout)
         if FATAL_ERRORS:
             raise

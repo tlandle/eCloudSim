@@ -179,7 +179,7 @@ if __name__ == '__main__':
         sys.exit(0)
 
     except Exception as e:
-        logger.critical(e)
+        logger.exception(e)
         traceback.print_exc(file=sys.stdout)
         if FATAL_ERRORS:
             raise
