@@ -3,22 +3,25 @@
 
 # In[1]:
 
-
 import os
+import pickle
+
 import matplotlib.pyplot as plt
 import seaborn as sns
-import pickle
 import pandas as pd
 
 # In[2]:
 
-
+# TODO: make opts
 # Constants
 GRAPH_PERCEPTION = False
 GRAPH_SINGLE_NODE = False
+NODE_COUNT = 1
 PERCEPTION_TITLE = "with Perception" if GRAPH_PERCEPTION else "without Perception"
 NODE_TITLE = "single node" if GRAPH_SINGLE_NODE else "multi node"
-CUMULATIVE_STATS_FOLDER_PATH = './evaluation_outputs/cumulative_stats_dist_with_perception' if GRAPH_PERCEPTION else './evaluation_outputs/cumulative_stats_dist_no_perception'
+CUMULATIVE_STATS_FOLDER_PATH = f'./evaluation_outputs/cumulative_stats_dist_with_perception_{NODE_COUNT}' \
+                                if GRAPH_PERCEPTION else \
+                                f'./evaluation_outputs/cumulative_stats_dist_no_perception_{NODE_COUNT}'
 
 SHOULD_SHOW = False
 
@@ -142,7 +145,7 @@ def create_stacked_bar_chart(data,  y, labels):
         #'client_controller_step',  
         #'client_control',
         "client_process",
-        "barrier",
+        "barrier_overhead",
         "network_overhead",]
 
     ax = data.plot(y=y, kind='bar', stacked=True, color=colors, figsize=(11, 8))
@@ -253,7 +256,7 @@ def plot_client_step_time():
     # Box plot
     plt.figure(figsize=(10, 6))
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_step_time_ms', labels=labels)
-    ax.set(ylim=(0,3000))
+    ax.set(ylim=(1,3000))
     save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_step_time_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
@@ -447,7 +450,7 @@ def plot_simple_client_stacked_barchart():
 
     client_debug_data = [ # see ClientDebugHelper.debug_data
             "client_process",
-            "barrier",
+            "barrier_overhead",
             "network_overhead",
     ]
     for list_name in client_debug_data:
@@ -483,7 +486,7 @@ def plot_individual_client_boxplot():
               "title": f'eCloudSim: Individual Client Step Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
 
     
-    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_individual_step_times_dict'
+    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_individual_step_time'
     sim_stats_df = get_stats_df(step_time_df_path)
     num_cars = sim_stats_df['num_cars'][0]
 
@@ -607,9 +610,4 @@ if __name__ == '__main__':
     df = pd.DataFrame(data)
     plot_comparison_chart_cpu(df)
 
-
 # In[ ]:
-
-
-
-
