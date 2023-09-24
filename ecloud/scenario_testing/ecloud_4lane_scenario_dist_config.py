@@ -19,8 +19,6 @@ import os
 import time
 import asyncio
 import logging
-import sys
-import traceback
 
 # 3rd Party
 import carla
@@ -160,7 +158,6 @@ def run_scenario(opt, config_yaml):
 
     except Exception as scenario_error:
         logger.exception("exception hit during scenario execution: %s - %s", type(scenario_error), scenario_error)
-        traceback.print_exc(file=sys.stdout)
         if opt.fatal_errors:
             raise
 

@@ -446,6 +446,5 @@ if __name__ == '__main__':
 
     except Exception as e:
         logger.exception("exception hit: %s - %s", type(e), e)
-        traceback.print_exc(file=sys.stdout)
         if FATAL_ERRORS:
             raise
