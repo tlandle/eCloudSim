@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
 import pandas as pd
+import glob
 
 # In[2]:
 
@@ -18,7 +19,11 @@ GRAPH_PERCEPTION = False
 GRAPH_SINGLE_NODE = False
 PERCEPTION_TITLE = "with Perception" if GRAPH_PERCEPTION else "without Perception"
 NODE_TITLE = "single node" if GRAPH_SINGLE_NODE else "multi node"
+EVALUATION_FOLDER_PATH = './evaluation_outputs'
 CUMULATIVE_STATS_FOLDER_PATH = './evaluation_outputs/cumulative_stats_dist_with_perception' if GRAPH_PERCEPTION else './evaluation_outputs/cumulative_stats_dist_no_perception'
+CUMULATIVE_STATS_FOLDERS = glob.glob(os.path.join(EVALUATION_FOLDER_PATH + '/cumulative_stats_*'))
+
+print(CUMULATIVE_STATS_FOLDERS)
 
 SHOULD_SHOW = False
 
@@ -176,8 +181,8 @@ def save_ax(ax=None, file_path=""):
 # In[273]:
 
 
-def plot_simulation_time():
-    sim_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_total_sim_time'
+def plot_simulation_time(path):
+    sim_time_df_path = f'{path}/df_total_sim_time'
     sim_stats_df = get_stats_df(sim_time_df_path)
 
     labels = {"xlabel": 'Number of Cars',
@@ -190,7 +195,7 @@ def plot_simulation_time():
     # Box plot
     plt.figure(figsize=(10, 6))
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='time_s', labels=labels)
-    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/total_sim_time_boxplot.png'
+    save_file_path = f'{path}/total_sim_time_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
         plt.show()
@@ -198,7 +203,7 @@ def plot_simulation_time():
 
     # Scatter plot
     # ax = create_scatter_plot(data=sim_stats_df, x='num_cars', y='time_s', labels=labels)
-    # save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/total_sim_time_scatterplot.png'
+    # save_file_path = f'{path}/total_sim_time_scatterplot.png'
     # save_ax(ax, save_file_path)
     # if SHOULD_SHOW:
     #    plt.show()
@@ -208,17 +213,11 @@ def plot_simulation_time():
 # In[274]:
 
 
-sim_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_total_sim_time'
-# sim_stats_df = get_stats_df(f'{CUMULATIVE_STATS_FOLDER_PATH}/df_total_sim_time_cumstats')
-sim_stats_df = get_stats_df(sim_time_df_path)
-sim_stats_df
-
-
 # In[275]:
 
 
-def plot_world_step_time():
-    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_world_step_time'
+def plot_world_step_time(path):
+    step_time_df_path = f'{path}/df_world_step_time'
     sim_stats_df = get_stats_df(step_time_df_path)
 
     labels = {"xlabel": 'Number of Cars',
@@ -228,7 +227,7 @@ def plot_world_step_time():
     # Box plot
     plt.figure(figsize=(10, 6))
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='world_step_time_ms', labels=labels)
-    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/world_step_time_boxplot.png'
+    save_file_path = f'{path}/world_step_time_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
         plt.show()
@@ -236,14 +235,14 @@ def plot_world_step_time():
 
     # Scatter plot
     # ax = create_scatter_plot(data=sim_stats_df, x='num_cars', y='step_time_ms', labels=labels)
-    # save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/step_time_scatterplot.png'
+    # save_file_path = f'{path}/step_time_scatterplot.png'
     # save_ax(ax, save_file_path)
     # if SHOULD_SHOW:
     #    plt.show()
     # plt.clf()
 
-def plot_client_step_time():
-    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_step_time'
+def plot_client_step_time(path):
+    step_time_df_path = f'{path}/df_client_step_time'
     sim_stats_df = get_stats_df(step_time_df_path)
 
     labels = {"xlabel": 'Number of Cars',
@@ -254,7 +253,7 @@ def plot_client_step_time():
     plt.figure(figsize=(10, 6))
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_step_time_ms', labels=labels)
     ax.set(ylim=(0,3000))
-    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_step_time_boxplot.png'
+    save_file_path = f'{path}/client_step_time_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
         plt.show()
@@ -265,14 +264,14 @@ def plot_client_step_time():
     print(new_df)
     # Scatter plot
     # ax = create_scatter_plot(data=sim_stats_df, x='num_cars', y='step_time_ms', labels=labels)
-    # save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/step_time_scatterplot.png'
+    # save_file_path = f'{path}/step_time_scatterplot.png'
     # save_ax(ax, save_file_path)
     # if SHOULD_SHOW:
     #    plt.show()
     # plt.clf()
 
-def plot_client_perception_time():
-    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_perception_time'
+def plot_client_perception_time(path):
+    step_time_df_path = f'{path}/df_client_perception_time'
     sim_stats_df = get_stats_df(step_time_df_path)
 
     labels = {"xlabel": 'Number of Cars',
@@ -282,14 +281,14 @@ def plot_client_perception_time():
     # Box plot
     plt.figure(figsize=(10, 6))
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_perception_time_ms', labels=labels)
-    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_perception_time_boxplot.png'
+    save_file_path = f'{path}/client_perception_time_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
         plt.show()
     plt.clf()
 
-def plot_client_localization_time():
-    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_localization_time'
+def plot_client_localization_time(path):
+    step_time_df_path = f'{path}/df_client_localization_time'
     sim_stats_df = get_stats_df(step_time_df_path)
 
     labels = {"xlabel": 'Number of Cars',
@@ -299,14 +298,14 @@ def plot_client_localization_time():
     # Box plot
     plt.figure(figsize=(10, 6))
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_localization_time_ms', labels=labels)
-    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_localization_time_boxplot.png'
+    save_file_path = f'{path}/client_localization_time_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
         plt.show()
     plt.clf()
 
-def plot_client_control_time():
-    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_control_time'
+def plot_client_control_time(path):
+    step_time_df_path = f'{path}/df_client_control_time'
     sim_stats_df = get_stats_df(step_time_df_path)
 
     labels = {"xlabel": 'Number of Cars',
@@ -316,13 +315,13 @@ def plot_client_control_time():
     # Box plot
     plt.figure(figsize=(10, 6))
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_control_time_ms', labels=labels)
-    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_control_time_boxplot.png'
+    save_file_path = f'{path}/client_control_time_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
         plt.show()
     plt.clf()
 
-def plot_agent_step_times():
+def plot_agent_step_times(path):
     TOTAL_AGENT_STEPS = 12
     AGENT_STEPS = {
             0: "sim end",
@@ -340,7 +339,7 @@ def plot_agent_step_times():
     }
 
     for i in range(TOTAL_AGENT_STEPS):
-        step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_agent_step_list_{i}'
+        step_time_df_path = f'{path}/df_agent_step_list_{i}'
         sim_stats_df = get_stats_df(step_time_df_path)
 
         labels = {"xlabel": 'Number of Cars',
@@ -350,14 +349,14 @@ def plot_agent_step_times():
         # Box plot
         plt.figure(figsize=(10, 6))
         ax = create_box_plot(data=sim_stats_df, x='num_cars', y=f'agent_step_list_{i}_ms', labels=labels)
-        save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/agent_step_{i}_time_boxplot.png'
+        save_file_path = f'{path}/agent_step_{i}_time_boxplot.png'
         save_ax(ax, save_file_path)
         if SHOULD_SHOW:
             plt.show()
         plt.clf()
 
 
-def plot_client_stacked_barchart():
+def plot_client_stacked_barchart(path):
     TOTAL_AGENT_STEPS = 7
     AGENT_STEPS = {
             0: "sim end",
@@ -371,7 +370,7 @@ def plot_client_stacked_barchart():
             11: "normal",
     }
 
-    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_agent_step_list_0'
+    step_time_df_path = f'{path}/df_agent_step_list_0'
     agent_df = get_stats_df(step_time_df_path)
     y_columns = ['agent_step_list_0_ms']
 
@@ -383,7 +382,7 @@ def plot_client_stacked_barchart():
     for i, step in AGENT_STEPS.items():
       if i == 0:
         continue
-      step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_agent_step_list_{i}'
+      step_time_df_path = f'{path}/df_agent_step_list_{i}'
       sim_stats_df = get_stats_df(step_time_df_path)
       #print(sim_stats_df[f'agent_step_list_{i}_ms'])
       y_columns.append(f'agent_step_list_{i}_ms')
@@ -406,14 +405,14 @@ def plot_client_stacked_barchart():
 
     plt.figure(figsize=(10, 6))
     ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_perception_time_ms', labels=labels)
-    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_perception_time_boxplot.png'
+    save_file_path = f'{path}/client_perception_time_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
         plt.show()
     plt.clf()
 
     for list_name in client_debug_data:
-        step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_{list_name}'
+        step_time_df_path = f'{path}/df_{list_name}'
         sim_stats_df = get_stats_df(step_time_df_path)
         agent_df = agent_df.join(sim_stats_df[f'{list_name}_ms'])
         y_columns.append(f'{list_name}_ms')
@@ -428,14 +427,14 @@ def plot_client_stacked_barchart():
 
     ax = create_stacked_bar_chart(y=y_columns, data=new_df , labels=labels)
 
-    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/agent_step_time_boxplot.png'
+    save_file_path = f'{path}/agent_step_time_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
       plt.show()
     plt.clf()
 
 
-def plot_simple_client_stacked_barchart():
+def plot_simple_client_stacked_barchart(path):
 
     agent_df = pd.DataFrame()
     y_columns = []
@@ -451,7 +450,7 @@ def plot_simple_client_stacked_barchart():
             "network_latency",
     ]
     for list_name in client_debug_data:
-        step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_{list_name}'
+        step_time_df_path = f'{path}/df_{list_name}'
         sim_stats_df = get_stats_df(step_time_df_path)
         agent_df[f'num_cars'] = sim_stats_df[f'num_cars'] 
         agent_df[f'{list_name}_ms'] = sim_stats_df[f'{list_name}_ms']
@@ -467,13 +466,13 @@ def plot_simple_client_stacked_barchart():
 
     ax = create_stacked_bar_chart(y=y_columns, data=new_df , labels=labels)
 
-    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/client_network_boxplot.png'
+    save_file_path = f'{path}/client_network_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
       plt.show()
     plt.clf()
 
-def plot_individual_client_boxplot():
+def plot_individual_client_boxplot(path):
 
     agent_df = pd.DataFrame()
     y_columns = []
@@ -483,7 +482,7 @@ def plot_individual_client_boxplot():
               "title": f'eCloudSim: Individual Client Step Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
 
     
-    step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_individual_step_times_dict'
+    step_time_df_path = f'{path}/df_client_individual_step_times_dict'
     sim_stats_df = get_stats_df(step_time_df_path)
     num_cars = sim_stats_df['num_cars'][0]
 
@@ -494,7 +493,7 @@ def plot_individual_client_boxplot():
            title=labels['title'])
  
 
-    save_file_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/individual_client_time_dict_boxplot.png'
+    save_file_path = f'{path}/individual_client_time_dict_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
         plt.show()
@@ -502,9 +501,9 @@ def plot_individual_client_boxplot():
 # In[276]:
 
 
-step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_world_step_time'
-client_step_time_df_path = f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_step_time'
-client_perception_time_df_path =  f'{CUMULATIVE_STATS_FOLDER_PATH}/df_client_perception_time' 
+#step_time_df_path = f'{path}/df_world_step_time'
+#client_step_time_df_path = f'{path}/df_client_step_time'
+#client_perception_time_df_path =  f'{path}/df_client_perception_time' 
 
 # In[277]:
 
@@ -563,29 +562,31 @@ def plot_comparison_chart_cpu(data):
 
 
 if __name__ == '__main__':
-    # Plotting simulation total run time stats
-    plot_simulation_time()
 
-    # Plotting simulation step time stats
-    plot_world_step_time()
+    for path in CUMULATIVE_STATS_FOLDERS:
+        # Plotting simulation total run time stats
+        plot_simulation_time(path)
 
-    # Plotting simulation step time stats
-    plot_client_step_time()
+        # Plotting simulation step time stats
+        plot_world_step_time(path)
 
-    # Plotting simulation step time stats
-    #plot_client_perception_time()
+        # Plotting simulation step time stats
+        plot_client_step_time(path)
 
-    # Plotting simulation step time stats
-    #plot_client_localization_time()
+        # Plotting simulation step time stats
+        #plot_client_perception_time()
 
-    # Plotting simulation step time stats
-    #plot_client_control_time()
+        # Plotting simulation step time stats
+        #plot_client_localization_time()
 
-    #plot_agent_step_times()
+        # Plotting simulation step time stats
+        #plot_client_control_time()
 
-    plot_simple_client_stacked_barchart()
-    
-    plot_individual_client_boxplot()
+        #plot_agent_step_times()
+
+        plot_simple_client_stacked_barchart(path)
+        
+        #plot_individual_client_boxplot(path)
 
 
    # Example DataFrame for comparison chart
