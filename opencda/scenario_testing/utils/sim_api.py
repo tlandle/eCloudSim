@@ -1168,6 +1168,21 @@ class ScenarioManager:
             all_client_process_data_list_flat = all_client_process_data_list_flat.flatten()    
         data_key = f"client_process"
         self.do_pickling(data_key, all_client_process_data_list_flat, cumulative_stats_folder_path)
+  
+        ata_key = f"client_individual_process_times_dict"
+
+        data_df = pd.DataFrame.from_dict(ScenarioManager.debug_helper.client_process_time_dict)
+        data_df['num_cars'] = self.vehicle_count
+        data_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
+
+        data_df_path = f'./{cumulative_stats_folder_path}/df_{data_key}'
+        picklefile = open(data_df_path, 'wb')
+
+        # pickle the dataFrame
+        pickle.dump(data_df, picklefile)
+        print(data_df)
+        #close file
+        picklefile.close()
 
     def evaluate_individual_client_data(self, cumulative_stats_folder_path):
         all_client_data_lists = sum(self.debug_helper.client_tick_time_dict_per_client.values(), [])
