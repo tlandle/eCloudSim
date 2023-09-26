@@ -247,7 +247,7 @@ def plot_client_step_time(path):
 
     labels = {"xlabel": 'Number of Cars',
               "ylabel": 'Simulation Step Time (ms)',
-              "title": f'eCloudSim: Simulation Step Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+              "title": f'eCloudSim: Total Client Step Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
 
     # Box plot
     plt.figure(figsize=(10, 6))
@@ -434,7 +434,7 @@ def plot_client_stacked_barchart(path):
     plt.clf()
 
 
-def plot_simple_client_stacked_barchart(path):
+def plot_client_process_time(path):
 
     agent_df = pd.DataFrame()
     y_columns = []
@@ -446,8 +446,6 @@ def plot_simple_client_stacked_barchart(path):
 
     client_debug_data = [ # see ClientDebugHelper.debug_data
             "client_process",
-            "idle",
-            "network_latency",
     ]
     for list_name in client_debug_data:
         step_time_df_path = f'{path}/df_{list_name}'
@@ -464,13 +462,67 @@ def plot_simple_client_stacked_barchart(path):
     print(new_df)
     print(y_columns)
 
-    ax = create_stacked_bar_chart(y=y_columns, data=new_df , labels=labels)
+    ax = create_box_plot(y=y_columns, data=new_df , labels=labels)
 
     save_file_path = f'{path}/client_network_boxplot.png'
     save_ax(ax, save_file_path)
     if SHOULD_SHOW:
       plt.show()
     plt.clf()
+
+def plot_client_process_time(path):
+    step_time_df_path = f'{path}/df_client_process'
+    sim_stats_df = get_stats_df(step_time_df_path)
+
+    labels = {"xlabel": 'Number of Cars',
+              "ylabel": 'Client Processing Time (ms)',
+              "title": f'eCloudSim: Client Processing Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+
+    # Box plot
+    plt.figure(figsize=(10, 6))
+    ax = create_box_plot(data=sim_stats_df, x='num_cars', y='client_process_ms', labels=labels)
+    save_file_path = f'{path}/client_process_time_boxplot.png'
+    save_ax(ax, save_file_path)
+    if SHOULD_SHOW:
+        plt.show()
+    plt.clf()
+
+def plot_barrier_time(path):
+
+    step_time_df_path = f'{path}/df_idle'
+    sim_stats_df = get_stats_df(step_time_df_path)
+
+    labels = {"xlabel": 'Number of Cars',
+              "ylabel": 'Barrier Time (ms)',
+              "title": f'eCloudSim: Client Processing Time \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+
+    # Box plot
+    plt.figure(figsize=(10, 6))
+    ax = create_box_plot(data=sim_stats_df, x='num_cars', y='idle_ms', labels=labels)
+    save_file_path = f'{path}/barrier_time_boxplot.png'
+    save_ax(ax, save_file_path)
+    if SHOULD_SHOW:
+        plt.show()
+    plt.clf()
+
+def plot_network_overhead(path):
+
+    step_time_df_path = f'{path}/df_network_latency'
+    sim_stats_df = get_stats_df(step_time_df_path)
+
+    labels = {"xlabel": 'Number of Cars',
+              "ylabel": 'Network Overhead (ms)',
+              "title": f'eCloudSim: Network Overhead \n per Number of Vehicles ({PERCEPTION_TITLE}) - {NODE_TITLE}'}
+
+    # Box plot
+    plt.figure(figsize=(10, 6))
+    ax = create_box_plot(data=sim_stats_df, x='num_cars', y='network_latency_ms', labels=labels)
+    save_file_path = f'{path}/network_overhead_time_boxplot.png'
+    save_ax(ax, save_file_path)
+    if SHOULD_SHOW:
+        plt.show()
+    plt.clf()
+
 
 def plot_individual_client_boxplot(path):
 
@@ -584,7 +636,11 @@ if __name__ == '__main__':
 
         #plot_agent_step_times()
 
-        plot_simple_client_stacked_barchart(path)
+        plot_network_overhead(path)
+
+        plot_barrier_time(path)
+
+        plot_client_process_time(path)
         
         #plot_individual_client_boxplot(path)
 
