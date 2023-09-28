@@ -122,7 +122,7 @@ class VehicleManager(object):
         seed = time.time()
         if 'seed' in config_yaml['world']:
             seed = config_yaml['world']['seed']
-        
+
         if self.location_type == eLocationType.RANDOM:
             assert( 'seed' in config_yaml['world'] )
             seed = seed + self.vehicle_index # speeds up finding a start because we don't get a guaranteed collision with the same seed so every vehicle will at least try a different spawn point to start
@@ -141,7 +141,7 @@ class VehicleManager(object):
             assert( carla_world is not None )
             self.world = carla_world
             self.carla_map = carla_map
-            
+
         # eCLOUD BEGIN
 
         else: # run_distributed == True
@@ -153,7 +153,7 @@ class VehicleManager(object):
             # helper to transfer to spawn transform
             if is_edge:
                 assert('edge_list' in self.scenario_params['scenario'])
-                # TODO: support multiple edges... 
+                # TODO: support multiple edges...
                 cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
                 logger.debug(cav_config)
                 edge_sets_destination = self.scenario_params['scenario']['edge_list'][0]['edge_sets_destination'] \
@@ -161,7 +161,7 @@ class VehicleManager(object):
 
             else:
                 assert(False, "no known vehicle indexing format found")
-            
+
         spawned = False
         while not spawned:
             try:
@@ -177,14 +177,14 @@ class VehicleManager(object):
                     carla.Rotation(
                         pitch=cav_config['spawn_position'][5],
                         yaw=cav_config['spawn_position'][4],
-                        roll=cav_config['spawn_position'][3]))  
+                        roll=cav_config['spawn_position'][3]))
 
                     self.destination = {}
                     if edge_sets_destination:
                         self.destination['x'] = self.scenario_params['scenario']['edge_list'][0]['destination'][0]
                         self.destination['y'] = self.scenario_params['scenario']['edge_list'][0]['destination'][1]
                         self.destination['z'] = self.scenario_params['scenario']['edge_list'][0]['destination'][2]
-                    else:    
+                    else:
                         self.destination['x'] = cav_config['destination'][0]
                         self.destination['y'] = cav_config['destination'][1]
                         self.destination['z'] = cav_config['destination'][2]
@@ -192,8 +192,8 @@ class VehicleManager(object):
                     self.destination_location = carla.Location(
                             x=self.destination['x'],
                             y=self.destination['y'],
-                            z=self.destination['z'])  
-                    
+                            z=self.destination['z'])
+
                 elif location_type == eLocationType.RANDOM:
                     spawn_points = self.world.get_map().get_spawn_points()
                     self.spawn_transform = spawn_points[random.randint(0, len(spawn_points) - 1)]
@@ -201,7 +201,7 @@ class VehicleManager(object):
                             x=self.spawn_transform.location.x,
                             y=self.spawn_transform.location.y,
                             z=self.spawn_transform.location.z)
-                
+
                 # By default, we use lincoln as our cav model.
                 default_model = 'vehicle.lincoln.mkz2017' \
                     if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
@@ -210,13 +210,13 @@ class VehicleManager(object):
                 cav_vehicle_bp.set_attribute('color', '0, 0, 255')
                 self.vehicle = self.world.spawn_actor(cav_vehicle_bp, self.spawn_transform)
 
-                logger.debug(f"spawned @ {self.spawn_transform}")
+                logger.debug("spawned @ %s", self.spawn_transform)
 
                 if location_type == eLocationType.RANDOM:
                     dist = 0
                     min_dist = MIN_DESTINATION_DISTANCE_M
                     count = 0
-                    while dist < min_dist: 
+                    while dist < min_dist:
                         destination_transform = spawn_points[random.randint(0, len(spawn_points) - 1)]
                         destination_location = carla.Location(
                             x=destination_transform.location.x,
@@ -227,28 +227,28 @@ class VehicleManager(object):
                         if count % 10 == 0:
                             min_dist = min_dist / 2
 
-                    logger.debug(f"it took {count} tries to find a destination that's {int(dist)}m away")
-                    self.destination_location = destination_location    
+                    logger.debug("it took %s tries to find a destination that's %sm away", count, int(dist))
+                    self.destination_location = destination_location
                     self.destination = {}
                     self.destination['x'] = destination_location.x
                     self.destination['y'] = destination_location.y
                     self.destination['z'] = destination_location.z
 
-                logger.debug(f"set destination to {self.destination}")
+                logger.debug("set destination to %s", self.destination)
 
                 spawned = True
-            
+
             except Exception as e:
                 if COLLISION_ERROR not in f'{e}':
                     raise
-                
+
                 continue
 
         # teleport vehicle to desired spawn point
         # self.vehicle.set_transform(spawn_transform)
         # self.world.tick()
 
-        # eCLOUD END    
+        # eCLOUD END
 
         self.debug_helper = ClientDebugHelper(0)
         # retrieve the configure for different modules
@@ -359,7 +359,7 @@ class VehicleManager(object):
         ego_pos = self.localizer.get_ego_pos()
         ego_spd = self.localizer.get_ego_spd()
         end_time = time.time()
-        logging.debug("Localizer time: %s" %(end_time - start_time)) 
+        logging.debug("Localizer time: %s" %(end_time - start_time))
         self.debug_helper.update_localization_time((end_time-start_time)*1000)
 
         # object detection
@@ -374,7 +374,7 @@ class VehicleManager(object):
         start_time = time.time()
         self.v2x_manager.update_info(ego_pos, ego_spd)
         end_time = time.time()
-        logging.debug("v2x manager update info time: %s" %(end_time - start_time)) 
+        logging.debug("v2x manager update info time: %s" %(end_time - start_time))
 
         start_time = time.time()
         self.agent.update_information(ego_pos, ego_spd, objects)
@@ -403,10 +403,10 @@ class VehicleManager(object):
         try:
             target_speed, target_pos = self.agent.run_step(target_speed)
         except Exception as e:
-            logger.error(f"can't successfully _trace_route; setting to done.")
+            logger.error("can't successfully _trace_route; setting to done.")
             target_speed = 0
             ego_pos = self.localizer.get_ego_pos()
-            target_pos = ego_pos.location    
+            target_pos = ego_pos.location
         end_time = time.time()
         logging.debug("Agent step time: %s" %(end_time - pre_vehicle_step_time))
 
@@ -416,8 +416,8 @@ class VehicleManager(object):
         logging.debug("Vehicle step time: %s" %(post_vehicle_step_time - pre_vehicle_step_time))
         self.debug_helper.update_controller_step_time((post_vehicle_step_time - end_time)*1000)
         self.debug_helper.update_vehicle_step_time((post_vehicle_step_time - pre_vehicle_step_time)*1000)
-        self.debug_helper.update_agent_step_time((end_time - pre_vehicle_step_time)*1000)        
- 
+        self.debug_helper.update_agent_step_time((end_time - pre_vehicle_step_time)*1000)
+
         # dump data
         if self.data_dumper:
             self.data_dumper.run_step(self.perception_manager,
