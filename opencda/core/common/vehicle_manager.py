@@ -359,14 +359,14 @@ class VehicleManager(object):
         ego_pos = self.localizer.get_ego_pos()
         ego_spd = self.localizer.get_ego_spd()
         end_time = time.time()
-        logging.debug("Localizer time: %s" %(end_time - start_time))
+        logger.debug("Localizer time: %s" %(end_time - start_time))
         self.debug_helper.update_localization_time((end_time-start_time)*1000)
 
         # object detection
         start_time = time.time()
         objects = self.perception_manager.detect(ego_pos)
         end_time = time.time()
-        logging.debug("Perception time: %s" %(end_time - start_time))
+        logger.debug("Perception time: %s" %(end_time - start_time))
         self.debug_helper.update_perception_time((end_time-start_time)*1000)
 
         # update ego position and speed to v2x manager,
@@ -374,19 +374,19 @@ class VehicleManager(object):
         start_time = time.time()
         self.v2x_manager.update_info(ego_pos, ego_spd)
         end_time = time.time()
-        logging.debug("v2x manager update info time: %s" %(end_time - start_time))
+        logger.debug("v2x manager update info time: %s" %(end_time - start_time))
 
         start_time = time.time()
         self.agent.update_information(ego_pos, ego_spd, objects)
         end_time = time.time()
-        logging.debug("Agent Update info time: %s" %(end_time - start_time))
+        logger.debug("Agent Update info time: %s" %(end_time - start_time))
         self.debug_helper.update_agent_update_info_time((end_time-start_time)*1000)
 
         # pass position and speed info to controller
         start_time = time.time()
         self.controller.update_info(ego_pos, ego_spd)
         end_time = time.time()
-        logging.debug("Controller update time: %s" %(end_time - start_time))
+        logger.debug("Controller update time: %s" %(end_time - start_time))
         self.debug_helper.update_controller_update_info_time((end_time-start_time)*1000)
 
     def run_step(self, target_speed=None):
@@ -408,12 +408,12 @@ class VehicleManager(object):
             ego_pos = self.localizer.get_ego_pos()
             target_pos = ego_pos.location
         end_time = time.time()
-        logging.debug("Agent step time: %s" %(end_time - pre_vehicle_step_time))
+        logger.debug("Agent step time: %s" %(end_time - pre_vehicle_step_time))
 
         control = self.controller.run_step(target_speed, target_pos)
         post_vehicle_step_time = time.time()
-        logging.debug("Controller step time: %s" %(post_vehicle_step_time - end_time))
-        logging.debug("Vehicle step time: %s" %(post_vehicle_step_time - pre_vehicle_step_time))
+        logger.debug("Controller step time: %s" %(post_vehicle_step_time - end_time))
+        logger.debug("Vehicle step time: %s" %(post_vehicle_step_time - pre_vehicle_step_time))
         self.debug_helper.update_controller_step_time((post_vehicle_step_time - end_time)*1000)
         self.debug_helper.update_vehicle_step_time((post_vehicle_step_time - pre_vehicle_step_time)*1000)
         self.debug_helper.update_agent_step_time((end_time - pre_vehicle_step_time)*1000)
