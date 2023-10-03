@@ -1242,31 +1242,31 @@ class ScenarioManager:
 
             num_clients = len(VEHICLE_IP.split(","))
             if(self.run_distributed):
-              cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_no_perception'
-              if self.perception:
+                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_no_perception'
+                if self.perception:
                   cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_with_perception'
             else:
-              cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_no_perception'
-              if self.perception:
-                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_with_perception'
-
+                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_no_perception'
+                if self.perception:
+                    cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_with_perception'
 
             if not os.path.exists(cumulative_stats_folder_path):
                 os.makedirs(cumulative_stats_folder_path)
 
-            self.evaluate_agent_data(cumulative_stats_folder_path)
             if(self.run_distributed):
-              self.evaluate_network_data(cumulative_stats_folder_path)
-              self.evaluate_idle_data(cumulative_stats_folder_path)
-              self.evaluate_client_process_data(cumulative_stats_folder_path)
-              self.evaluate_individual_client_data(cumulative_stats_folder_path)
+                self.evaluate_agent_data(cumulative_stats_folder_path)
+                self.evaluate_network_data(cumulative_stats_folder_path)
+                self.evaluate_idle_data(cumulative_stats_folder_path)
+                self.evaluate_client_process_data(cumulative_stats_folder_path)
+                self.evaluate_individual_client_data(cumulative_stats_folder_path)
 
-            client_helper = ClientDebugHelper(0)
-            debug_data_lists = client_helper.get_debug_data().keys()
-            for list_name in debug_data_lists:
-                if excludes_list is not None and list_name in excludes_list:
-                    continue
-                self.evaluate_client_data(list_name, cumulative_stats_folder_path)
+                client_helper = ClientDebugHelper(0)
+                debug_data_lists = client_helper.get_debug_data().keys()
+                for list_name in debug_data_lists:
+                    if excludes_list is not None and list_name in excludes_list:
+                        continue
+                    
+                    self.evaluate_client_data(list_name, cumulative_stats_folder_path)
 
             # ___________Client Step time__________________________________
             client_tick_time_list = self.debug_helper.client_tick_time_list
