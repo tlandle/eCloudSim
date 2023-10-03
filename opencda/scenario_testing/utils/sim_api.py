@@ -1120,6 +1120,9 @@ class ScenarioManager:
         picklefile.close()
 
     def evaluate_agent_data(self, cumulative_stats_folder_path):
+        if self.run_distributed is False:
+            return
+
         PLANER_AGENT_STEPS = 12
         all_agent_data_lists = [[] for _ in range(PLANER_AGENT_STEPS)]
         for _, vehicle_manager_proxy in self.vehicle_managers.items():
@@ -1139,6 +1142,9 @@ class ScenarioManager:
             self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_network_data(self, cumulative_stats_folder_path):
+        if self.run_distributed is False:
+            return
+
         all_network_data_list = sum(self.debug_helper.network_time_dict_per_client.values(), [])
 
         all_network_data_list_flat = np.array(all_network_data_list)
@@ -1151,6 +1157,9 @@ class ScenarioManager:
         self.do_pickling(data_key, all_network_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_idle_data(self, cumulative_stats_folder_path):
+        if self.run_distributed is False:
+            return
+        
         all_idle_data_lists = sum(self.debug_helper.idle_time_dict.values(), [])
 
         all_idle_data_lists_flat = np.array(all_idle_data_lists)
