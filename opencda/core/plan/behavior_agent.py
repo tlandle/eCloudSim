@@ -822,7 +822,7 @@ class BehaviorAgent(object):
                 clean=True,
                 clean_history=True)
         end_time = time.time()
-        logging.debug("Local planner destination reached block: %s" %(end_time - start_time))
+        logger.debug("Local planner destination reached block: %s" %(end_time - start_time))
         self.debug_helper.update_agent_step_list(2, end_time-start_time)
 
         # intersection behavior. if the car is near a intersection, no overtake is allowed
@@ -835,7 +835,7 @@ class BehaviorAgent(object):
         # 3. Path generation based on the global route
         rx, ry, rk, ryaw = self._local_planner.generate_path()
         end_time = time.time()
-        logging.debug("Local planner path generation time: %s" %(end_time - start_time))
+        logger.debug("Local planner path generation time: %s" %(end_time - start_time))
         self.debug_helper.update_agent_step_list(3, end_time-start_time)
 
         # 4. check whether lane change is allowed
@@ -912,7 +912,7 @@ class BehaviorAgent(object):
                     car_following_flag = True
             end_time_9 = time.time()
         end_time = time.time()
-        logging.debug("Lane change not allowed so path regenerated or overtake issue or overtake handling: %s" %(end_time - start_time))
+        logger.debug("Lane change not allowed so path regenerated or overtake issue or overtake handling: %s" %(end_time - start_time))
         self.debug_helper.update_agent_step_list(6, end_time-start_time)
         self.debug_helper.update_agent_step_list(7, end_time_7-start_time)
         self.debug_helper.update_agent_step_list(8, end_time_8-start_time)
@@ -943,7 +943,7 @@ class BehaviorAgent(object):
             rx, ry, rk, target_speed=self.max_speed - self.speed_lim_dist
             if not target_speed else target_speed)
         end_time = time.time()
-        logging.debug("Local planner run step time: %s" %(end_time - start_time))
+        logger.debug("Local planner run step time: %s" %(end_time - start_time))
         self.debug_helper.update_agent_step_list(11, end_time-start_time)
         return target_speed, target_loc
 
