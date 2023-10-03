@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from opencda.core.application.edge.collab_sandbox import Traffic
 from opencda.core.application.edge.collab_sandbox import Car
 
-import numpy as np 
+import numpy as np
 import itertools
 
 import scipy.io
@@ -15,7 +15,7 @@ import matplotlib
 import time
 import timeit
 from sklearn.cluster import AgglomerativeClustering
-# from pypapi import events, papi_high as high 
+# from pypapi import events, papi_high as high
 
 from k_means_constrained import KMeansConstrained
 
@@ -178,7 +178,7 @@ class AStarPlanner:
 
         def length_of_path(self,node_set,pathlen=0):
             if self.parent_index == -1:
-                pathlen += 1 
+                pathlen += 1
                 return pathlen
             else:
                 pathlen += 1
@@ -196,9 +196,9 @@ class AStarPlanner:
             rx: x position list of the final path
             ry: y position list of the final path
         """
-        sv = self.v 
-        sy = self.y 
-        gy = self.y 
+        sv = self.v
+        sy = self.y
+        gy = self.y
         gv = self.vt
 
         start_node = self.Node(self.calc_xy_index(sv, self.min_v),
@@ -220,7 +220,7 @@ class AStarPlanner:
                 goal_node.parent_index = current.parent_index
                 goal_node.cost = current.cost
                 goal_node.v = current.v
-                goal_node.y = current.y 
+                goal_node.y = current.y
                 goal_node.x_tracked = current.x_tracked
                 break
 
@@ -246,7 +246,7 @@ class AStarPlanner:
                 goal_node.parent_index = current.parent_index
                 goal_node.cost = current.cost
                 goal_node.v = current.v
-                goal_node.y = current.y 
+                goal_node.y = current.y
                 goal_node.x_tracked = current.x_tracked
                 break
 
@@ -376,7 +376,7 @@ class AStarPlanner:
                         if (j.intentions == "Lane Change -1" and node.y[i] == j.lane-1) and abs(node.x_tracked[i]-j.pos_x) <= 10:
                             return False
                         if (j.intentions == "Lane Change 1" and node.y[i] == j.lane+1) and abs(node.x_tracked[i]-j.pos_x) <= 10:
-                            return False                   
+                            return False
 
         return True
 
@@ -500,7 +500,7 @@ def generate_limits_grid(v_min=0.0, v_max=25.0, lane_num=4.0): #Used to generate
         ov.append(v_min)
         oy.append(i)
 
-    return ov, oy  
+    return ov, oy
 
 def get_slices_clustered(Traffic_Tracker,numcars):
     slice_list = []
@@ -541,14 +541,14 @@ def get_slices_clustered(Traffic_Tracker,numcars):
 #    print(__file__ + " start!!")
 #
 #    grid_size = 1.0  # [m]
-#    robot_radius = 1.0  # [m]    
+#    robot_radius = 1.0  # [m]
 #    dt = 0.2
 #    numlanes = 4
 #    numcars = 4
 #
 #    ov, oy = generate_limits_grid()
 #
-#    #Turning test waypoints into a carlist, input reformatting is needed - discussion needed. 
+#    #Turning test waypoints into a carlist, input reformatting is needed - discussion needed.
 #    #Velocities are required for a car list, which is why this test code remains - to make up some and make a list of Car() objects for input
 #
 #    waypoints = load_obj('waypoints')
@@ -591,7 +591,7 @@ def get_slices_clustered(Traffic_Tracker,numcars):
 #
 #        for i in range(len(slice_list)-1,-1,-1): #Iterate through all slices
 #            if len(slice_list[i]) >= 2: #If the slice has more than one vehicle, run the graph planner. Else it'll move using existing
-#            #responses - slow down on seeing a vehicle ahead that has slower velocities, else hit target velocity. 
+#            #responses - slow down on seeing a vehicle ahead that has slower velocities, else hit target velocity.
 #            #Somewhat suboptimal, ideally the other vehicle would be
 #            #folded into existing groups. No easy way to do that yet.
 #                a_star = AStarPlanner(slice_list[i], ov, oy, grid_size, robot_radius, Traffic_Tracker.cars_on_road, i)
@@ -606,7 +606,7 @@ def get_slices_clustered(Traffic_Tracker,numcars):
 #        for i in range(len(slice_list)-1,-1,-1): #Relay lane change commands and new velocities to vehicles where needed
 #            if len(slice_list[i]) >= 1 and len(lanechange_command[i]) >= 1:
 #                carnum = 0
-#                for car in slice_list[i]: 
+#                for car in slice_list[i]:
 #                    if lanechange_command[i][carnum] > car.lane:
 #                        car.intentions = "Lane Change 1"
 #                    elif lanechange_command[i][carnum] < car.lane:
@@ -668,25 +668,25 @@ def get_slices_clustered(Traffic_Tracker,numcars):
 #
 #    print(waypoints_rev)
 #    car_locations = {1 : [], 2 : [], 3 : [], 4 : []}
-#  
+#
 #    for car, car_array in waypoints_rev.items():
 #      for i in range(0,len(car_array[0])):
 #        location = carla.Transform(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0), carla.Rotation())
 #        car_locations[car].append(location)
 #      #cars[0].set_location()
 #
-#    print(car_locations)         
-#   
+#    print(car_locations)
+#
 #    client = AStarPlannerClient()
 #    CarlaDataProvider.set_client(client)
 #    CarlaDataProvider.set_world(client.world)
-# 
+#
 #    cars = []
 #    cars.append(CarlaDataProvider.request_new_actor('vehicle.tesla.model3', car_locations[1][0], rolename='hero'))
 #    cars.append(CarlaDataProvider.request_new_actor('vehicle.tesla.model3', car_locations[2][0], rolename='hero'))
 #    cars.append(CarlaDataProvider.request_new_actor('vehicle.tesla.model3', car_locations[3][0], rolename='hero'))
 #    cars.append(CarlaDataProvider.request_new_actor('vehicle.tesla.model3', car_locations[4][0], rolename='hero'))
-#   
+#
 #    for i in range(0, len(car_locations[1])):
 #      time.sleep(1)
 #      cars[0].set_location(car_locations[1][i].location)
@@ -699,8 +699,8 @@ def get_slices_clustered(Traffic_Tracker,numcars):
 #    #blueprint.append(random.choice(self.world.get_blueprint_library().filter(self._actor_filter)))
 #    #blueprint.set_attribute('role_name', 'hero')
 #    #spawn_point = get_
-#    
-#    
+#
+#
 #
 #if __name__ == '__main__':
 #    main()
