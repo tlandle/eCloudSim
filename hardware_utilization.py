@@ -58,8 +58,9 @@ def collect_gpu_utilization(gpu_percentages, interval, stop_event):
     while not stop_event.is_set():
         try:
             result = subprocess.check_output(["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"]).decode("utf-8").strip()
-            gpu_percent = float(result)
-            gpu_percentages.append(gpu_percent)
+            for res in result.splitlines():
+                gpu_percent = float(res)
+                gpu_percentages.append(gpu_percent)
         except subprocess.CalledProcessError as e:
             print(f"Error: {e}")
             break
