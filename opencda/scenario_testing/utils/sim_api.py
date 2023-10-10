@@ -1181,7 +1181,7 @@ class ScenarioManager:
         data_key = f"client_process"
         self.do_pickling(data_key, all_client_process_data_list_flat, cumulative_stats_folder_path)
 
-        ata_key = f"client_individual_process_times_dict"
+        data_key = f"client_individual_process_times_dict"
 
         data_df = pd.DataFrame.from_dict(ScenarioManager.debug_helper.client_process_time_dict)
         data_df['num_cars'] = self.vehicle_count
