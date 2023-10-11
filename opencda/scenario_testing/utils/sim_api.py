@@ -552,7 +552,8 @@ class ScenarioManager:
                 carla_map=self.carla_map, cav_world=self.cav_world,
                 current_time=self.scenario_params['current_time'],
                 data_dumping=data_dump, map_helper=map_helper,
-                location_type=self.ecloud_config.get_location_type())
+                location_type=self.ecloud_config.get_location_type(),
+                perception_active=self.apply_ml)
 
             self.world.tick()
 
@@ -626,7 +627,8 @@ class ScenarioManager:
                     vehicle, cav, ['platooning'],
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
-                    data_dumping=data_dump)
+                    data_dumping=data_dump,
+                    perception_active=self.apply_ml)
 
                 # add the vehicle manager to platoon
                 if j == 0:

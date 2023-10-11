@@ -217,7 +217,7 @@ async def main():
         await asyncio.sleep(vehicle_index + 1)
 
     vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
-                                     carla_version=version, location_type=location_type, run_distributed=True, is_edge=is_edge)
+                                     carla_version=version, location_type=location_type, run_distributed=True, is_edge=is_edge, perception_active=opt.apply_ml)
 
     actor_id = vehicle_manager.vehicle.id
     vid = vehicle_manager.vid

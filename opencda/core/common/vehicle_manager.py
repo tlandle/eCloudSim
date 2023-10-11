@@ -107,7 +107,8 @@ class VehicleManager(object):
             location_type=eLocationType.EXPLICIT,
             run_distributed=False,
             map_helper=None,
-            is_edge=False):
+            is_edge=False,
+            perception_active=False):
 
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
@@ -117,6 +118,7 @@ class VehicleManager(object):
         self.run_distributed = run_distributed
         self.scenario_params = config_yaml
         self.carla_version = carla_version
+        self.perception_active = perception_active
 
         # set random seed if stated
         seed = time.time()
@@ -259,10 +261,14 @@ class VehicleManager(object):
 
         # v2x module
         self.v2x_manager = V2XManager(cav_world, v2x_config, self.vid)
+        
         # localization module
         self.localizer = LocalizationManager(
             self.vehicle, sensing_config['localization'], self.carla_map)
+        
         # perception module
+        assert self.perception_active and sensing_config['perception']['activate'] or \
+                not self.perception_active
         self.perception_manager = PerceptionManager(
             self.vehicle, sensing_config['perception'], cav_world,
             data_dumping)
