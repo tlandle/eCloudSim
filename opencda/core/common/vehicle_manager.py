@@ -268,10 +268,12 @@ class VehicleManager(object):
 
         # v2x module
         self.v2x_manager = V2XManager(cav_world, v2x_config, self.vid)
+        logger.debug("V2XManager created")
         
         # localization module
         self.localizer = LocalizationManager(
             self.vehicle, sensing_config['localization'], self.carla_map)
+        logger.debug("LocalizationManager created")
         
         # perception module
         assert self.perception_active and sensing_config['perception']['activate'] or \
@@ -279,6 +281,7 @@ class VehicleManager(object):
         self.perception_manager = PerceptionManager(
             self.vehicle, sensing_config['perception'], cav_world,
             data_dumping)
+        logger.debug("PerceptionManager created")
 
         # behavior agent
         self.agent = None
@@ -293,9 +296,11 @@ class VehicleManager(object):
                 self.carla_map)
         else:
             self.agent = BehaviorAgent(self.vehicle, self.carla_map, behavior_config, is_dist=self.run_distributed)
+            logger.debug("BehaviorAgent created")
 
         # Control module
         self.controller = ControlManager(control_config)
+        logger.debug("ControlManager created")
 
         if data_dumping:
             self.data_dumper = DataDumper(self.perception_manager,
@@ -305,6 +310,7 @@ class VehicleManager(object):
             self.data_dumper = None
 
         cav_world.update_vehicle_manager(self)
+        logger.debug("VehicleManager __init__ complete")
 
     def is_close_to_scenario_destination(self):
         """
