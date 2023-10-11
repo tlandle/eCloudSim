@@ -43,6 +43,13 @@ CARLA_IP = cloud_config["carla_server_public_ip"]
 MIN_DESTINATION_DISTANCE_M = 500 # TODO: config?
 COLLISION_ERROR = "Spawn failed because of collision at spawn position"
 
+if cloud_config["log_level"] == "error":
+    logger.setLevel(logging.ERROR)
+elif cloud_config["log_level"] == "warning":
+    logger.setLevel(logging.WARNING)
+elif cloud_config["log_level"] == "info":
+    logger.setLevel(logging.INFO)
+
 class VehicleManager(object):
     """
     A class manager to embed different modules with vehicle together.
