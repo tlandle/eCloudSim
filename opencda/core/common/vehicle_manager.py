@@ -422,7 +422,7 @@ class VehicleManager(object):
         try:
             target_speed, target_pos = self.agent.run_step(target_speed)
         except Exception as e:
-            logger.error("can't successfully _trace_route; setting to done.")
+            logger.warning("can't successfully complete agent.run_step; setting to done.")
             target_speed = 0
             ego_pos = self.localizer.get_ego_pos()
             target_pos = ego_pos.location
