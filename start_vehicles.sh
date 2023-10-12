@@ -27,7 +27,7 @@ do
         num_gpus=$(nvidia-smi -L | wc -l)
         echo "this machine has $num_gpus gpu cores"
         echo "container $i pinned to gpu $gpu"
-        sudo docker run --runtime=nvidia --gpus device=$gpu -d --network=host --name=container_$i -e "HOSTNAME=container_$i" -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim --apply_ml
+        sudo docker run --runtime=nvidia --gpus device=$gpu -d --network=host --name=container_$i -e "HOSTNAME=container_$i" -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim --apply_ml --container_id=$i
         #echo "$gpu % $num_gpus = $(( gpu % num_gpus ))"
 	    ((gpu++))
 	    if (( $(( gpu % num_gpus )) == 0 )); then
@@ -36,7 +36,7 @@ do
         fi
    else
         #sudo docker run --runtime=nvidia --gpus all -d --network=host --name=container_$i -e "HOSTNAME=container_$i" -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY vehicle-sim
-        sudo docker run -d --network=host --name=container_$i -e "HOSTNAME=container_$i" vehicle-sim
+        sudo docker run -d --network=host --name=container_$i -e "HOSTNAME=container_$i" vehicle-sim --container_id=$i
     fi
     done
 

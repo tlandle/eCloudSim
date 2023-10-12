@@ -30,6 +30,8 @@ elif cloud_config["log_level"] == "warning":
 elif cloud_config["log_level"] == "info":
     logger.setLevel(logging.INFO)
 
+ECLOUD_PUSH_BASE_PORT = 50101 # TODO: config
+
 class EcloudClient:
 
     '''
@@ -115,14 +117,26 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
         return ecloud.Empty()
 
 async def ecloud_run_push_server(port,
-                       q: asyncio.Queue) -> None:
+                                 que: asyncio.Queue) -> None:
+    '''
+    runs a simple listen server that accepts event-based message from the central ecloud gRPC server
+    '''
 
     logger.info("spinning up eCloud push server")
     server = grpc.aio.server()
-    ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(q), server)
-    listen_addr = f"[::]:{port}"
-    server.add_insecure_port(listen_addr)
-    print(f"starting eCloud push server on {listen_addr}")
+    ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(que), server)
+    try:
+        listen_addr = f"0.0.0.0:{port}"
+        server.add_insecure_port(listen_addr)
+    except Exception as port_exception: # pylint: disable=broad-exception-caught
+        logger.error("failed - %s: %s - to start push server on port %s - incrementing port & retrying",
+                     type(port_exception), port_exception, port)
+        port += 1
+
+    logger.critical("starting eCloud push server on port %s", port)
+
+    if port >= ECLOUD_PUSH_BASE_PORT:
+        que.put_nowait(port)
 
     await server.start()
     await server.wait_for_termination()
