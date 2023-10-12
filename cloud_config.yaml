@@ -9,7 +9,7 @@ ecloud_server_public_ip: "localhost"
 # 256 Cars - all clients
 #vehicle_client_public_ip: "20.172.248.156,20.242.82.41,172.200.91.133,172.171.196.63,172.190.137.118"  # ndm, client4, client3, client2, client1
 # 128/64 Cars - 2  clients
-vehicle_client_public_ip: "20.242.82.41,172.200.91.133"  #client2, client1
+#vehicle_client_public_ip: "20.242.82.41,172.200.91.133"  #client2, client1
 # 128 Cars/256 - 4  clients
 #vehicle_client_public_ip: "20.242.82.41,172.200.91.133,172.171.196.63,172.190.137.118"  #client4, client3, client2, client1
 
@@ -22,6 +22,6 @@ vehicle_client_public_ip: "20.242.82.41,172.200.91.133"  #client2, client1
 # 256 Cars - all clients
 #vehicle_client_public_ip: "20.172.248.156,20.242.82.41,172.200.91.133,172.171.196.63,172.190.137.118"  # ndm, client4, client3, client2, client1
 
-#vehicle_client_public_ip: "localhost"
+vehicle_client_public_ip: "localhost"
 
 log_level: "INFO"
