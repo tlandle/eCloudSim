@@ -142,15 +142,19 @@ async def ecloud_run_push_server(port,
     logger.info("spinning up eCloud push server")
     server = grpc.aio.server()
     ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(que), server)
-    try:
-        listen_addr = f"0.0.0.0:{port}"
-        server.add_insecure_port(listen_addr)
-    except Exception as port_exception: # pylint: disable=broad-exception-caught
-        logger.error("failed - %s: %s - to start push server on port %s - incrementing port & retrying",
-                     type(port_exception), port_exception, port)
-        port += 1
+    server_started = False
+    while not server_started:
+        try:
+            listen_addr = f"0.0.0.0:{port}"
+            server.add_insecure_port(listen_addr)
+            server_started = True
+        except Exception as port_exception: # pylint: disable=broad-exception-caught
+            logger.error("failed - %s: %s - to start push server on port %s - incrementing port & retrying",
+                        type(port_exception), port_exception, port)
+            port += 1
+            continue
 
-    logger.critical("starting eCloud push server on port %s", port)
+    logger.critical("started eCloud push server on port %s", port)
 
     if port >= ECLOUD_PUSH_BASE_PORT:
         que.put_nowait(port)
