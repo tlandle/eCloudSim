@@ -552,7 +552,8 @@ class ScenarioManager:
                 carla_map=self.carla_map, cav_world=self.cav_world,
                 current_time=self.scenario_params['current_time'],
                 data_dumping=data_dump, map_helper=map_helper,
-                location_type=self.ecloud_config.get_location_type())
+                location_type=self.ecloud_config.get_location_type(),
+                perception_active=self.apply_ml)
 
             self.world.tick()
 
@@ -626,7 +627,8 @@ class ScenarioManager:
                     vehicle, cav, ['platooning'],
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
-                    data_dumping=data_dump)
+                    data_dumping=data_dump,
+                    perception_active=self.apply_ml)
 
                 # add the vehicle manager to platoon
                 if j == 0:
@@ -1181,7 +1183,7 @@ class ScenarioManager:
         data_key = f"client_process"
         self.do_pickling(data_key, all_client_process_data_list_flat, cumulative_stats_folder_path)
 
-        ata_key = f"client_individual_process_times_dict"
+        data_key = f"client_individual_process_times_dict"
 
         data_df = pd.DataFrame.from_dict(ScenarioManager.debug_helper.client_process_time_dict)
         data_df['num_cars'] = self.vehicle_count

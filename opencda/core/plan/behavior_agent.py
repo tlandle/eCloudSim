@@ -25,6 +25,8 @@ from opencda.core.plan.planer_debug_helper import PlanDebugHelper
 
 logger = logging.getLogger(__name__)
 
+SET_DESTINATION_WAYPOINT_LIMIT = 16 # TODO: move to config
+
 class BehaviorAgent(object):
     """
     A modulized version of carla BehaviorAgent.
@@ -246,7 +248,8 @@ class BehaviorAgent(object):
             end_location,
             clean=False,
             end_reset=True,
-            clean_history=False):
+            clean_history=False,
+            waypoint_limit=SET_DESTINATION_WAYPOINT_LIMIT):
         """
         This method creates a list of waypoints from agent's
         position to destination location based on the route returned
@@ -279,6 +282,8 @@ class BehaviorAgent(object):
         self.start_waypoint = self._map.get_waypoint(start_location)
 
         # make sure the start waypoint is behind the vehicle
+        waypoint_attempts = 0
+        unable_to_find_wp = False
         if self._ego_pos:
             cur_loc = self._ego_pos.location
             cur_yaw = self._ego_pos.rotation.yaw
@@ -289,6 +294,15 @@ class BehaviorAgent(object):
                 self.start_waypoint = self.start_waypoint.next(1)[0]
                 _, angle = cal_distance_angle(
                     self.start_waypoint.transform.location, cur_loc, cur_yaw)
+                waypoint_attempts += 1
+                #logger("%s is %s degrees from current loc %s | %s" % (self.start_waypoint.transform.location, angle, cur_loc, cur_yaw))
+                if waypoint_attempts == waypoint_limit:
+                    unable_to_find_wp = True
+                    logger.error("unable to find valid start waypoint based on current location of %s, yaw = %s", cur_loc, cur_yaw)
+                    break
+
+        if unable_to_find_wp:
+            return -1
 
         end_waypoint = self._map.get_waypoint(end_location)
         if end_reset:
@@ -297,6 +311,8 @@ class BehaviorAgent(object):
         route_trace = self._trace_route(self.start_waypoint, end_waypoint)
 
         self._local_planner.set_global_plan(route_trace, clean)
+
+        return 0
 
     def get_local_planner(self):
         """
@@ -797,6 +813,7 @@ class BehaviorAgent(object):
                 sys.exit(0)
         end_time = time.time()
         self.debug_helper.update_agent_step_list(0, end_time-start_time)
+        logger.debug("step 0 complete")
 
         start_time = time.time()
         # 1. Traffic light management
@@ -805,6 +822,7 @@ class BehaviorAgent(object):
             return 0, None
         end_time = time.time()
         self.debug_helper.update_agent_step_list(1, end_time-start_time)
+        logger.debug("step 1 complete")
 
         start_time = time.time()
         # 2. when the temporary route is finished, we return to the global route
@@ -816,14 +834,19 @@ class BehaviorAgent(object):
             self.overtake_allowed = True and self.overtake_allowed_origin
             self.lane_change_allowed = True
             self.destination_push_flag = 0
-            self.set_destination(
+            rerouted = self.set_destination(
                 ego_vehicle_loc,
                 self.end_waypoint.transform.location,
                 clean=True,
                 clean_history=True)
+            
+            if rerouted == -1:
+                return 0, None
+
         end_time = time.time()
         logger.debug("Local planner destination reached block: %s" %(end_time - start_time))
         self.debug_helper.update_agent_step_list(2, end_time-start_time)
+        logger.debug("step 2 complete")
 
         # intersection behavior. if the car is near a intersection, no overtake is allowed
         if is_intersection:
@@ -837,12 +860,14 @@ class BehaviorAgent(object):
         end_time = time.time()
         logger.debug("Local planner path generation time: %s" %(end_time - start_time))
         self.debug_helper.update_agent_step_list(3, end_time-start_time)
+        logger.debug("step 3 complete")
 
         # 4. check whether lane change is allowed
         start_time = time.time()
         self.lane_change_allowed = self.check_lane_change_permission(lane_change_allowed, collision_detector_enabled, rk)
         end_time = time.time()
         self.debug_helper.update_agent_step_list(4, end_time-start_time)
+        logger.debug("step 4 complete")
 
         # 5. Collision check
         start_time = time.time()
@@ -853,6 +878,7 @@ class BehaviorAgent(object):
         car_following_flag = False
         end_time = time.time()
         self.debug_helper.update_agent_step_list(5, end_time-start_time)
+        logger.debug("step 5 complete")
 
         if not is_hazard:
             self.hazard_flag = False
@@ -917,6 +943,7 @@ class BehaviorAgent(object):
         self.debug_helper.update_agent_step_list(7, end_time_7-start_time)
         self.debug_helper.update_agent_step_list(8, end_time_8-start_time)
         self.debug_helper.update_agent_step_list(9, end_time_9-start_time)
+        logger.debug("steps 6, 7, 8, 9 complete")
 
         # 10. Car following behavior
         start_time = time.time()
@@ -936,6 +963,7 @@ class BehaviorAgent(object):
             return target_speed, target_loc
         end_time = time.time()
         self.debug_helper.update_agent_step_list(10, end_time-start_time)
+        logger.debug("step 10 complete")
 
         # 11. Normal behavior
         start_time = time.time()
@@ -945,6 +973,8 @@ class BehaviorAgent(object):
         end_time = time.time()
         logger.debug("Local planner run step time: %s" %(end_time - start_time))
         self.debug_helper.update_agent_step_list(11, end_time-start_time)
+        logger.debug("step 11 complete")
+
         return target_speed, target_loc
 
 

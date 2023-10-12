@@ -43,6 +43,13 @@ CARLA_IP = cloud_config["carla_server_public_ip"]
 MIN_DESTINATION_DISTANCE_M = 500 # TODO: config?
 COLLISION_ERROR = "Spawn failed because of collision at spawn position"
 
+if cloud_config["log_level"] == "error":
+    logger.setLevel(logging.ERROR)
+elif cloud_config["log_level"] == "warning":
+    logger.setLevel(logging.WARNING)
+elif cloud_config["log_level"] == "info":
+    logger.setLevel(logging.INFO)
+
 class VehicleManager(object):
     """
     A class manager to embed different modules with vehicle together.
@@ -107,7 +114,8 @@ class VehicleManager(object):
             location_type=eLocationType.EXPLICIT,
             run_distributed=False,
             map_helper=None,
-            is_edge=False):
+            is_edge=False,
+            perception_active=False):
 
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
@@ -117,6 +125,7 @@ class VehicleManager(object):
         self.run_distributed = run_distributed
         self.scenario_params = config_yaml
         self.carla_version = carla_version
+        self.perception_active = perception_active
 
         # set random seed if stated
         seed = time.time()
@@ -259,13 +268,20 @@ class VehicleManager(object):
 
         # v2x module
         self.v2x_manager = V2XManager(cav_world, v2x_config, self.vid)
+        logger.debug("V2XManager created")
+        
         # localization module
         self.localizer = LocalizationManager(
             self.vehicle, sensing_config['localization'], self.carla_map)
+        logger.debug("LocalizationManager created")
+        
         # perception module
+        assert self.perception_active and sensing_config['perception']['activate'] or \
+                not self.perception_active
         self.perception_manager = PerceptionManager(
             self.vehicle, sensing_config['perception'], cav_world,
             data_dumping)
+        logger.debug("PerceptionManager created")
 
         # behavior agent
         self.agent = None
@@ -280,9 +296,11 @@ class VehicleManager(object):
                 self.carla_map)
         else:
             self.agent = BehaviorAgent(self.vehicle, self.carla_map, behavior_config, is_dist=self.run_distributed)
+            logger.debug("BehaviorAgent created")
 
         # Control module
         self.controller = ControlManager(control_config)
+        logger.debug("ControlManager created")
 
         if data_dumping:
             self.data_dumper = DataDumper(self.perception_manager,
@@ -292,6 +310,7 @@ class VehicleManager(object):
             self.data_dumper = None
 
         cav_world.update_vehicle_manager(self)
+        logger.debug("VehicleManager __init__ complete")
 
     def is_close_to_scenario_destination(self):
         """

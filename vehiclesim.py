@@ -77,7 +77,7 @@ def serialize_debug_info(vehicle_update, vehicle_manager) -> None:
     vehicle_update.client_debug_helper.CopyFrom(client_debug_helper_msg)
 
 #TODO: move to eCloudClient
-async def send_registration_to_ecloud_server(stub_) -> ecloud.SimulationInfo:
+async def send_registration_to_ecloud_server(stub_, push_port) -> ecloud.SimulationInfo:
     request = ecloud.RegistrationInfo()
     request.vehicle_state = ecloud.VehicleState.REGISTERING
     try:
@@ -86,6 +86,7 @@ async def send_registration_to_ecloud_server(stub_) -> ecloud.SimulationInfo:
         request.container_name = f"vehiclesim.py"
 
     request.vehicle_ip = VEHICLE_IP
+    request.vehicle_port = push_port
 
     sim_info = await stub_.Client_RegisterVehicle(request)
 
@@ -132,6 +133,8 @@ def arg_parse():
                             help="Make more noise")
     parser.add_argument('-q', "--quiet", action="store_true",
                             help="Make no noise")
+    parser.add_argument('-c',"--container_id", type=int, default=0,
+                        help="container ID #. Used as the counter from the base port for the eCloud push service")
 
     opt = parser.parse_args()
     return opt
@@ -156,6 +159,17 @@ async def main():
 
     logging.basicConfig()
 
+    # spawn push server
+    push_port = ECLOUD_PUSH_BASE_PORT + opt.container_id
+    push_server = asyncio.create_task(ecloud_run_push_server(push_port, push_q))
+
+    await asyncio.sleep(1)
+
+    push_port = await push_q.get() # make sure we get the actual port - try logic may have altered it.
+    push_q.task_done()
+
+    logger.info("push server spun up on port %s", push_port)
+
     # TODO: move to eCloudClient
     channel = grpc.aio.insecure_channel(
         target=f"{ECLOUD_IP}:{opt.port}",
@@ -167,7 +181,7 @@ async def main():
         )
 
     ecloud_server = ecloud_rpc.EcloudStub(channel)
-    ecloud_update = await send_registration_to_ecloud_server(ecloud_server)
+    ecloud_update = await send_registration_to_ecloud_server(ecloud_server, push_port)
     vehicle_index = ecloud_update.vehicle_index
     assert( vehicle_index != None )
 
@@ -186,12 +200,6 @@ async def main():
     scenario_yaml = json.loads(test_scenario) #load_yaml(test_scenario)
     if 'debug_scenario' in scenario_yaml:
         logger.debug("main - test_scenario: %s", test_scenario)
-
-    # spawn push server
-    push_port = ECLOUD_PUSH_BASE_PORT + vehicle_index
-    push_server = asyncio.create_task(ecloud_run_push_server(push_port, push_q))
-
-    await asyncio.sleep(1)
 
     ecloud_config = EcloudConfig(scenario_yaml, logger)
     SPAWN_SLEEP_TIME = ecloud_config.get_client_spawn_ping_time_s()
@@ -217,7 +225,7 @@ async def main():
         await asyncio.sleep(vehicle_index + 1)
 
     vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
-                                     carla_version=version, location_type=location_type, run_distributed=True, is_edge=is_edge)
+                                     carla_version=version, location_type=location_type, run_distributed=True, is_edge=is_edge, perception_active=opt.apply_ml)
 
     actor_id = vehicle_manager.vehicle.id
     vid = vehicle_manager.vid

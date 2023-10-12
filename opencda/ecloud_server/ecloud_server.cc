@@ -312,8 +312,9 @@ public:
             DLOG(INFO) << "got a registration update";
 
             mu_.Lock();
-            reply->set_vehicle_index(numRegisteredVehicles_.load());
-            const std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), ECLOUD_PUSH_BASE_PORT + numRegisteredVehicles_.load() );
+            const int16_t vIdx = numRegisteredVehicles_.load();
+            reply->set_vehicle_index(vIdx);
+            const std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), request->vehicle_port());
             PushClient *vehicleClient = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
             vehicleClients_.push_back(std::move(vehicleClient));
             numRegisteredVehicles_++;
@@ -324,13 +325,15 @@ public:
             reply->set_version(version_);
 
             DLOG(INFO) << "RegisterVehicle - REGISTERING - container " << request->container_name() << " got vehicle id: " << reply->vehicle_index();
+
             carNames_[reply->vehicle_index()] = request->container_name();
         }
         else if ( request->vehicle_state() == VehicleState::CARLA_UPDATE )
         {
-            reply->set_vehicle_index(request->vehicle_index());
+            const int16_t vIdx = request->vehicle_index();
+            reply->set_vehicle_index(vIdx);
 
-            DLOG(INFO) << "RegisterVehicle - CARLA_UPDATE - vehicle_index: " << request->vehicle_index() << " | actor_id: " << request->actor_id() << " | vid: " << request->vid();
+            DLOG(INFO) << "RegisterVehicle - CARLA_UPDATE - vehicle_index: " << vIdx << " | actor_id: " << request->actor_id() << " | vid: " << request->vid();
 
             // TODO: Hashmap
             mu_.Lock();
@@ -346,7 +349,8 @@ public:
         }
 
         const int16_t replies_ = numRepliedVehicles_.load();
-        LOG(INFO) << "received " << replies_ << " replies";
+        LOG(INFO) << "received " << numRegisteredVehicles_.load() << " registrations";
+        LOG(INFO) << "received " << replies_ << " replies with Carla data";
         const bool complete_ = ( replies_ == numCars_ );
 
         LOG_IF(INFO, complete_ ) << "REGISTRATION COMPLETE";
