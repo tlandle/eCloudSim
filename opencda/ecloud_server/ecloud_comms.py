@@ -91,28 +91,45 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
     '''
 
     def __init__(self,
-                 q: asyncio.Queue):
+                 que: asyncio.Queue):
 
         logger.info("eCloud push server initialized")
-        self.q = q
-        self.last_tick = 0
+        self.que = que
+        self.last_tick = None
+        self.last_tick_id = 0
+        self.last_tick_command = None
+        self.last_tick_last_client_duration_ns = 0
+        self.port_no = 0
 
-    async def PushTick(self,
-                       tick: ecloud.Tick,
-                       context: grpc.aio.ServicerContext) -> ecloud.Empty:
+    def is_dupe(self, tick) -> bool:
+        '''
+        checks if the current tick is a dupe due to resend
+        '''
+        if tick.tick_id == self.last_tick_id and \
+                tick.command == self.last_tick_command and \
+                tick.last_client_duration_ns == self.last_tick_last_client_duration_ns:
+            return True
 
-        if tick.tick_id != ( self.last_tick + 1 ) and tick.tick_id > 0 and self.last_tick > 0 and tick.command == ecloud.Command.TICK:
-            logger.error('received an out of sync tick. had %s | received %s', self.last_tick, tick.tick_id)
-        elif tick.tick_id:
-            self.last_tick = tick.tick_id
+        return False
 
-        logger.debug("PushTick(): tick - %s", tick)
-        #assert(self.q.empty())
-        if not self.q.empty():
-            t = self.q.get_nowait()
-            logger.error('received tick %s while %s was already present', tick, t)
+    def PushTick(self,
+                 request: ecloud.Tick,
+                 context: grpc.aio.ServicerContext) -> ecloud.Empty:
+
+        tick = request # readability - gRPC prefers overrides preserve variable names
+        is_dupe = self.is_dupe(tick)
+        if is_dupe:
+            logger.warning('received a duplicate tick: had %s | received %s', self.last_tick, tick)
         else:
-            self.q.put_nowait(tick)
+            self.last_tick = tick
+            self.last_tick_id = tick.tick_id
+            self.last_tick_command = tick.command
+            self.last_tick_last_client_duration_ns = tick.last_client_duration_ns
+            logger.info("new tick - %s", tick)
+
+        assert self.que.empty()
+        if is_dupe is False:
+            self.que.put_nowait(tick)
 
         return ecloud.Empty()
 
