@@ -977,14 +977,7 @@ class ScenarioManager:
                 # send gRPC with START info
                 self.application = application
 
-                # update the vehicle manager
-                # keep a tuple of actor_id and vid in a list based on vehicle_index
-                actor_id = self.vehicles[f"vehicle_{vehicle_index}"][0]
-                vid = self.vehicles[f"vehicle_{vehicle_index}"][1]
-
-                logger.debug("starting vehicle %s | actor_id: %s | vid: %s", vehicle_index, actor_id, vid)
-
-                vehicle_manager.start_vehicle(actor_id, vid)
+                vehicle_manager.start_vehicle()
                 vehicle_manager.v2x_manager.set_platoon(None)
 
                 # add the vehicle manager to platoon

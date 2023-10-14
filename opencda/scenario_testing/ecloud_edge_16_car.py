@@ -7,48 +7,54 @@ map into your ue4 editor before running this
 # Author: Tyler Landle <tlandle3@gatech.edu>
 #       : Jordan Rapp <jrapp7@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
-import logging
-import time
+# Core
+import asyncio
 
+# 3rd Party
 import carla
 
+# OpenCDA Utils
 import opencda.scenario_testing.utils.sim_api as sim_api
-import opencda.scenario_testing.utils.customized_map_api as map_api
-import opencda.logging_ecloud
-
+from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from opencda.core.common.cav_world import CavWorld
-import opencda.scenario_testing.utils.sim_api as sim_api
 from opencda.scenario_testing.evaluations.evaluate_manager import \
     EvaluationManager
-from opencda.scenario_testing.utils.yaml_utils import load_yaml
-from opencda.core.common.ecloud_config import EcloudConfig
+# ONLY *required* for 2 Lane highway scenarios
+# import opencda.scenario_testing.utils.customized_map_api as map_api
 
 import ecloud_pb2 as ecloud
 
+# Consts
+LOG_NAME = "ecloud_4lane_edge.log" # data drive from file name?
+SCENARIO_NAME = "ecloud_4lane_edge_scenario" # data drive from file name?
+TOWN = 'Town06'
+STEP_COUNT = 300
+
 def run_scenario(opt, config_yaml):
+    step = 0
     try:
         scenario_params = load_yaml(config_yaml)
 
         cav_world = CavWorld(opt.apply_ml)
-        ecloud_config = EcloudConfig(scenario_params)
         # create scenario manager
         scenario_manager = sim_api.ScenarioManager(scenario_params,
                                                    opt.apply_ml,
                                                    opt.version,
-                                                   town='Town06',
+                                                   town=TOWN,
                                                    cav_world=cav_world,
                                                    config_file=config_yaml,
                                                    distributed=True)
 
         if opt.record:
             scenario_manager.client. \
-                start_recorder("ecloud_edge_16_car.log", True)
+                start_recorder(LOG_NAME, True)
 
         world_dt = scenario_params['world']['fixed_delta_seconds']
         edge_dt = scenario_params['edge_base']['edge_dt']
         assert( edge_dt % world_dt == 0 ) # we need edge time to be an exact multiple of world time because we send waypoints every Nth tick
 
         # create single cavs
+        asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
         edge_list = \
             scenario_manager.create_edge_manager(application=['edge'], edge_dt=edge_dt, world_dt=world_dt)
 
@@ -88,9 +94,9 @@ def run_scenario(opt, config_yaml):
             flag = scenario_manager.broadcast_tick()
             
             step = step + 1
-            if step > ecloud_config.get_step_count():
+            if step > STEP_COUNT:
                 flag = scenario_manager.broadcast_message(ecloud.Command.REQUEST_DEBUG_INFO)
-                break
+                break             
 
             transform = spectator_vehicle.get_transform()
             spectator.set_transform(
@@ -103,10 +109,10 @@ def run_scenario(opt, config_yaml):
                         90)))
 
     finally:
+        scenario_manager.end() # only dist requires explicit scenario end call
 
-        scenario_manager.end()
-
-        eval_manager.evaluate()
+        if step >= STEP_COUNT:
+            eval_manager.evaluate()
 
         if opt.record:
             scenario_manager.client.stop_recorder()       
