@@ -18,7 +18,7 @@ if (( running_containers > 1 )); then
     sudo docker container ls
 fi
 
-echo "starting $count vehicle client vontainers..."
+echo "starting $count vehicle client containers..."
 
 gpu=0
 for ((i=0; i<$count; i++))

@@ -285,16 +285,23 @@ public:
             if ( wpPair.first == request->vehicle_index() )
             {
                 buffer->set_vehicle_index(request->vehicle_index());
-                WaypointBuffer *wpBuf;
-                wpBuf->ParseFromString(wpPair.second);
-                for ( Waypoint wp : wpBuf->waypoint_buffer())
+                WaypointBuffer wpBuf;
+                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints starting parse";
+                const std::string buf = wpPair.second;
+                wpBuf.ParseFromString(buf);
+                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints parsed";
+                for ( Waypoint wp : wpBuf.waypoint_buffer())
                 {
                     Waypoint *p = buffer->add_waypoint_buffer();
                     p->CopyFrom(wp);
+                    //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " single waypoint copied";
                 }
+                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all waypoints copied";
                 break;
             }
         }
+        //LOG(INFO) << "vehicle " << request->vehicle_index() << " waypoints sent";
+
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -398,12 +405,16 @@ public:
                                Empty* empty) override {
         serializedEdgeWaypoints_.clear();
 
+        //LOG(INFO) << "updated waypoints received";
         for ( WaypointBuffer wpBuf : edgeWaypoints->all_waypoint_buffers() )
-        {   std::string serializedWPs;
+        {   
+            std::string serializedWPs;
             wpBuf.SerializeToString(&serializedWPs);
             const std::pair< int16_t, std::string > wpPair = std::make_pair( wpBuf.vehicle_index(), serializedWPs );
             serializedEdgeWaypoints_.push_back(wpPair);
+            //LOG(INFO) << "updated waypoints for vehicle index " << wpBuf.vehicle_index();
         }
+        //LOG(INFO) << "updated waypoints processed";
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);

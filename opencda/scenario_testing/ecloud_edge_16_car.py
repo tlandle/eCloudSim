@@ -90,8 +90,9 @@ def run_scenario(opt, config_yaml):
                     waypoint_buffer = edge.run_step()
 
                 scenario_manager.push_waypoint_buffer(waypoint_buffer)
-
-            flag = scenario_manager.broadcast_tick()
+                flag = scenario_manager.broadcast_message(ecloud.Command.PULL_WAYPOINTS_AND_TICK)
+            else:
+               flag = scenario_manager.broadcast_tick()
             
             step = step + 1
             if step > STEP_COUNT:

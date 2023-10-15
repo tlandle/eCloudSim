@@ -24,14 +24,10 @@ import coloredlogs
 from opencda.version import __version__
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
-from opencda.core.application.edge.transform_utils import *
-from opencda.core.plan.local_planner_behavior import RoadOption
-from opencda.core.plan.global_route_planner import GlobalRoutePlanner
-from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
-
+from opencda.core.application.edge.networking import NetworkEmulator
 from opencda.core.common.ecloud_config import EcloudConfig, eDoneBehavior
-from opencda.ecloud_server.ecloud_comms import EcloudClient, EcloudPushServer, ecloud_run_push_server
+from opencda.ecloud_server.ecloud_comms import EcloudClient, ecloud_run_push_server
 
 import grpc
 from google.protobuf.json_format import MessageToJson
@@ -214,6 +210,8 @@ async def main():
     target_speed = None
     edge_sets_destination = False
     is_edge = False # TODO: added this to the actual protobuf message
+    network_emulator = None
+    edge_sets_destination = False
     if 'edge_list' in scenario_yaml['scenario']:
         is_edge = True
         # TODO: support multiple edges...
@@ -226,6 +224,10 @@ async def main():
 
     vehicle_manager = VehicleManager(vehicle_index=vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
                                      carla_version=version, location_type=location_type, run_distributed=True, is_edge=is_edge, perception_active=opt.apply_ml)
+
+    if is_edge:
+        network_emulator = NetworkEmulator(edge_sets_destination=edge_sets_destination,
+                                            vehicle_manager=vehicle_manager)
 
     actor_id = vehicle_manager.vehicle.id
     vid = vehicle_manager.vid
@@ -243,7 +245,6 @@ async def main():
                 clean=True)
 
     logger.info("vehicle %s beginning scenario tick flow", vehicle_index)
-    waypoint_proto = None
     while pong.command != ecloud.Command.END:
 
         vehicle_update = ecloud.VehicleUpdate()
@@ -267,110 +268,56 @@ async def main():
             logger.debug("update_info complete")
 
             if is_edge:
-                is_wp_valid = False
-                has_not_cleared_buffer = True
-                if waypoint_proto != None:
-                    '''
-                    world = self.vehicle_manager_list[0].vehicle.get_world()
-                    self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
-                    location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
-                    '''
-                    world = vehicle_manager.vehicle.get_world()
-                    dao = GlobalRoutePlannerDAO(world.get_map(), 2)
-                    for swp in waypoint_proto.waypoint_buffer:
-                        #logger.debug(swp.SerializeToString())
-                        logger.debug("Override Waypoint x:%s, y:%s, z:%s, rl:%s, pt:%s, yw:%s", swp.transform.location.x, swp.transform.location.y, swp.transform.location.z, swp.transform.rotation.roll, swp.transform.rotation.pitch, swp.transform.rotation.yaw)
-                        wp = deserialize_waypoint(swp, dao)
-                        logger.debug("DAO Waypoint x:%s, y:%s, z:%s, rl:%s, pt:%s, yw:%s", wp.transform.location.x, wp.transform.location.y, wp.transform.location.z, wp.transform.rotation.roll, wp.transform.rotation.pitch, wp.transform.rotation.yaw)
-                        is_wp_valid = vehicle_manager.agent.get_local_planner().is_waypoint_valid(waypoint=wp)
+                network_emulator.update_waypoints()
 
-                        if edge_sets_destination and is_wp_valid:
-                            cur_location = vehicle_manager.vehicle.get_location()
-                            start_location = carla.Location(x=cur_location.x, y=cur_location.y, z=cur_location.z)
-                            end_location = carla.Location(x=wp.transform.location.x, y=wp.transform.location.y, z=wp.transform.location.z)
-                            clean = True # bool(destination["clean"])
-                            end_reset = True # bool(destination["reset"])
-                            vehicle_manager.set_destination(start_location, end_location, clean, end_reset)
-
-                        elif is_wp_valid:
-                                if has_not_cleared_buffer:
-                                    # override waypoints
-                                    waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-                                    # print(waypoint_buffer)
-                                    # for waypoints in waypoint_buffer:
-                                    #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
-                                    waypoint_buffer.clear() #EDIT MADE
-                                    has_not_cleared_buffer = False
-                                waypoint_buffer.append((wp, RoadOption.STRAIGHT))
-
-                    waypoint_proto = None
-
-                cur_location = vehicle_manager.vehicle.get_location()
-                logger.debug("location for vehicle_%s - is - x: %s, y: %s", vehicle_index, cur_location.x, cur_location.y)
-
-                waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-                for waypoints in waypoints_buffer_printer:
-                    logger.debug("waypoint_proto: waypoints transform for Vehicle: %s", waypoints[0].transform)
-
-            #waypoints_buffer_printer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-            #for waypoints in waypoints_buffer_printer:
-            #    logger.warning("final: waypoints transform for Vehicle: %s", waypoints[0].transform)
-
-            should_run_step = False
-            if not is_edge or ( has_not_cleared_buffer and waypoint_proto == None ) or ( ( not has_not_cleared_buffer ) and waypoint_proto != None ):
-                should_run_step = True
-
-            if should_run_step:
-                if reported_done:
-                   target_speed = 0
-                control = vehicle_manager.run_step(target_speed=target_speed)
-                logger.debug("run_step complete")
+            if reported_done:
+                target_speed = 0
+            control = vehicle_manager.run_step(target_speed=target_speed)
+            logger.debug("run_step complete")
 
             vehicle_update.tick_id = tick_id
 
-            if should_run_step:
-                if control is None or vehicle_manager.is_close_to_scenario_destination():
-                    vehicle_update.vehicle_state = ecloud.VehicleState.TICK_DONE
-                    if not reported_done:
-                        serialize_debug_info(vehicle_update, vehicle_manager)
+            if control is None or vehicle_manager.is_close_to_scenario_destination():
+                vehicle_update.vehicle_state = ecloud.VehicleState.TICK_DONE
+                if not reported_done:
+                    serialize_debug_info(vehicle_update, vehicle_manager)
 
-                    if control is not None and done_behavior == eDoneBehavior.CONTROL:
-                        vehicle_manager.apply_control(control)
-
-                else:
+                if control is not None and done_behavior == eDoneBehavior.CONTROL:
                     vehicle_manager.apply_control(control)
-                    logger.debug("apply_control complete")
-
-                    step_timestamps = ecloud.Timestamps()
-                    step_timestamps.tick_id = tick_id
-                    step_timestamps.client_end_tstamp.GetCurrentTime()
-                    step_timestamps.client_start_tstamp.CopyFrom(client_start_timestamp)
-                    vehicle_manager.debug_helper.update_timestamp(step_timestamps)
-
-                    vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
-                    vehicle_update.duration_ns = step_timestamps.client_end_tstamp.ToNanoseconds() - step_timestamps.client_start_tstamp.ToNanoseconds()
-
-                if is_edge or vehicle_index == SPECTATOR_INDEX:
-                    velocity = vehicle_manager.vehicle.get_velocity()
-                    pv = ecloud.Velocity()
-                    pv.x = velocity.x
-                    pv.y = velocity.y
-                    pv.z = velocity.z
-                    vehicle_update.velocity.CopyFrom(pv)
-
-                    transform = vehicle_manager.vehicle.get_transform()
-                    pt = ecloud.Transform()
-                    pt.location.x = transform.location.x
-                    pt.location.y = transform.location.y
-                    pt.location.z = transform.location.z
-                    pt.rotation.roll = transform.rotation.roll
-                    pt.rotation.yaw = transform.rotation.yaw
-                    pt.rotation.pitch = transform.rotation.pitch
-                    vehicle_update.transform.CopyFrom(pt)
 
             else:
-                vehicle_update.vehicle_state = ecloud.VehicleState.ERROR # TODO: handle error status
-                logger.error("ecloud_client error")
+                vehicle_manager.apply_control(control)
+                logger.debug("apply_control complete")
+
+                step_timestamps = ecloud.Timestamps()
+                step_timestamps.tick_id = tick_id
+                step_timestamps.client_end_tstamp.GetCurrentTime()
+                step_timestamps.client_start_tstamp.CopyFrom(client_start_timestamp)
+                vehicle_manager.debug_helper.update_timestamp(step_timestamps)
+
+                vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
+                vehicle_update.duration_ns = step_timestamps.client_end_tstamp.ToNanoseconds() - step_timestamps.client_start_tstamp.ToNanoseconds()
+
+            if is_edge or vehicle_index == SPECTATOR_INDEX:
+                velocity = vehicle_manager.vehicle.get_velocity()
+                pv = ecloud.Velocity()
+                pv.x = velocity.x
+                pv.y = velocity.y
+                pv.z = velocity.z
+                vehicle_update.velocity.CopyFrom(pv)
+
+                transform = vehicle_manager.vehicle.get_transform()
+                pt = ecloud.Transform()
+                pt.location.x = transform.location.x
+                pt.location.y = transform.location.y
+                pt.location.z = transform.location.z
+                pt.rotation.roll = transform.rotation.roll
+                pt.rotation.yaw = transform.rotation.yaw
+                pt.rotation.pitch = transform.rotation.pitch
+                vehicle_update.transform.CopyFrom(pt)
+
+            # vehicle_update.vehicle_state = ecloud.VehicleState.ERROR # TODO: handle error status
+            # logger.error("ecloud_client error")
 
             #cur_location = vehicle_manager.vehicle.get_location()
             #logger.debug("send OK and location for vehicle_%s - is - x: %s, y: %s", vehicle_index, cur_location.x, cur_location.y)
@@ -402,6 +349,7 @@ async def main():
                 wp_request = ecloud.WaypointRequest()
                 wp_request.vehicle_index = vehicle_index
                 waypoint_proto = await ecloud_server.Client_GetWaypoints(wp_request)
+                network_emulator.enqueue_wp(waypoint_proto)
                 pong.command = ecloud.Command.TICK
 
             # HANDLE END
