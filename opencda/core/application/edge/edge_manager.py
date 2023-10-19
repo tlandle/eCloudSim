@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
-"""Platooning Manager
+"""Edge Manager
 """
 
-# Author: Runsheng Xu <rxx3386@ucla.edu>
+# Author: Tyler Landle <tlandle3@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import uuid

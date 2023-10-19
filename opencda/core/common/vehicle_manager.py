@@ -2,6 +2,7 @@
 """
 Basic class of CAV
 """
+# Author: Tyler Landle <tlandle3@gatech.edu>, Jordan Rapp <jrapp7@gatech.edu>
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
@@ -33,6 +34,7 @@ from opencda.core.common.misc import compute_distance
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from opencda.client_debug_helper import ClientDebugHelper
 from opencda.core.common.ecloud_config import eLocationType
+from opencda.core.common.traffic_event import TrafficEvent
 
 import coloredlogs, logging
 logger = logging.getLogger(__name__)
@@ -302,6 +304,15 @@ class VehicleManager(object):
         self.controller = ControlManager(control_config)
         logger.debug("ControlManager created")
 
+        # Stats Gathering
+        blueprint = self.world.get_blueprint_library().find('sensor.other.collision')
+        self._collision_sensor = self.world.spawn_actor(blueprint, carla.Transform(), attach_to=self.vehicle)
+        self._collision_sensor.listen(lambda event: self._count_collisions(weakref.ref(self), event))
+
+        blueprint = self.world.get_blueprint_library().find('sensor.other.lane_invasion')
+        self._lane_sensor = self.world.spawn_actor(blueprint, carla.Transform(), attach_to=self.vehicle)
+        self._lane_sensor.listen(lambda event: self._count_lane_invasion(weakref.ref(self), event))
+
         if data_dumping:
             self.data_dumper = DataDumper(self.perception_manager,
                                           self.vehicle.id,
@@ -311,6 +322,68 @@ class VehicleManager(object):
 
         cav_world.update_vehicle_manager(self)
         logger.debug("VehicleManager __init__ complete")
+
+    
+    @staticmethod
+    def _count_lane_invasion(weak_self, event):
+        """
+        Callback to update lane invasion count
+        """
+        self = weak_self()
+        if not self:
+            return
+
+        actor_location = self.vehicle.get_location()
+
+        lane_invasion_event = TrafficEvent(event_type=actor_type)
+        lane_invasion_event.set_dict({
+            'x': actor_location.x,
+            'y': actor_location.y,
+            'z': actor_location.z})
+
+        self.debug_helper.update_lane_invasions(lane_invasion_event)
+
+    @staticmethod
+    def _count_collisions(weak_self, event):
+        """
+        Callback to update collision count
+        """
+        self = weak_self()
+        if not self:
+            return
+
+        actor_location = self.vehicle.get_location()
+
+        if ('static' in event.other_actor.type_id or 'traffic' in event.other_actor.type_id) \
+                and 'sidewalk' not in event.other_actor.type_id:
+            actor_type = TrafficEventType.COLLISION_STATIC
+        elif 'vehicle' in event.other_actor.type_id:
+            actor_type = TrafficEventType.COLLISION_VEHICLE
+        elif 'walker' in event.other_actor.type_id:
+            actor_type = TrafficEventType.COLLISION_PEDESTRIAN
+        else:
+            return
+
+        collision_event = TrafficEvent(event_type=actor_type)
+        collision_event.set_dict({
+            'type': event.other_actor.type_id,
+            'id': event.other_actor.id,
+            'x': actor_location.x,
+            'y': actor_location.y,
+            'z': actor_location.z})
+        collision_event.set_message(
+            "Agent collided against object with type={} and id={} at (x={}, y={}, z={})".format(
+                event.other_actor.type_id,
+                event.other_actor.id,
+                round(actor_location.x, 3),
+                round(actor_location.y, 3),
+                round(actor_location.z, 3)))
+
+        self.debug_helper.update_collision(collision_event)
+
+        # Number 0: static objects -> ignore it
+        if event.other_actor.id != 0:
+            self.last_id = event.other_actor.id
 
     def is_close_to_scenario_destination(self):
         """

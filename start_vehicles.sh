@@ -6,7 +6,7 @@ read -p "rebuild containers (Y/n)? " rebuild
 
 if [[ "$rebuild" = "Y" || "$rebuild" = "y" ]]; then
     echo "rebuilding container image"
-    sudo docker build -f Dockerfile -t vehicle-sim:latest .
+    sudo docker build --network=host -f Dockerfile -t vehicle-sim:latest .
 fi
 
 running_containers=$(sudo docker ps -a -q | wc -l)
