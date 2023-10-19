@@ -1209,6 +1209,9 @@ class ScenarioManager:
             client_data_list = vehicle_manager_proxy.debug_helper.get_debug_data()[client_data_key]
             all_client_data_list.append(client_data_list)
 
+        print(all_client_data_list)
+
+        
         #logger.debug(all_client_data_list)
 
         all_client_data_list_flat = np.array(all_client_data_list)
@@ -1216,6 +1219,9 @@ class ScenarioManager:
             all_client_data_list_flat = np.hstack(all_client_data_list_flat)
         else:
             all_client_data_list_flat = all_client_data_list_flat.flatten()
+
+        if(len(all_client_data_list_flat) == 0):
+          return
         self.do_pickling(client_data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate(self, excludes_list = None):
