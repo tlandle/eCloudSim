@@ -178,16 +178,19 @@ class LocDebugHelper(object):
             datas saved as text file.
 
         """
-        figure, axis = plt.subplots(3, 2)
-        figure.set_size_inches(16, 12)
+        figure, axis = plt.subplots(2, 2)
+        figure.set_size_inches(10, 6)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)   
             # x, y coordinates
             axis[0, 0].plot(self.gnss_x, self.gnss_y, ".g", label='gnss')
             axis[0, 0].plot(self.gt_x, self.gt_y, ".b", label='gt')
             axis[0, 0].plot(self.filter_x, self.filter_y, ".r", label='filter')
-            axis[0, 0].legend()
+            axis[0, 0].legend(fontsize=10)
             axis[0, 0].set_title("x-y coordinates plotting")
+            axis[0, 0].set_xlabel('x', fontdict={'weight': 'bold', 'fontsize': 13})
+            axis[0, 0].set_ylabel('y', fontdict={'weight': 'bold', 'fontsize': 13})
+
 
             # yaw angle
             axis[0, 1].plot(np.arange(len(self.gnss_yaw)),
@@ -196,8 +199,10 @@ class LocDebugHelper(object):
                             self.gt_yaw, ".b", label='gt')
             axis[0, 1].plot(np.arange(len(self.filter_yaw)),
                             self.filter_yaw, ".r", label='filter')
-            axis[0, 1].legend()
+            axis[0, 1].legend(fontsize=10)
             axis[0, 1].set_title("yaw angle(degree) plotting")
+            axis[0, 1].set_xlabel('Time', fontdict={'weight': 'bold', 'fontsize': 13})
+            axis[0, 1].set_ylabel('Angle', fontdict={'weight': 'bold', 'fontsize': 13})
 
             # speed
             axis[1, 0].plot(np.arange(len(self.gnss_spd)),
@@ -206,17 +211,25 @@ class LocDebugHelper(object):
                             self.gt_spd, ".b", label='gt')
             axis[1, 0].plot(np.arange(len(self.filter_spd)),
                             self.filter_spd, ".r", label='filter')
-            axis[1, 0].legend()
+            axis[1, 0].legend(fontsize=10)
             axis[1, 0].set_title("speed(m/s) plotting")
+            axis[1, 0].set_xlabel('Time', fontdict={'weight': 'bold', 'fontsize': 13})
+            axis[1, 0].set_ylabel('Speed (m/s)', fontdict={'weight': 'bold', 'fontsize': 13})
 
             # error curve on x
             axis[1, 1].plot(np.arange(len(self.gnss_x)), np.array(
                 self.gt_x) - np.array(self.gnss_x), "-g", label='gnss')
             axis[1, 1].plot(np.arange(len(self.filter_x)), np.array(
                 self.gt_x) - np.array(self.filter_x), "-r", label='filter')
-            axis[1, 1].legend()
+            axis[1, 1].legend(fontsize=10)
             axis[1, 1].set_title("error curve on x coordinates")
+            axis[1, 1].set_xlabel('Time', fontdict={'weight': 'bold', 'fontsize': 13})
+            axis[1, 1].set_ylabel('Error', fontdict={'weight': 'bold', 'fontsize': 13})
 
+
+            plt.tight_layout()
+
+            '''
             # error curve on y
             axis[2, 0].plot(np.arange(len(self.gnss_y)), np.array(
                 self.gt_y) - np.array(self.gnss_y), "-g", label='gnss')
@@ -232,8 +245,8 @@ class LocDebugHelper(object):
                 self.gt_yaw) - np.array(self.filter_yaw), "-r", label='filter')
             axis[2, 1].legend()
             axis[2, 1].set_title("error curve on yaw angle")
-
-            figure.suptitle('localization plotting of actor id %d' % self.actor_id)
+            '''
+            #figure.suptitle('localization plotting of actor id %d' % self.actor_id)
 
             x_error_mean = np.nanmean(
                 np.abs(

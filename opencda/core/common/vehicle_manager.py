@@ -329,10 +329,13 @@ class VehicleManager(object):
         """
         Callback to update lane invasion count
         """
+        print("lane Invasion") 
         self = weak_self()
         if not self:
             return
 
+
+        print("LAne Invasion")
         actor_location = self.vehicle.get_location()
 
         lane_invasion_event = TrafficEvent(event_type=actor_type)
@@ -348,10 +351,15 @@ class VehicleManager(object):
         """
         Callback to update collision count
         """
+
+        print("Collision\n")
+        exit(1)
+
         self = weak_self()
         if not self:
             return
 
+        
         actor_location = self.vehicle.get_location()
 
         if ('static' in event.other_actor.type_id or 'traffic' in event.other_actor.type_id) \
