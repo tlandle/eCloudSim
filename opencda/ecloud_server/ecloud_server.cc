@@ -83,7 +83,7 @@ volatile std::atomic<int16_t> numCompletedVehicles_;
 volatile std::atomic<int16_t> numRepliedVehicles_;
 volatile std::atomic<int32_t> tickId_;
 
-bool repliedCars_[MAX_CARS];
+std::atomic<bool> repliedCars_[MAX_CARS];
 std::string carNames_[MAX_CARS];
 
 bool init_;
@@ -238,35 +238,48 @@ public:
             }
         }
 
-        repliedCars_[request->vehicle_index()] = true;
-
-        DLOG(INFO) << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id();
-
-        if ( request->vehicle_state() == VehicleState::TICK_DONE )
+        if ( repliedCars_[request->vehicle_index()].load() == true )
         {
-            numCompletedVehicles_++;
-            DLOG(INFO) << "Client_SendUpdate - TICK_DONE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
+            LOG(ERROR) << "Client_SendUpdate - received duplicate reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id();
         }
-        else if ( request->vehicle_state() == VehicleState::TICK_OK )
+        else
         {
-            numRepliedVehicles_++;
-        }
-        else if ( request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
-        {
-            numCompletedVehicles_++;
-            DLOG(INFO) << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
-        }
+            repliedCars_[request->vehicle_index()] = true;
 
-        // BEGIN PUSH
-        const int16_t replies_ = numRepliedVehicles_.load();
-        const int16_t completions_ = numCompletedVehicles_.load();
-        const bool complete_ = ( replies_ + completions_ ) == numCars_;
+            DLOG(INFO) << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id();
 
-        LOG_IF(INFO, complete_ ) << "tick " << request->tick_id() << " COMPLETE";
-        if ( complete_ )
-        {
-            const int64_t lastClientDurationNS = request->duration_ns();
-            simAPIClient_->PushTick( request->tick_id(), command_, lastClientDurationNS );
+            if ( request->vehicle_state() == VehicleState::TICK_DONE )
+            {
+                numCompletedVehicles_++;
+                DLOG(INFO) << "Client_SendUpdate - TICK_DONE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
+            }
+            else if ( request->vehicle_state() == VehicleState::TICK_OK )
+            {
+                numRepliedVehicles_++;
+            }
+            else if ( request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
+            {
+                numCompletedVehicles_++;
+                DLOG(INFO) << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
+            }
+
+            // BEGIN PUSH
+            //const int16_t replies_ = numRepliedVehicles_.load();
+            int16_t replies_ = 0;
+            for ( int16_t i = 0; i < numCars_; i++ )
+            {
+                if ( repliedCars_[i] == true )
+                    replies_++;
+            }
+            const int16_t completions_ = numCompletedVehicles_.load();
+            const bool complete_ = ( replies_ + completions_ ) == numCars_;
+
+            LOG_IF(INFO, complete_ ) << "tick " << request->tick_id() << " COMPLETE";
+            if ( complete_ )
+            {
+                const int64_t lastClientDurationNS = request->duration_ns();
+                simAPIClient_->PushTick( request->tick_id(), command_, lastClientDurationNS );
+            }
         }
 
         ServerUnaryReactor* reactor = context->DefaultReactor();

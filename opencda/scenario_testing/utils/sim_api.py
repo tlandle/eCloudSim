@@ -263,11 +263,11 @@ class ScenarioManager:
                 if not vehicle_update.HasField('transform') or not vehicle_update.HasField('velocity'):
                     continue
 
-                if not self.is_edge and vehicle_update.vehicle_index != ScenarioManager.SPECTATOR_INDEX:
+                if not ( self.is_edge or self.verbose_updates ) and vehicle_update.vehicle_index != ScenarioManager.SPECTATOR_INDEX:
                     continue
 
                 vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
-                if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ):
+                if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ) or self.verbose_updates :
                     t = carla.Transform(
                     carla.Location(
                         x=vehicle_update.transform.location.x,
@@ -281,11 +281,15 @@ class ScenarioManager:
                         x=vehicle_update.velocity.x,
                         y=vehicle_update.velocity.y,
                         z=vehicle_update.velocity.z)
-                    vehicle_manager_proxy.vehicle.set_velocity(v)
-                    vehicle_manager_proxy.vehicle.set_transform(t)
-        except Exception as e:
-            logger.error('%s \n %s', e, vehicle_update)
-            raise
+                    if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ):
+                        vehicle_manager_proxy.vehicle.set_velocity(v)
+                        vehicle_manager_proxy.vehicle.set_transform(t)  
+                    
+                    self.debug_helper.update_velocity_per_client_timestamp(tick_id=self.tick_id,
+                                                                           velocity=v)
+        except:
+            logger.exception('%s', vehicle_update)
+
         logger.debug("vehicle updates unpacked")
 
     async def server_push_waypoints(self, stub_, wps_):
@@ -296,7 +300,7 @@ class ScenarioManager:
     async def server_do_tick(self, stub_, update_):
         empty = await stub_.Server_DoTick(update_)
 
-        assert(self.push_q.empty())
+        assert self.push_q.empty(), f"push_q should have been empty, but had {self.push_q.get_nowait()}"
         tick = await self.push_q.get()
         snapshot_t = time.time_ns()
         self.push_q.task_done()
@@ -431,6 +435,9 @@ class ScenarioManager:
 
         # eCLOUD BEGIN
 
+        self.verbose_updates = scenario_params['scenario']['verbose_updates'] if \
+                                'verbose_updates' in scenario_params['scenario'] else False
+
         if 'ecloud' in scenario_params['scenario'] and 'num_cars' in scenario_params['scenario']['ecloud']:
             assert('edge_list' not in scenario_params['scenario']) # edge requires explicit
             self.vehicle_count = scenario_params['scenario']['ecloud']['num_cars']
@@ -485,7 +492,7 @@ class ScenarioManager:
         server_request.application = self.application[0]
         server_request.version = self.carla_version
         server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
-        server_request.is_edge = self.is_edge
+        server_request.is_edge = self.is_edge or self.verbose_updates
         server_request.vehicle_machine_ip = VEHICLE_IP
 
         await self.server_start_scenario(self.ecloud_server, server_request)
@@ -1249,6 +1256,7 @@ class ScenarioManager:
                 os.makedirs(cumulative_stats_folder_path)
 
             if(self.run_distributed):
+                #self.evaluate_velocity_data(cumulative_stats_folder_path)
                 self.evaluate_agent_data(cumulative_stats_folder_path)
                 self.evaluate_network_data(cumulative_stats_folder_path)
                 self.evaluate_idle_data(cumulative_stats_folder_path)
@@ -1315,8 +1323,18 @@ class ScenarioManager:
             # plotting
             figure = plt.figure()
 
-            plt.subplot(411)
-            open_plt.draw_world_tick_time_profile_single_plot(world_tick_time_list)
+            #plt.subplot(411)
+            #open_plt.draw_world_tick_time_profile_single_plot(world_tick_time_list)
+
+            with open('velocity_list', 'w+') as f:
+                f.write(f'{self.debug_helper.client_velocity_dict}')
+
+            plt.subplot(413)
+            open_plt.draw_deviation_from_target_velocity(self.debug_helper.client_velocity_dict)
+            all_vels = sum(self.debug_helper.client_velocity_dict.values(), [])
+            all_vels_flat = np.array(all_vels)
+            vel_mean = np.mean(all_vels_flat.flatten())
+            logger.info("Mean Velocity: %s", vel_mean)
 
             # plt.subplot(412)
             # open_plt.draw_algorithm_time_profile_single_plot(algorithm_time_list)
