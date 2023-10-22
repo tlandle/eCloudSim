@@ -125,6 +125,16 @@ message PlanerDebugHelper {
     repeated AgentDebugHelper agent_step_list = 4;
 }
 
+message CollisionEvent {
+  int32 type_id = 1;
+  int32 other_actor_id = 2; 
+  Location location = 3;
+}
+
+message LaneInvasionEvent {
+  Location actor_location = 1;
+}
+
 message ClientDebugHelper {
     repeated float perception_time_list = 1;
     repeated float localization_time_list = 2;
@@ -135,7 +145,9 @@ message ClientDebugHelper {
     repeated float vehicle_step_time_list = 7;
     repeated float controller_step_time_list = 8;
     repeated float control_time_list = 9;
-    repeated Timestamps timestamps_list = 10;
+    repeated CollisionEvent collisions_event_list = 10;
+    repeated LaneInvasionEvent lane_invasions_list = 11;
+    repeated Timestamps timestamps_list = 12;
 }
 
 message RegistrationInfo {
