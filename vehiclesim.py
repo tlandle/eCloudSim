@@ -212,6 +212,7 @@ async def main():
     is_edge = False # TODO: added this to the actual protobuf message
     network_emulator = None
     edge_sets_destination = False
+    verbose_updates = ecloud_config.do_verbose_update()
     if 'edge_list' in scenario_yaml['scenario']:
         is_edge = True
         # TODO: support multiple edges...
@@ -234,7 +235,7 @@ async def main():
 
     await send_carla_data_to_opencda(ecloud_server, vehicle_index, actor_id, vid)
 
-    assert(push_q.empty())
+    assert push_q.empty(), logger.exception("push_q had %s in it when it should have been empty", push_q.get_nowait())
     pong = await push_q.get()
     push_q.task_done()
 
@@ -298,7 +299,7 @@ async def main():
                 vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
                 vehicle_update.duration_ns = step_timestamps.client_end_tstamp.ToNanoseconds() - step_timestamps.client_start_tstamp.ToNanoseconds()
 
-            if is_edge or vehicle_index == SPECTATOR_INDEX:
+            if is_edge or vehicle_index == SPECTATOR_INDEX or verbose_updates:
                 velocity = vehicle_manager.vehicle.get_velocity()
                 pv = ecloud.Velocity()
                 pv.x = velocity.x
@@ -327,7 +328,7 @@ async def main():
             if not reported_done:
                 vehicle_update.tick_id = tick_id
                 vehicle_update.vehicle_index = vehicle_index
-                logger.debug('VEHICLE_UPDATE_DBG: \n vehicle_index: %s \n tick_id: %s \n %s', vehicle_index, tick_id, vehicle_update)
+                logger.debug('vehicle_update: \n vehicle_index: %s \n tick_id: %s \n %s', vehicle_index, tick_id, vehicle_update)
                 ecloud_update = await send_vehicle_update(ecloud_server, vehicle_update)
 
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
@@ -339,7 +340,7 @@ async def main():
                 reported_done = True
                 logger.info("reported_done")
 
-            assert(push_q.empty())
+            assert push_q.empty(), logger.exception("push_q had %s in it when it should have been empty", push_q.get_nowait())
             pong = await push_q.get()
             push_q.task_done()
             assert( pong.tick_id != tick_id )
@@ -371,4 +372,4 @@ if __name__ == '__main__':
     try:
         asyncio.get_event_loop().run_until_complete(main())
     except KeyboardInterrupt:
-        logger.info(' - Exited by user.')
+        logger.info('exited by user.')

@@ -236,7 +236,7 @@ class ScenarioManager:
             overall_steps_by_tick = self.debug_helper.client_tick_time_dict
             for timestamps in vehicle_manager_proxy.debug_helper.timestamps_list:
                 if timestamps.tick_id in overall_steps_by_tick:
-                    assert timestamps.tick_id in latencies_by_tick
+                    assert timestamps.tick_id in latencies_by_tick, logger.exception('%s not in latencies_by_tick: %s', timestamps.tick_id, latencies_by_tick)
                     client_process_time_ms = (timestamps.client_end_tstamp.ToNanoseconds() - timestamps.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
                     idle_time_ms = overall_steps_by_tick[timestamps.tick_id] - latencies_by_tick[timestamps.tick_id] - client_process_time_ms # inferred rather than actual "idle" time
                     #if idle_time_ms < 0:
@@ -300,7 +300,7 @@ class ScenarioManager:
     async def server_do_tick(self, stub_, update_):
         empty = await stub_.Server_DoTick(update_)
 
-        assert self.push_q.empty(), f"push_q should have been empty, but had {self.push_q.get_nowait()}"
+        assert self.push_q.empty(), logger.exception("push_q should have been empty, but had %s", self.push_q.get_nowait())
         tick = await self.push_q.get()
         snapshot_t = time.time_ns()
         self.push_q.task_done()
@@ -330,7 +330,7 @@ class ScenarioManager:
         print(f"pushed scenario start")
         print(f"start {self.vehicle_count} vehicle containers")
 
-        assert(self.push_q.empty())
+        assert self.push_q.empty(), logger.exception("push_q had %s in it when it should have been empty", self.push_q.get_nowait())
         await self.push_q.get()
         self.push_q.task_done()
 
@@ -435,11 +435,10 @@ class ScenarioManager:
 
         # eCLOUD BEGIN
 
-        self.verbose_updates = scenario_params['scenario']['verbose_updates'] if \
-                                'verbose_updates' in scenario_params['scenario'] else False
+        self.verbose_updates = self.ecloud_config.do_verbose_update()
 
         if 'ecloud' in scenario_params['scenario'] and 'num_cars' in scenario_params['scenario']['ecloud']:
-            assert('edge_list' not in scenario_params['scenario']) # edge requires explicit
+            assert 'edge_list' not in scenario_params['scenario'], logger.exception("edge requires explicit")
             self.vehicle_count = scenario_params['scenario']['ecloud']['num_cars']
             logger.debug("'ecloud' in YAML specified %s cars", self.vehicle_count)
 
@@ -452,12 +451,12 @@ class ScenarioManager:
             self.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['members'])
 
         else:
-            assert(False, "no known vehicle indexing format found")
+            assert False, logger.exception("no known vehicle indexing format found")
 
         if self.run_distributed:
             self.apply_ml = False
             if apply_ml == True:
-                assert( False, "ML should only be run on the distributed clients")
+                assert False, logger.exception("ML should only be run on the distributed clients")
 
             channel = grpc.aio.insecure_channel(
             target=f"{ECLOUD_IP}:50051",
@@ -1232,119 +1231,121 @@ class ScenarioManager:
         self.do_pickling(client_data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate(self, excludes_list = None):
-            """
-            Used to save all members' statistics.
+        """
+        Used to save all members' statistics.
 
-            Returns
-            -------
-            figure : matplotlib.figure
-                The figure drawing performance curve passed back to save to
-                the disk.
+        Returns
+        -------
+        figure : matplotlib.figure
+            The figure drawing performance curve passed back to save to
+            the disk.
 
-            perform_txt : str
-                The string that contains all evaluation results to print out.
-            """
+        perform_txt : str
+            The string that contains all evaluation results to print out.
+        """
 
-            perform_txt = ''
+        perform_txt = ''
 
+        num_clients = len(VEHICLE_IP.split(","))
+        if(self.run_distributed):
+            cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_no_perception'
+            if self.perception:
+                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_with_perception'
+        else:
+            cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_no_perception'
+            if self.perception:
+                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_with_perception'
 
-            num_clients = len(VEHICLE_IP.split(","))
-            if(self.run_distributed):
-                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_no_perception'
-                if self.perception:
-                  cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_with_perception'
-            else:
-                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_no_perception'
-                if self.perception:
-                    cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_with_perception'
+        if not os.path.exists(cumulative_stats_folder_path):
+            os.makedirs(cumulative_stats_folder_path)
 
-            if not os.path.exists(cumulative_stats_folder_path):
-                os.makedirs(cumulative_stats_folder_path)
+        if(self.run_distributed):
+            #self.evaluate_velocity_data(cumulative_stats_folder_path)
+            self.evaluate_agent_data(cumulative_stats_folder_path)
+            self.evaluate_network_data(cumulative_stats_folder_path)
+            self.evaluate_idle_data(cumulative_stats_folder_path)
+            self.evaluate_client_process_data(cumulative_stats_folder_path)
+            self.evaluate_individual_client_data(cumulative_stats_folder_path)
 
-            if(self.run_distributed):
-                #self.evaluate_velocity_data(cumulative_stats_folder_path)
-                self.evaluate_agent_data(cumulative_stats_folder_path)
-                self.evaluate_network_data(cumulative_stats_folder_path)
-                self.evaluate_idle_data(cumulative_stats_folder_path)
-                self.evaluate_client_process_data(cumulative_stats_folder_path)
-                self.evaluate_individual_client_data(cumulative_stats_folder_path)
+            client_helper = ClientDebugHelper(0)
+            debug_data_lists = client_helper.get_debug_data().keys()
+            for list_name in debug_data_lists:
+                if excludes_list is not None and list_name in excludes_list:
+                    continue
+                
+                self.evaluate_client_data(list_name, cumulative_stats_folder_path)
 
-                client_helper = ClientDebugHelper(0)
-                debug_data_lists = client_helper.get_debug_data().keys()
-                for list_name in debug_data_lists:
-                    if excludes_list is not None and list_name in excludes_list:
-                        continue
-                    
-                    self.evaluate_client_data(list_name, cumulative_stats_folder_path)
+        # ___________Client Step time__________________________________
+        client_tick_time_list = self.debug_helper.client_tick_time_list
+        client_tick_time_list_flat = np.concatenate(client_tick_time_list)
+        if client_tick_time_list_flat.any():
+            client_tick_time_list_flat = np.hstack(client_tick_time_list_flat)
+        else:
+            client_tick_time_list_flat = client_tick_time_list_flat.flatten()
+        client_step_time_key = 'client_step_time'
+        self.do_pickling(client_step_time_key, client_tick_time_list_flat, cumulative_stats_folder_path)
 
-            # ___________Client Step time__________________________________
-            client_tick_time_list = self.debug_helper.client_tick_time_list
-            client_tick_time_list_flat = np.concatenate(client_tick_time_list)
-            if client_tick_time_list_flat.any():
-                client_tick_time_list_flat = np.hstack(client_tick_time_list_flat)
-            else:
-                client_tick_time_list_flat = client_tick_time_list_flat.flatten()
-            client_step_time_key = 'client_step_time'
-            self.do_pickling(client_step_time_key, client_tick_time_list_flat, cumulative_stats_folder_path)
+        # ___________World Step time_________________________________
+        world_tick_time_list = self.debug_helper.world_tick_time_list
+        world_tick_time_list_flat = np.concatenate(world_tick_time_list)
+        if world_tick_time_list_flat.any():
+            world_tick_time_list_flat = np.hstack(world_tick_time_list_flat)
+        else:
+            world_tick_time_list_flat = world_tick_time_list_flat.flatten()
+        world_step_time_key = 'world_step_time'
+        self.do_pickling(world_step_time_key, world_tick_time_list_flat, cumulative_stats_folder_path)
 
-            # ___________World Step time_________________________________
-            world_tick_time_list = self.debug_helper.world_tick_time_list
-            world_tick_time_list_flat = np.concatenate(world_tick_time_list)
-            if world_tick_time_list_flat.any():
-                world_tick_time_list_flat = np.hstack(world_tick_time_list_flat)
-            else:
-                world_tick_time_list_flat = world_tick_time_list_flat.flatten()
-            world_step_time_key = 'world_step_time'
-            self.do_pickling(world_step_time_key, world_tick_time_list_flat, cumulative_stats_folder_path)
+        # ___________Total simulation time ___________________
+        sim_start_time = self.debug_helper.sim_start_timestamp
+        sim_end_time = time.time()
+        total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
+        perform_txt += f"Total Simulation Time: {total_sim_time} \n\t Registration Time: {self.debug_helper.startup_time_ms}ms \n\t Shutdown Time: {self.debug_helper.shutdown_time_ms}ms"
 
-            # ___________Total simulation time ___________________
-            sim_start_time = self.debug_helper.sim_start_timestamp
-            sim_end_time = time.time()
-            total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
-            perform_txt += f"Total Simulation Time: {total_sim_time} \n\t Registration Time: {self.debug_helper.startup_time_ms}ms \n\t Shutdown Time: {self.debug_helper.shutdown_time_ms}ms"
-
-            sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
-            try:
-                picklefile = open(sim_time_df_path, 'rb+')
-                sim_time_df = pickle.load(picklefile)  #unpickle the dataframe
-            except:
-                picklefile = open(sim_time_df_path, 'wb+')
-                sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'startup_time_ms', 'shutdown_time_ms', 'run_timestamp'])
-
+        sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
+        try:
+            picklefile = open(sim_time_df_path, 'rb+')
+            sim_time_df = pickle.load(picklefile)  #unpickle the dataframe
+        except:
             picklefile = open(sim_time_df_path, 'wb+')
-            sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records \
-                ([{"num_cars": self.vehicle_count, \
-                    "time_s": total_sim_time, \
-                    "startup_time_ms": self.debug_helper.startup_time_ms, \
-                    "shutdown_time_ms": self.debug_helper.shutdown_time_ms, \
-                    "run_timestamp": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
-                    ignore_index=True)
+            sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'startup_time_ms', 'shutdown_time_ms', 'run_timestamp'])
 
-            # pickle the dataFrame
-            pickle.dump(sim_time_df, picklefile)
-            print(sim_time_df)
-            #close file
-            picklefile.close()
+        picklefile = open(sim_time_df_path, 'wb+')
+        sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records \
+            ([{"num_cars": self.vehicle_count, \
+                "time_s": total_sim_time, \
+                "startup_time_ms": self.debug_helper.startup_time_ms, \
+                "shutdown_time_ms": self.debug_helper.shutdown_time_ms, \
+                "run_timestamp": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
+                ignore_index=True)
 
-            # plotting
-            figure = plt.figure()
+        # pickle the dataFrame
+        pickle.dump(sim_time_df, picklefile)
+        print(sim_time_df)
+        #close file
+        picklefile.close()
 
-            #plt.subplot(411)
-            #open_plt.draw_world_tick_time_profile_single_plot(world_tick_time_list)
+        # plotting
+        figure = plt.figure()
 
-            with open('velocity_list', 'w+') as f:
-                f.write(f'{self.debug_helper.client_velocity_dict}')
+        plt.subplot(411)
+        open_plt.draw_world_tick_time_profile_single_plot(world_tick_time_list)
 
-            plt.subplot(413)
-            open_plt.draw_deviation_from_target_velocity(self.debug_helper.client_velocity_dict)
-            all_vels = sum(self.debug_helper.client_velocity_dict.values(), [])
-            all_vels_flat = np.array(all_vels)
-            vel_mean = np.mean(all_vels_flat.flatten())
-            logger.info("Mean Velocity: %s", vel_mean)
+        
 
-            # plt.subplot(412)
-            # open_plt.draw_algorithm_time_profile_single_plot(algorithm_time_list)
+        # plt.subplot(412)
+        # open_plt.draw_algorithm_time_profile_single_plot(algorithm_time_list)
 
-            return figure, perform_txt
+        return figure, perform_txt
+
+    def evaluate_velocity_error(self):
+        with open('velocity_list', 'w+') as f:
+            f.write(f'{self.debug_helper.client_velocity_dict}')
+
+        plt.subplot(413)
+        open_plt.draw_deviation_from_target_velocity(self.debug_helper.client_velocity_dict)
+        all_vels = sum(self.debug_helper.client_velocity_dict.values(), [])
+        all_vels_flat = np.array(all_vels)
+        vel_mean = np.mean(all_vels_flat.flatten())
+        logger.info("Mean Velocity: %s", vel_mean)
 
     # END eCloud

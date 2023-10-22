@@ -49,14 +49,16 @@ def main():
     print("OpenCDA Version: %s" % __version__)
 
     try:
-        testing_scenario = importlib.import_module("opencda.scenario_testing.%s" % opt.test_scenario)
+        testing_scenario = importlib.import_module(f"opencda.scenario_testing.{opt.test_scenario}")
     except ModuleNotFoundError:
-        sys.exit("ERROR: %s.py not found under opencda/scenario_testing" % opt.test_scenario)
+        logger.exception('%s.py not found under opencda/scenario_testing', opt.test_scenario)
+        sys.exit(1) 
 
     config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                               'opencda/scenario_testing/config_yaml/%s.yaml' % opt.test_scenario)
+                               f'opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml')
     if not os.path.isfile(config_yaml):
-        sys.exit("opencda/scenario_testing/config_yaml/%s.yaml not found!" % opt.test_scenario)
+        logger.error("opencda/scenario_testing/config_yaml/%s.yaml not found!", opt.test_scenario)
+        sys.exit(1)
 
     # eCLoud
     if opt.build:
@@ -72,8 +74,8 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        logger.info('exited by user.')
+         logger.info('exited by user.')
     except SystemExit as exit:
-        logger.info('system exit - %s', exit)
+         logger.info('system exit - %s', exit)
     except:
         logger.exception('unhandled exception')

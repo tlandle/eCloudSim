@@ -117,11 +117,11 @@ edge_base: &edge_base
   change_leader_speed: true # whether to assign leader multiple speed to follow
   leader_speeds_profile: [ 85, 95 ] # different speed for leader to follow
   stage_duration: 10 # how long should the leader keeps in the current velocity stag
-  target_speed: 55 # kph
+  target_speed: 75 # kph
   num_lanes: 4
   edge_dt: 0.210 # must be an even multiple of world_dt
-  search_dt: 2.10
-  edge_sets_destination: true # otherwise, edge sets WP
+  search_dt: 0.630
+  edge_sets_destination: false # otherwise, edge sets WP
 
 # define the background traffic control by carla
 carla_traffic_manager:
@@ -139,17 +139,18 @@ carla_traffic_manager:
 
 # define scenario. In this scenario, a 4-vehicle platoon already exists.
 scenario:
+  verbose_updates: true
   ecloud: 
     location_type: explicit # random || explicit - edge scenarios require explicit (default)
     done_behavior: control # destroy || control
     step_count: 250
   edge_list:
     - <<: *edge_base
-      destination: [630, 131.39, 0.3] # shared by *all* vehicles when edge_sets_destination == true
+      destination: [-160, -15.79, 0.3] # shared by *all* vehicles when edge_sets_destination == true
       members:
         - <<: *vehicle_base
-          spawn_position: [-39.52, -22.79, 0.3, 0, 180, 0]
-          destination: [-147.759079, -22.39, 0]
+          spawn_position: [-45.52, -19.292, 0.3, 0, 180, 0]
+          destination: [-160, -15.79, 0.3]
           sensing:
             <<: *base_sensing
             perception:
@@ -172,8 +173,8 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [-39.52, -19.292, 0.3, 0, 180, 0]
-          destination: [-147.74, -18.89, 0]
+          spawn_position: [-39.52, -19.79, 0.3, 0, 180, 0]
+          destination: [-160, -15.79, 0.3]
           sensing:
             <<: *base_sensing
             perception:
@@ -196,8 +197,8 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [-39.52, -15.79, 0.3, 0, 180, 0]
-          destination: [-147.73, -15.79, 0]
+          spawn_position: [-45.52, -15.79, 0.3, 0, 180, 0]
+          destination: [-160, -15.79, 0.3]
           sensing:
             <<: *base_sensing
             perception:
@@ -220,8 +221,8 @@ scenario:
               debug_trajectory: true
               debug: false
         - <<: *vehicle_base
-          spawn_position: [-69.60, -12.29, 0.3, 0, 180, 0]
-          destination: [-147.72, -12.29, 0]
+          spawn_position: [-39.60, -15.29, 0.3, 0, 180, 0]
+          destination: [-160, -15.79, 0.3]
           sensing:
             <<: *base_sensing
             perception:
