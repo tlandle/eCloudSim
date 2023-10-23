@@ -88,9 +88,10 @@ class EvaluationManager(object):
             # save plotting
             figure_save_path = os.path.join(
                 self.eval_save_path,
-                '%d_kinematics_plotting.png' %
+                '%d_kinematics_plotting.eps' %
                 actor_id)
-            figure.savefig(figure_save_path, dpi=100)
+            figure.savefig(figure_save_path, format='eps', dpi=1200)
+
 
             lprint(log_file, perform_txt)
 
@@ -115,9 +116,10 @@ class EvaluationManager(object):
             # save plotting
             figure_save_path = os.path.join(
                 self.eval_save_path,
-                '%d_localization_plotting.png' %
+                '%d_localization_plotting.eps' %
                 actor_id)
-            figure.savefig(figure_save_path, dpi=100)
+            figure.savefig(figure_save_path, format='eps', dpi=1200)
+
 
             # save log txt
             lprint(log_file, perform_txt)
@@ -139,9 +141,10 @@ class EvaluationManager(object):
             # save plotting
             figure_save_path = os.path.join(
                 self.eval_save_path,
-                '%s_platoon_plotting.png' %
+                '%s_platoon_plotting.eps' %
                 pmid)
-            figure.savefig(figure_save_path, dpi=100)
+            figure.savefig(figure_save_path, format='eps', dpi=1200)
+
 
             # save log txt
             lprint(log_file, perform_txt)
@@ -163,9 +166,10 @@ class EvaluationManager(object):
             # save plotting
             figure_save_path = os.path.join(
                 self.eval_save_path,
-                '%s_edge_plotting.png' %
+                '%s_edge_plotting.eps' %
                 pmid)
-            figure.savefig(figure_save_path, dpi=100)
+            figure.savefig(figure_save_path, format='eps', dpi=1200)
+
 
             # save log txt
             lprint(log_file, perform_txt)
@@ -187,8 +191,8 @@ class EvaluationManager(object):
         # save plotting
         figure_save_path = os.path.join(
             self.eval_save_path,
-            'simulation_plotting.png')
-        figure.savefig(figure_save_path, dpi=100)
+            'simulation_plotting.eps')
+        figure.savefig(figure_save_path, format='eps', dpi=1200)
 
         # save log txt
         lprint(log_file, perform_txt)
