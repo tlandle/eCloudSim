@@ -9,25 +9,25 @@ class eLocationType(Enum):
 class eDoneBehavior(Enum):
     DESTROY = 0
     CONTROL = 1
-    COUNT = 2 
+    COUNT = 2
 
-class EcloudConfig(object):  
+class EcloudConfig(object):
 
     RANDOM = "random"
     EXPLICIT = "explicit"
     DESTROY = "destroy"
     CONTROL = "control"
 
-    location_types = { RANDOM : eLocationType.RANDOM, 
+    location_types = { RANDOM : eLocationType.RANDOM,
                        EXPLICIT : eLocationType.EXPLICIT }
-    
+
     done_behavior_types = { DESTROY : eDoneBehavior.DESTROY,
                             CONTROL : eDoneBehavior.CONTROL }
 
 
     def __init__(self, config_json, logger=None):
 
-        # logger.debug(f"main - test_scenario: {config_json}") # VERY verbose
+        # logger.debug("main - test_scenario: %s", config_json)
 
         self.config_json = config_json
         self.logger = logger if logger is not None else logging.getLogger(__name__)
@@ -50,9 +50,9 @@ class EcloudConfig(object):
         if 'ecloud' in config_json:
             self.logger.info("'ecloud' found in config_base")
             for k in self.ecloud_base.keys():
-                self.logger.info(f"looking for key {k} in config_base")
+                logger.info("looking for key %s in config_base", k)
                 if k in config_json['ecloud']:
-                    self.logger.debug(f"overriding base_config {k} with {config_json['ecloud'][k]}")
+                    logger.debug("overriding base_config %s with %s", k, config_json['ecloud'][k])
                     self.ecloud_base[k] = config_json['ecloud'][k]
         else:
             self.logger.info("'ecloud' not found in config_base")
@@ -60,52 +60,52 @@ class EcloudConfig(object):
         if 'ecloud' in config_json['scenario']:
             self.logger.info("'ecloud' found in config_scenario")
             for k in self.ecloud_scenario.keys():
-                self.logger.info(f"looking for key {k} in config_scenario")
+                logger.info("looking for key %s in config_scenario", k)
                 if k in config_json['scenario']['ecloud']:
-                    self.logger.debug(f"overriding scenario_config {k} with {config_json['scenario']['ecloud'][k]}")
-                    self.ecloud_scenario[k] = config_json['scenario']['ecloud'][k] 
+                    logger.debug("overriding scenario_config %s with %s", k, config_json['scenario']['ecloud'][k])
+                    self.ecloud_scenario[k] = config_json['scenario']['ecloud'][k]
         else:
             self.logger.info("'ecloud' not found in config_scenario")
 
-        return                       
-                
+        return
+
     def get_num_servers(self):
-        self.logger.debug(f"num_servers: {self.ecloud_base['num_servers']}")
+        self.logger.debug("num_servers: %s", self.ecloud_base['num_servers'])
         return self.ecloud_base['num_servers']
-    
+
     def get_num_ports(self):
-        self.logger.debug(f"num_ports: {self.ecloud_base['num_ports']}")
+        self.logger.debug("num_ports: %s", self.ecloud_base['num_ports'])
         return self.ecloud_base['num_ports']
-        
+
     def get_server_ping_time_s(self):
-        self.logger.debug(f"server_ping_time_s: {self.ecloud_base['server_ping_time_s']}")
-        return self.ecloud_base['server_ping_time_s']       
-    
+        self.logger.debug("server_ping_time_s: %s", self.ecloud_base['server_ping_time_s'])
+        return self.ecloud_base['server_ping_time_s']
+
     def get_client_tick_ping_time_s(self):
-        self.logger.debug(f"client_ping_tick_s: {self.ecloud_base['client_ping_tick_s']}")
-        return self.ecloud_base['client_ping_tick_s']  
+        self.logger.debug("client_ping_tick_s: %s", self.ecloud_base['client_ping_tick_s'])
+        return self.ecloud_base['client_ping_tick_s']
 
     def get_client_spawn_ping_time_s(self):
-        self.logger.debug(f"client_ping_spawn_s: {self.ecloud_base['client_ping_spawn_s']}")
-        return self.ecloud_base['client_ping_spawn_s']  
+        self.logger.debug("client_ping_spawn_s: %s", self.ecloud_base['client_ping_spawn_s'])
+        return self.ecloud_base['client_ping_spawn_s']
 
     def get_client_world_tick_factor(self):
-        self.logger.debug(f"client_world_time_factor: {self.ecloud_base['client_world_time_factor']}")
+        self.logger.debug("client_world_time_factor: %s", self.ecloud_base['client_world_time_factor'])
         return self.ecloud_base['client_world_time_factor']
-    
+
     def get_num_cars(self):
-        self.logger.debug(f"num_cars: {self.ecloud_scenario['num_cars'] if self.ecloud_scenario['num_cars'] != 0 else len(self.config_json['scenario']['single_cav_list'])}")
+        self.logger.debug("num_cars: %s", self.ecloud_scenario['num_cars'] if self.ecloud_scenario['num_cars'] != 0 else len(self.config_json['scenario']['single_cav_list']))
         return self.ecloud_scenario['num_cars'] if self.ecloud_scenario['num_cars'] != 0 else \
                 len(self.config_json['scenario']['single_cav_list'])
-    
+
     def get_location_type(self):
-        self.logger.debug(f"location_type: {self.ecloud_scenario['location_type']}")
+        self.logger.debug("location_type: %s", self.ecloud_scenario['location_type'])
         return EcloudConfig.location_types[self.ecloud_scenario['location_type']]
-    
+
     def get_done_behavior(self):
-        self.logger.debug(f"done_behavior: {self.ecloud_scenario['done_behavior']}")
+        self.logger.debug("done_behavior: %s", self.ecloud_scenario['done_behavior'])
         return EcloudConfig.done_behavior_types[self.ecloud_scenario['done_behavior']]
-    
+
     def get_step_count(self):
-        self.logger.debug(f"step_count: {self.ecloud_scenario['step_count']}")
+        self.logger.debug("step_count: %s", self.ecloud_scenario['step_count'])
         return self.ecloud_scenario['step_count']

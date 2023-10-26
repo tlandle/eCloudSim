@@ -8,6 +8,7 @@ Analysis + visualization functions for platooning
 from opencda.core.plan.planer_debug_helper \
     import PlanDebugHelper
 
+import ecloud_pb2 as ecloud
 
 class ClientDebugHelper(PlanDebugHelper):
     """This class aims to save statistics for client time
@@ -38,6 +39,9 @@ class ClientDebugHelper(PlanDebugHelper):
         self.controller_step_time_list = []
         self.vehicle_step_time_list = []
         self.control_time_list = []
+        self.timestamps_list = []
+        self.collisions_event_list = []
+        self.lane_invasions_list = []
 
         self.debug_data = {
             "client_control_time" : self.control_time_list,
@@ -50,6 +54,8 @@ class ClientDebugHelper(PlanDebugHelper):
             "client_controller_step_time_list" : self.controller_step_time_list,
             "client_vehicle_step_time_list" : self.vehicle_step_time_list,
             "client_control_time_list" : self.control_time_list,
+            "client_collisons_list" : self.collisions_event_list,
+            "client_lane_invasions_list" : self.lane_invasions_list,
         }
 
     def get_debug_data(self):
@@ -57,7 +63,7 @@ class ClientDebugHelper(PlanDebugHelper):
 
     def update_perception_time(self, tick_time_step=None):
         """
-        Update the platoon related vehicle information.
+        Update the client perception time
 
         Parameters
         ----------
@@ -67,7 +73,7 @@ class ClientDebugHelper(PlanDebugHelper):
 
     def update_localization_time(self, tick_time_step=None):
         """
-        Update the platoon related vehicle information.
+        Update the  client localization time
 
         Parameters
         ----------
@@ -77,7 +83,7 @@ class ClientDebugHelper(PlanDebugHelper):
 
     def update_update_info_time(self, time=None):
         """
-        Update the platoon related vehicle information.
+        Update the general client update time(consists of agent update and controller update)
 
         Parameters
         ----------
@@ -86,7 +92,7 @@ class ClientDebugHelper(PlanDebugHelper):
 
     def update_agent_update_info_time(self, time=None):
         """
-        Update the platoon related vehicle information.
+        Update the agent update time
 
         Parameters
         ----------
@@ -96,7 +102,7 @@ class ClientDebugHelper(PlanDebugHelper):
 
     def update_controller_update_info_time(self, time=None):
         """
-        Update the platoon related vehicle information.
+        Update the controller update time
 
         Parameters
         ----------
@@ -105,7 +111,7 @@ class ClientDebugHelper(PlanDebugHelper):
 
     def update_agent_step_time(self, time=None):
         """
-        Update the platoon related vehicle information.
+        Update the agent step time
 
         Parameters
         ----------
@@ -114,7 +120,7 @@ class ClientDebugHelper(PlanDebugHelper):
 
     def update_vehicle_step_time(self, time=None):
         """
-        Update the platoon related vehicle information.
+        Update the vehicle step time
 
         Parameters
         ----------
@@ -123,7 +129,7 @@ class ClientDebugHelper(PlanDebugHelper):
 
     def update_controller_step_time(self, time=None):
         """
-        Update the platoon related vehicle information.
+        Update the controller step time
 
         Parameters
         ----------
@@ -132,13 +138,29 @@ class ClientDebugHelper(PlanDebugHelper):
    
     def update_control_time(self, time=None):
         """
-        Update the platoon related vehicle information.
+        Update the client control time
 
         Parameters
         ----------
         """
         self.control_time_list.append(time)
 
+    def update_timestamp(self, timestamps: ecloud.Timestamps):
+        """
+        Update the client timestamps
+
+        Parameters
+        ----------
+        """
+        t = ecloud.Timestamps()
+        t.CopyFrom(timestamps)
+        self.timestamps_list.append(t)
+
+    def update_collision(self, collision_info=None):
+        self.collision_list.append(collision_info)
+
+    def update_lane_invasions(self, lane_invasion_info=None):
+        self.lane_invasion_list.append(lane_invasion_info)
 
     def serialize_debug_info(self, proto_debug_helper):
         # TODO: extend instead of append? or [:] = ?
@@ -169,6 +191,27 @@ class ClientDebugHelper(PlanDebugHelper):
 
         for obj in self.control_time_list:
             proto_debug_helper.control_time_list.append(obj)
+
+        for obj in self.timestamps_list:
+            t = ecloud.Timestamps()
+            t.CopyFrom(obj)
+            proto_debug_helper.timestamps_list.append(t)
+
+        for obj in self.collisions_event_list:
+            collision_event = ecloud.CollisionEvent()
+            collision_event.type_id = obj.get_dict()['type']
+            collision_event.other_actor_id = obj.get_dict()['id']
+            collision_event.location.x = obj.get_dict()['x']
+            collision_event.location.y = obj.get_dict()['y']
+            collision_event.location.z = obj.get_dict()['z']
+            proto_debug_helper.collisions_event_list.append(collision_event)
+
+        for obj in self.lane_invasions_list:
+            lane_invasion_event = ecloud.LaneInvasionEvent()
+            lane_invasion_event.location.x = obj.get_dict()['x']
+            lane_invasion_event.location.y = obj.get_dict()['y']
+            lane_invasion_event.location.z = obj.get_dict()['z']
+            proto_debug_helper.lane_invasions_list.append(obj)
 
 
     def deserialize_debug_info(self, proto_debug_helper):
@@ -209,4 +252,31 @@ class ClientDebugHelper(PlanDebugHelper):
         self.control_time_list.clear()
         for obj in proto_debug_helper.control_time_list:
             self.control_time_list.append(obj)
-  
+
+        self.timestamps_list.clear()
+        for obj in proto_debug_helper.timestamps_list:
+            t = ecloud.Timestamps()
+            t.CopyFrom(obj)
+            self.timestamps_list.append(t)
+ 
+        self.collisions_event_list.clear()
+        for obj in proto_debug_helper.collisions_event_list:
+            collision_event = TrafficEvent()
+            collision_event.set_dict({
+              'type': obj.type_id,
+              'id': obj.other_actor_id,
+              'x': obj.location.x,
+              'y': obj.location.y,
+              'z': obj.location.z})
+            self.collisions_event_list.append(collision_event)
+
+        self.lane_invasions_list.clear()
+        for obj in proto_debug_helper.lane_invasions_list:
+            lane_invasion_event = TrafficEvent()
+            lane_invasion_event.set_dict({
+              'x': obj.actor_location.x,
+              'y': obj.actor_location.y,
+              'z': obj.actor_location.z})
+
+            self.lane_invasions_list.append(lane_invasion_event)
+ 

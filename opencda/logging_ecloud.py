@@ -1,3 +1,5 @@
+
+
 import logging
 from datetime import datetime
 import os
@@ -5,7 +7,7 @@ from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
 if not os.path.exists('log'):
    os.makedirs('log')
-   
+
 LOG_FILENAME = datetime.now().strftime('log/logfile_%Y_%m_%d_%H_%M_%S.log')
 WAYPOINTS_FILENAME = datetime.now().strftime('log/waypoints_%Y_%m_%d_%H_%M_%S.log')
 
@@ -24,7 +26,7 @@ elif cloud_config["log_level"] == "info":
 # for handler in logging.root.handlers[:]:
 #     logging.root.removeHandler(handler)
 
-# logging.basicConfig(filename=LOG_FILENAME,level=logging.DEBUG)  
+# logging.basicConfig(filename=LOG_FILENAME,level=logging.DEBUG)
 
 fh = logging.FileHandler(LOG_FILENAME)
 fh.setLevel(logging.DEBUG)

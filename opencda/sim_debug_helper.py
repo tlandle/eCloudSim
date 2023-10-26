@@ -32,48 +32,39 @@ class SimDebugHelper(PlanDebugHelper):
         self.world_tick_time_list = [[]]
         self.client_tick_time_list = [[]]
         self.sim_start_timestamp = None
+        self.startup_time_ms = 0
+        self.shutdown_time_ms = 0
         self.network_time_dict = {}
-        self.client_tick_time_dict = {}   
+        self.client_tick_time_dict = {}
+        self.network_time_dict_per_client = {}
+        self.client_tick_time_dict_per_client = {}   
         self.idle_time_dict = {}
         self.client_process_time_dict = {}    
 
     def update_world_tick(self, tick_time_step=None):
-        """
-        Update the platoon related vehicle information.
-
-        Parameters
-        ----------
-        """
         self.world_tick_time_list[0].append(tick_time_step)
-    
 
     def update_client_tick(self, tick_time_step=None):
-        """
-        Update the platoon related vehicle information.
-
-        Parameters
-        ----------
-        """
         self.client_tick_time_list[0].append(tick_time_step)
 
-    def update_individual_client_step_time(self, vehicle_index, tick_time_step=None):
-        if vehicle_index not in self.client_tick_time_dict:
-          self.client_tick_time_dict[vehicle_index] = []
-        self.client_tick_time_dict[vehicle_index].append(tick_time_step)
+    def update_overall_step_time_timestamp(self, tick_id: int, overall_step_time_ms):
+        self.client_tick_time_dict[tick_id] = overall_step_time_ms
 
     def update_sim_start_timestamp(self, timestamp=None):
-        """
-        Update the platoon related vehicle information.
-
-        Parameters
-        ----------
-        """
         self.sim_start_timestamp = timestamp
 
-    def update_network_time_timestamp(self, vehicle_index, time_step=None):
-        if vehicle_index not in self.network_time_dict:
-          self.network_time_dict[vehicle_index] = []
-        self.network_time_dict[vehicle_index].append(time_step)
+    def update_network_time_timestamp(self, tick_id: int, network_time_ms=None):
+        self.network_time_dict[tick_id] = network_time_ms
+
+    def update_network_time_per_client_timestamp(self, vehicle_index, time_step=None):
+        if vehicle_index not in self.network_time_dict_per_client:
+          self.network_time_dict_per_client[vehicle_index] = []
+        self.network_time_dict_per_client[vehicle_index].append(time_step)
+
+    def update_overall_step_time_per_client_timestamp(self, vehicle_index, time_step=None):
+        if vehicle_index not in self.client_tick_time_dict_per_client:
+          self.client_tick_time_dict_per_client[vehicle_index] = []
+        self.client_tick_time_dict_per_client[vehicle_index].append(time_step)
 
     def update_idle_time_timestamp(self, vehicle_index, time_step=None):
         if vehicle_index not in self.idle_time_dict:
@@ -84,3 +75,4 @@ class SimDebugHelper(PlanDebugHelper):
         if vehicle_index not in self.client_process_time_dict:
           self.client_process_time_dict[vehicle_index] = []
         self.client_process_time_dict[vehicle_index].append(time_step)
+        

@@ -200,13 +200,13 @@ class LocalPlanner(object):
             waypoint.transform.location,
             self._ego_pos.location, self._ego_pos.rotation.yaw)
 
-        logger.debug(f"LOCAL_PLANNER - angle: {angle}")
+        logger.debug("LOCAL_PLANNER - angle: %s", angle)
 
         if angle > 90:
             logger.error('invalid waypoint!')
             return False
 
-        return True    
+        return True
 
     def get_waypoints_queue(self):
         """
@@ -255,8 +255,8 @@ class LocalPlanner(object):
         x = []
         y = []
 
-        #logger.debug(f"waypoints_queue: {len(self.waypoints_queue)}")
-        #logger.debug(f"_waypoints_buffer: {len(self._waypoint_buffer)}")
+        #logger.debug("waypoints_queue: %s", len(self.waypoints_queue))
+        #logger.debug("_waypoints_buffer: %s", len(self._waypoint_buffer))
 
         # pop out the waypoints that may damage driving performance
         self.buffer_filter()
@@ -320,7 +320,7 @@ class LocalPlanner(object):
             if self.potential_curved_road:
                 x.append(prev_wpt.x)
                 y.append(prev_wpt.y)
-                index += 1      
+                index += 1
 
         # to make sure the vehicle is stable during lane change, we don't
         # include any current position
@@ -371,12 +371,12 @@ class LocalPlanner(object):
         #start_time = time.time()
         sp = Spline2D(x, y)
         #end_time = time.time()
-        #logger.debug(f"Spline2D: {(end_time - start_time)*1000} | len(x): {len(x)} & len(y): {len(y)}")
+        #logger.debug("Spline2D: %s | len(x): %s & len(y): %s", (end_time - start_time)*1000, len(x), len(y))
 
         diff_x = current_location.x - sp.sx.y[0]
         diff_y = current_location.y - sp.sy.y[0]
         diff_s = np.hypot(diff_x, diff_y)
-        
+
         # we only need the interpolation points after current position
         s = np.arange(diff_s, sp.s[-1], ds)
 
@@ -395,7 +395,7 @@ class LocalPlanner(object):
             rk.append(max(min(sp.calc_curvature(i_s), 0.2), -0.2))
             ryaw.append(sp.calc_yaw(i_s))
         #end_time = time.time()
-        #logger.debug(f"interpolate: {(end_time - start_time)*1000}")
+        #logger.debug("interpolate: %s", (end_time - start_time)*1000)
 
         return rx, ry, rk, ryaw
 
@@ -498,7 +498,7 @@ class LocalPlanner(object):
                 waypoint.transform.location,
                 self._ego_pos.location, self._ego_pos.rotation.yaw)
 
-            logger.debug(f"LOCAL_PLANNER: buffer_filter() angle: {angle}")
+            logger.debug("LOCAL_PLANNER: buffer_filter() angle: %s", angle)
 
             if angle > 90:
                 logger.error('delete waypoint!')
@@ -525,7 +525,7 @@ class LocalPlanner(object):
     def pop_buffer(self, vehicle_transform):
         """
         Remove waypoints the ego vehicle has achieved.
-        
+
         Parameters
         ----------
         vehicle_transform : carla.position

@@ -2,6 +2,7 @@
 """
 Basic class of CAV
 """
+# Author: Tyler Landle <tlandle3@gatech.edu>, Jordan Rapp <jrapp7@gatech.edu>
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
@@ -33,6 +34,7 @@ from opencda.core.common.misc import compute_distance
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from opencda.client_debug_helper import ClientDebugHelper
 from opencda.core.common.ecloud_config import eLocationType
+from opencda.core.common.traffic_event import TrafficEvent
 
 import coloredlogs, logging
 logger = logging.getLogger(__name__)
@@ -42,6 +44,13 @@ cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
 MIN_DESTINATION_DISTANCE_M = 500 # TODO: config?
 COLLISION_ERROR = "Spawn failed because of collision at spawn position"
+
+if cloud_config["log_level"] == "error":
+    logger.setLevel(logging.ERROR)
+elif cloud_config["log_level"] == "warning":
+    logger.setLevel(logging.WARNING)
+elif cloud_config["log_level"] == "info":
+    logger.setLevel(logging.INFO)
 
 class VehicleManager(object):
     """
@@ -107,7 +116,8 @@ class VehicleManager(object):
             location_type=eLocationType.EXPLICIT,
             run_distributed=False,
             map_helper=None,
-            is_edge=False):
+            is_edge=False,
+            perception_active=False):
 
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
@@ -117,12 +127,13 @@ class VehicleManager(object):
         self.run_distributed = run_distributed
         self.scenario_params = config_yaml
         self.carla_version = carla_version
+        self.perception_active = perception_active
 
         # set random seed if stated
         seed = time.time()
         if 'seed' in config_yaml['world']:
             seed = config_yaml['world']['seed']
-        
+
         if self.location_type == eLocationType.RANDOM:
             assert( 'seed' in config_yaml['world'] )
             seed = seed + self.vehicle_index # speeds up finding a start because we don't get a guaranteed collision with the same seed so every vehicle will at least try a different spawn point to start
@@ -141,7 +152,7 @@ class VehicleManager(object):
             assert( carla_world is not None )
             self.world = carla_world
             self.carla_map = carla_map
-            
+
         # eCLOUD BEGIN
 
         else: # run_distributed == True
@@ -153,7 +164,7 @@ class VehicleManager(object):
             # helper to transfer to spawn transform
             if is_edge:
                 assert('edge_list' in self.scenario_params['scenario'])
-                # TODO: support multiple edges... 
+                # TODO: support multiple edges...
                 cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
                 logger.debug(cav_config)
                 edge_sets_destination = self.scenario_params['scenario']['edge_list'][0]['edge_sets_destination'] \
@@ -161,7 +172,7 @@ class VehicleManager(object):
 
             else:
                 assert(False, "no known vehicle indexing format found")
-            
+
         spawned = False
         while not spawned:
             try:
@@ -177,14 +188,14 @@ class VehicleManager(object):
                     carla.Rotation(
                         pitch=cav_config['spawn_position'][5],
                         yaw=cav_config['spawn_position'][4],
-                        roll=cav_config['spawn_position'][3]))  
+                        roll=cav_config['spawn_position'][3]))
 
                     self.destination = {}
                     if edge_sets_destination:
                         self.destination['x'] = self.scenario_params['scenario']['edge_list'][0]['destination'][0]
                         self.destination['y'] = self.scenario_params['scenario']['edge_list'][0]['destination'][1]
                         self.destination['z'] = self.scenario_params['scenario']['edge_list'][0]['destination'][2]
-                    else:    
+                    else:
                         self.destination['x'] = cav_config['destination'][0]
                         self.destination['y'] = cav_config['destination'][1]
                         self.destination['z'] = cav_config['destination'][2]
@@ -192,8 +203,8 @@ class VehicleManager(object):
                     self.destination_location = carla.Location(
                             x=self.destination['x'],
                             y=self.destination['y'],
-                            z=self.destination['z'])  
-                    
+                            z=self.destination['z'])
+
                 elif location_type == eLocationType.RANDOM:
                     spawn_points = self.world.get_map().get_spawn_points()
                     self.spawn_transform = spawn_points[random.randint(0, len(spawn_points) - 1)]
@@ -201,7 +212,7 @@ class VehicleManager(object):
                             x=self.spawn_transform.location.x,
                             y=self.spawn_transform.location.y,
                             z=self.spawn_transform.location.z)
-                
+
                 # By default, we use lincoln as our cav model.
                 default_model = 'vehicle.lincoln.mkz2017' \
                     if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
@@ -210,13 +221,13 @@ class VehicleManager(object):
                 cav_vehicle_bp.set_attribute('color', '0, 0, 255')
                 self.vehicle = self.world.spawn_actor(cav_vehicle_bp, self.spawn_transform)
 
-                logger.debug(f"spawned @ {self.spawn_transform}")
+                logger.debug("spawned @ %s", self.spawn_transform)
 
                 if location_type == eLocationType.RANDOM:
                     dist = 0
                     min_dist = MIN_DESTINATION_DISTANCE_M
                     count = 0
-                    while dist < min_dist: 
+                    while dist < min_dist:
                         destination_transform = spawn_points[random.randint(0, len(spawn_points) - 1)]
                         destination_location = carla.Location(
                             x=destination_transform.location.x,
@@ -227,28 +238,28 @@ class VehicleManager(object):
                         if count % 10 == 0:
                             min_dist = min_dist / 2
 
-                    logger.debug(f"it took {count} tries to find a destination that's {int(dist)}m away")
-                    self.destination_location = destination_location    
+                    logger.debug("it took %s tries to find a destination that's %sm away", count, int(dist))
+                    self.destination_location = destination_location
                     self.destination = {}
                     self.destination['x'] = destination_location.x
                     self.destination['y'] = destination_location.y
                     self.destination['z'] = destination_location.z
 
-                logger.debug(f"set destination to {self.destination}")
+                logger.debug("set destination to %s", self.destination)
 
                 spawned = True
-            
+
             except Exception as e:
                 if COLLISION_ERROR not in f'{e}':
                     raise
-                
+
                 continue
 
         # teleport vehicle to desired spawn point
         # self.vehicle.set_transform(spawn_transform)
         # self.world.tick()
 
-        # eCLOUD END    
+        # eCLOUD END
 
         self.debug_helper = ClientDebugHelper(0)
         # retrieve the configure for different modules
@@ -259,13 +270,20 @@ class VehicleManager(object):
 
         # v2x module
         self.v2x_manager = V2XManager(cav_world, v2x_config, self.vid)
+        logger.debug("V2XManager created")
+        
         # localization module
         self.localizer = LocalizationManager(
             self.vehicle, sensing_config['localization'], self.carla_map)
+        logger.debug("LocalizationManager created")
+        
         # perception module
+        assert self.perception_active and sensing_config['perception']['activate'] or \
+                not self.perception_active
         self.perception_manager = PerceptionManager(
             self.vehicle, sensing_config['perception'], cav_world,
             data_dumping)
+        logger.debug("PerceptionManager created")
 
         # behavior agent
         self.agent = None
@@ -280,9 +298,20 @@ class VehicleManager(object):
                 self.carla_map)
         else:
             self.agent = BehaviorAgent(self.vehicle, self.carla_map, behavior_config, is_dist=self.run_distributed)
+            logger.debug("BehaviorAgent created")
 
         # Control module
         self.controller = ControlManager(control_config)
+        logger.debug("ControlManager created")
+
+        # Stats Gathering
+        blueprint = self.world.get_blueprint_library().find('sensor.other.collision')
+        self._collision_sensor = self.world.spawn_actor(blueprint, carla.Transform(), attach_to=self.vehicle)
+        self._collision_sensor.listen(lambda event: self._count_collisions(weakref.ref(self), event))
+
+        blueprint = self.world.get_blueprint_library().find('sensor.other.lane_invasion')
+        self._lane_sensor = self.world.spawn_actor(blueprint, carla.Transform(), attach_to=self.vehicle)
+        self._lane_sensor.listen(lambda event: self._count_lane_invasion(weakref.ref(self), event))
 
         if data_dumping:
             self.data_dumper = DataDumper(self.perception_manager,
@@ -292,6 +321,77 @@ class VehicleManager(object):
             self.data_dumper = None
 
         cav_world.update_vehicle_manager(self)
+        logger.debug("VehicleManager __init__ complete")
+
+    
+    @staticmethod
+    def _count_lane_invasion(weak_self, event):
+        """
+        Callback to update lane invasion count
+        """
+        print("lane Invasion") 
+        self = weak_self()
+        if not self:
+            return
+
+
+        print("LAne Invasion")
+        actor_location = self.vehicle.get_location()
+
+        lane_invasion_event = TrafficEvent(event_type=actor_type)
+        lane_invasion_event.set_dict({
+            'x': actor_location.x,
+            'y': actor_location.y,
+            'z': actor_location.z})
+
+        self.debug_helper.update_lane_invasions(lane_invasion_event)
+
+    @staticmethod
+    def _count_collisions(weak_self, event):
+        """
+        Callback to update collision count
+        """
+
+        print("Collision\n")
+        exit(1)
+
+        self = weak_self()
+        if not self:
+            return
+
+        
+        actor_location = self.vehicle.get_location()
+
+        if ('static' in event.other_actor.type_id or 'traffic' in event.other_actor.type_id) \
+                and 'sidewalk' not in event.other_actor.type_id:
+            actor_type = TrafficEventType.COLLISION_STATIC
+        elif 'vehicle' in event.other_actor.type_id:
+            actor_type = TrafficEventType.COLLISION_VEHICLE
+        elif 'walker' in event.other_actor.type_id:
+            actor_type = TrafficEventType.COLLISION_PEDESTRIAN
+        else:
+            return
+
+        collision_event = TrafficEvent(event_type=actor_type)
+        collision_event.set_dict({
+            'type': event.other_actor.type_id,
+            'id': event.other_actor.id,
+            'x': actor_location.x,
+            'y': actor_location.y,
+            'z': actor_location.z})
+        collision_event.set_message(
+            "Agent collided against object with type={} and id={} at (x={}, y={}, z={})".format(
+                event.other_actor.type_id,
+                event.other_actor.id,
+                round(actor_location.x, 3),
+                round(actor_location.y, 3),
+                round(actor_location.z, 3)))
+
+        self.debug_helper.update_collision(collision_event)
+
+        # Number 0: static objects -> ignore it
+        if event.other_actor.id != 0:
+            self.last_id = event.other_actor.id
 
     def is_close_to_scenario_destination(self):
         """
@@ -359,14 +459,14 @@ class VehicleManager(object):
         ego_pos = self.localizer.get_ego_pos()
         ego_spd = self.localizer.get_ego_spd()
         end_time = time.time()
-        logging.debug("Localizer time: %s" %(end_time - start_time)) 
+        logger.debug("Localizer time: %s" %(end_time - start_time))
         self.debug_helper.update_localization_time((end_time-start_time)*1000)
 
         # object detection
         start_time = time.time()
         objects = self.perception_manager.detect(ego_pos)
         end_time = time.time()
-        logging.debug("Perception time: %s" %(end_time - start_time))
+        logger.debug("Perception time: %s" %(end_time - start_time))
         self.debug_helper.update_perception_time((end_time-start_time)*1000)
 
         # update ego position and speed to v2x manager,
@@ -374,19 +474,19 @@ class VehicleManager(object):
         start_time = time.time()
         self.v2x_manager.update_info(ego_pos, ego_spd)
         end_time = time.time()
-        logging.debug("v2x manager update info time: %s" %(end_time - start_time)) 
+        logger.debug("v2x manager update info time: %s" %(end_time - start_time))
 
         start_time = time.time()
         self.agent.update_information(ego_pos, ego_spd, objects)
         end_time = time.time()
-        logging.debug("Agent Update info time: %s" %(end_time - start_time))
+        logger.debug("Agent Update info time: %s" %(end_time - start_time))
         self.debug_helper.update_agent_update_info_time((end_time-start_time)*1000)
 
         # pass position and speed info to controller
         start_time = time.time()
         self.controller.update_info(ego_pos, ego_spd)
         end_time = time.time()
-        logging.debug("Controller update time: %s" %(end_time - start_time))
+        logger.debug("Controller update time: %s" %(end_time - start_time))
         self.debug_helper.update_controller_update_info_time((end_time-start_time)*1000)
 
     def run_step(self, target_speed=None):
@@ -403,21 +503,21 @@ class VehicleManager(object):
         try:
             target_speed, target_pos = self.agent.run_step(target_speed)
         except Exception as e:
-            logger.error(f"can't successfully _trace_route; setting to done.")
+            logger.warning("can't successfully complete agent.run_step; setting to done.")
             target_speed = 0
             ego_pos = self.localizer.get_ego_pos()
-            target_pos = ego_pos.location    
+            target_pos = ego_pos.location
         end_time = time.time()
-        logging.debug("Agent step time: %s" %(end_time - pre_vehicle_step_time))
+        logger.debug("Agent step time: %s" %(end_time - pre_vehicle_step_time))
 
         control = self.controller.run_step(target_speed, target_pos)
         post_vehicle_step_time = time.time()
-        logging.debug("Controller step time: %s" %(post_vehicle_step_time - end_time))
-        logging.debug("Vehicle step time: %s" %(post_vehicle_step_time - pre_vehicle_step_time))
+        logger.debug("Controller step time: %s" %(post_vehicle_step_time - end_time))
+        logger.debug("Vehicle step time: %s" %(post_vehicle_step_time - pre_vehicle_step_time))
         self.debug_helper.update_controller_step_time((post_vehicle_step_time - end_time)*1000)
         self.debug_helper.update_vehicle_step_time((post_vehicle_step_time - pre_vehicle_step_time)*1000)
-        self.debug_helper.update_agent_step_time((end_time - pre_vehicle_step_time)*1000)        
- 
+        self.debug_helper.update_agent_step_time((end_time - pre_vehicle_step_time)*1000)
+
         # dump data
         if self.data_dumper:
             self.data_dumper.run_step(self.perception_manager,

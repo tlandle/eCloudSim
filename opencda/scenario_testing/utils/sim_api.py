@@ -83,6 +83,8 @@ elif cloud_config["log_level"] == "info":
 
 TIMEOUT_S = 10
 TIMEOUT_MS = TIMEOUT_S * 1000
+NSEC_TO_MSEC = 1/1000000
+ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 
 def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
     """
@@ -205,18 +207,52 @@ class ScenarioManager:
     scenario = None
     ecloud_server = None
     is_edge = False
+    vehicle_state = ecloud.VehicleState.REGISTERING
 
     debug_helper = SimDebugHelper(0)
-
+    sm_start_tstamp = Timestamp()
     SPECTATOR_INDEX = 0
 
     async def server_unpack_debug_data(self, stub_):
-        ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
-        for vehicle_update in ecloud_update.vehicle_update:
+        logger.info("fetching vehicle updates")
+        vehicle_updates_list = []
+        while True:
+            ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
+            if len(ecloud_update.vehicle_update) == 0:
+                break
+            for v in ecloud_update.vehicle_update:
+                u = ecloud.VehicleUpdate()
+                u.CopyFrom(v)
+                vehicle_updates_list.append(u)
+            await asyncio.sleep(0.1)
+        #logger.debug("%s", ecloud_update)
+        for vehicle_update in vehicle_updates_list:
             vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
             vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( vehicle_update.loc_debug_helper )
             vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( vehicle_update.planer_debug_helper )
             vehicle_manager_proxy.debug_helper.deserialize_debug_info(vehicle_update.client_debug_helper)
+
+            latencies_by_tick = self.debug_helper.network_time_dict
+            overall_steps_by_tick = self.debug_helper.client_tick_time_dict
+            for timestamps in vehicle_manager_proxy.debug_helper.timestamps_list:
+                if timestamps.tick_id in overall_steps_by_tick:
+                    assert timestamps.tick_id in latencies_by_tick
+                    client_process_time_ms = (timestamps.client_end_tstamp.ToNanoseconds() - timestamps.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
+                    idle_time_ms = overall_steps_by_tick[timestamps.tick_id] - latencies_by_tick[timestamps.tick_id] - client_process_time_ms # inferred rather than actual "idle" time
+                    #if idle_time_ms < 0:
+                    #    logger.warning("got a NEGATIVE inferred idle_time value of %sms for vehicle %s", round(idle_time_ms, 2), v.vehicle_index)
+                    #idle_time_ms = idle_time_ms if idle_time_ms > 0 else 0 # TODO: confirm if we wantt to do this?
+                    logger.debug("timestamps: client_end - %s client_start - %s", timestamps.client_end_tstamp.ToDatetime().time(), timestamps.client_start_tstamp.ToDatetime().time())
+                    logger.info('client process time: %sms', round(client_process_time_ms, 2))
+                    logger.info('idle time: %sms', round(idle_time_ms, 2))
+                    self.debug_helper.update_idle_time_timestamp(vehicle_manager_proxy.vehicle_index, idle_time_ms) # this inferred
+                    self.debug_helper.update_client_process_time_timestamp(vehicle_manager_proxy.vehicle_index, client_process_time_ms) # how long client actually was active
+
+                    # dupe the data since it makes evaluation simpler
+                    self.debug_helper.update_network_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, latencies_by_tick[timestamps.tick_id])
+                    self.debug_helper.update_overall_step_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, overall_steps_by_tick[timestamps.tick_id])
+
+                    logger.debug("updated time stamp data for vehicle %s", vehicle_manager_proxy.vehicle_index)
 
     async def server_unpack_vehicle_updates(self, stub_):
         logger.debug("getting vehicle updates")
@@ -248,7 +284,7 @@ class ScenarioManager:
                     vehicle_manager_proxy.vehicle.set_velocity(v)
                     vehicle_manager_proxy.vehicle.set_transform(t)
         except Exception as e:
-            logger.error(f'{e} \n {vehicle_update}')
+            logger.error('%s \n %s', e, vehicle_update)
             raise
         logger.debug("vehicle updates unpacked")
 
@@ -265,27 +301,16 @@ class ScenarioManager:
         snapshot_t = time.time_ns()
         self.push_q.task_done()
 
-        NSEC_TO_MSEC = 1/1000000
-        logger.debug(f"unpacking timestamp data: {tick.timestamps}")
-        overall_step_time_ms = ( snapshot_t - tick.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC # barrier sync means this is the same for ALL vehicles per tick
+        # the first tick time is dramatically slower due to startup, so we don't want it to skew runtime data
+        if self.tick_id == 1:
+            self.debug_helper.startup_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC
+            return empty
+
+        overall_step_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC # barrier sync means this is the same for ALL vehicles per tick
         step_latency_ms = overall_step_time_ms - ( tick.last_client_duration_ns * NSEC_TO_MSEC ) # we care about the worst case per tick - how much did we affect the final vehicle to report. This captures both delay in getting that vehicle started and in it reporting its completion
-        logger.debug(f"timestamps: overall_step_time_ms - {round(overall_step_time_ms, 2)}ms | step_latency_ms - {round(step_latency_ms, 2)}ms")
-        for v in tick.timestamps:
-            client_process_time_ms = (v.client_end_tstamp.ToNanoseconds() - v.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
-            idle_time_ms = overall_step_time_ms - step_latency_ms - client_process_time_ms # inferred rather than actual "idle" time
-            #if idle_time_ms < 0:
-            #    logger.warning(f"got a NEGATIVE inferred idle_time value of {round(idle_time_ms, 2)}ms for vehicle {v.vehicle_index}")
-            #idle_time_ms = idle_time_ms if idle_time_ms > 0 else 0 # TODO: confirm if we wantt to do this?
-            logger.debug(f"timestamps: client_end - {v.client_end_tstamp.ToDatetime().time()} client_start - {v.client_start_tstamp.ToDatetime().time()}")
-            logger.info(f'client process time: {round(client_process_time_ms, 2)}ms')
-            logger.info(f'idle time: {round(idle_time_ms, 2)}ms')
-
-            ScenarioManager.debug_helper.update_network_time_timestamp(v.vehicle_index, step_latency_ms) # same for all vehicles *per tick*
-            ScenarioManager.debug_helper.update_individual_client_step_time(v.vehicle_index, overall_step_time_ms) # barrier sync means it's not actually individual
-            ScenarioManager.debug_helper.update_idle_time_timestamp(v.vehicle_index, idle_time_ms) # this inferred
-            ScenarioManager.debug_helper.update_client_process_time_timestamp(v.vehicle_index, client_process_time_ms) # how long client actually was active
-
-            logger.debug(f"updated time stamp data for vehicle {v.vehicle_index}")
+        logger.info("timestamps: overall_step_time_ms - %sms | step_latency_ms - %sms", round(overall_step_time_ms, 2), round(step_latency_ms, 2))
+        self.debug_helper.update_network_time_timestamp(tick.tick_id, step_latency_ms) # same for all vehicles *per tick*
+        self.debug_helper.update_overall_step_time_timestamp(tick.tick_id, overall_step_time_ms)
 
         if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
             await self.server_unpack_debug_data(stub_)
@@ -299,17 +324,18 @@ class ScenarioManager:
         await stub_.Server_StartScenario(update_)
 
         print(f"pushed scenario start")
-        print("start vehicle containers")
+        print(f"start {self.vehicle_count} vehicle containers")
 
         assert(self.push_q.empty())
         await self.push_q.get()
         self.push_q.task_done()
 
-        logger.info(f"vehicle registration complete")
+        logger.info("vehicle registration complete")
 
         response = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
 
-        logger.info(f"vehicle registration data received")
+        logger.info("vehicle registration data received")
+
 
         return response
 
@@ -331,6 +357,7 @@ class ScenarioManager:
 
         self.config_file = config_file
         self.ecloud_config = EcloudConfig(load_yaml(self.config_file), logger)
+        self.sm_start_tstamp.GetCurrentTime()
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.perception = scenario_params['perception_active'] if 'perception_active' in scenario_params else False
@@ -347,11 +374,11 @@ class ScenarioManager:
                 if e.returncode > 1:
                     raise
                 ecloud_pid = None
-            if ecloud_pid != None:
-                logger.info(f'killing exiting ecloud gRPC server process')
+            if ecloud_pid is not None:
+                logger.info('killing existing ecloud gRPC server process')
                 subprocess.run(['pkill','-9','ecloud_server'])
 
-            self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}',f'--num_ports={self.ecloud_config.get_num_ports()}'], stderr=sys.stdout.buffer)
+            self.ecloud_server_process = subprocess.Popen(['./opencda/ecloud_server/ecloud_server',f'--minloglevel={server_log_level}'], stderr=sys.stdout.buffer)
 
         cav_world.update_scenario_manager(self)
 
@@ -407,7 +434,7 @@ class ScenarioManager:
         if 'ecloud' in scenario_params['scenario'] and 'num_cars' in scenario_params['scenario']['ecloud']:
             assert('edge_list' not in scenario_params['scenario']) # edge requires explicit
             self.vehicle_count = scenario_params['scenario']['ecloud']['num_cars']
-            logger.debug(f"'ecloud' in YAML specified {self.vehicle_count} cars")
+            logger.debug("'ecloud' in YAML specified %s cars", self.vehicle_count)
 
         elif 'single_cav_list' in scenario_params['scenario']:
             self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
@@ -435,15 +462,15 @@ class ScenarioManager:
             )
             self.ecloud_server = ecloud_rpc.EcloudStub(channel)
 
-            ScenarioManager.debug_helper.update_sim_start_timestamp(time.time())
+            self.debug_helper.update_sim_start_timestamp(time.time())
 
-            self.scenario = json.dumps(scenario_params) #self.config_file
+            self.scenario = json.dumps(scenario_params)
             self.carla_version = self.carla_version
 
         # eCLOUD END
 
         else: # sequential
-            ScenarioManager.debug_helper.update_sim_start_timestamp(time.time())
+            self.debug_helper.update_sim_start_timestamp(time.time())
 
     async def run_comms(self):
         self.push_q = asyncio.Queue()
@@ -451,7 +478,7 @@ class ScenarioManager:
         #self.push_server = threading.Thread(target=ecloud_run_push_server, args=(ECLOUD_PUSH_API_PORT, self.push_q,))
         #self.push_server.start()
 
-        await asyncio.sleep(1)
+        await asyncio.sleep(1) # this yields CPU to allow the PushServer to start
 
         server_request = ecloud.SimulationInfo()
         server_request.test_scenario = self.scenario
@@ -525,7 +552,8 @@ class ScenarioManager:
                 carla_map=self.carla_map, cav_world=self.cav_world,
                 current_time=self.scenario_params['current_time'],
                 data_dumping=data_dump, map_helper=map_helper,
-                location_type=self.ecloud_config.get_location_type())
+                location_type=self.ecloud_config.get_location_type(),
+                perception_active=self.apply_ml)
 
             self.world.tick()
 
@@ -599,7 +627,8 @@ class ScenarioManager:
                     vehicle, cav, ['platooning'],
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
-                    data_dumping=data_dump)
+                    data_dumping=data_dump,
+                    perception_active=self.apply_ml)
 
                 # add the vehicle manager to platoon
                 if j == 0:
@@ -837,7 +866,7 @@ class ScenarioManager:
             sys.exit(0)
 
         self.world.apply_settings(self.origin_settings)
-        logger.debug(f"world state restored...")
+        logger.debug("world state restored...")
 
     # END Core OpenCDA
 
@@ -872,7 +901,7 @@ class ScenarioManager:
 
         config_yaml = load_yaml(self.config_file)
         for vehicle_index in range(self.vehicle_count):
-            logger.debug(f"Creating VehiceManagerProxy for vehicle {vehicle_index}")
+            logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)
 
             # create vehicle manager for each cav
             vehicle_manager_proxy = VehicleManagerProxy(
@@ -933,7 +962,7 @@ class ScenarioManager:
             edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt)
             for vehicle_index, cav in enumerate(edge['members']):
 
-                logger.debug(f"Creating VehiceManagerProxy for vehicle {vehicle_index}")
+                logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)
 
                 # create vehicle manager for each cav
                 vehicle_manager = VehicleManagerProxy(
@@ -948,14 +977,7 @@ class ScenarioManager:
                 # send gRPC with START info
                 self.application = application
 
-                # update the vehicle manager
-                # keep a tuple of actor_id and vid in a list based on vehicle_index
-                actor_id = self.vehicles[f"vehicle_{vehicle_index}"][0]
-                vid = self.vehicles[f"vehicle_{vehicle_index}"][1]
-
-                logger.debug(f"starting vehicle {vehicle_index} | actor_id: {actor_id} | vid: {vid}")
-
-                vehicle_manager.start_vehicle(actor_id, vid)
+                vehicle_manager.start_vehicle()
                 vehicle_manager.v2x_manager.set_platoon(None)
 
                 # add the vehicle manager to platoon
@@ -980,7 +1002,7 @@ class ScenarioManager:
         pre_world_tick_time = time.time()
         self.world.tick()
         post_world_tick_time = time.time()
-        logger.info("World tick completion time: %s" %(post_world_tick_time - pre_world_tick_time))
+        logger.info("World tick completion time: %s", (post_world_tick_time - pre_world_tick_time))
         self.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
 
     def tick(self):
@@ -1002,20 +1024,23 @@ class ScenarioManager:
         pre_client_tick_time = time.time()
         self.tick_id = self.tick_id + 1
 
+        if command == ecloud.Command.REQUEST_DEBUG_INFO:
+            self.vehicle_state = ecloud.VehicleState.DEBUG_INFO_UPDATE
+
         tick = ecloud.Tick()
         tick.tick_id = self.tick_id
         tick.command = command
 
-        logger.debug(f"Getting timestamp")
-        tick.sm_start_tstamp.GetCurrentTime()
-        logger.debug(f"Added Timestamp")
+        logger.debug("Getting timestamp")
+        self.sm_start_tstamp.GetCurrentTime()
+        logger.debug("Added Timestamp")
 
         asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, tick))
 
         post_client_tick_time = time.time()
-        logger.info("Client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
+        logger.info("Client tick completion time: %s", (post_client_tick_time - pre_client_tick_time))
         if self.tick_id > 1: # discard the first tick as startup is a major outlier
-            ScenarioManager.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
+            self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
         return True
 
@@ -1025,6 +1050,7 @@ class ScenarioManager:
 
         returns bool
         """
+        self.vehicle_state = ecloud.VehicleState.TICK_OK
         return self.broadcast_message(ecloud.Command.TICK)
 
 
@@ -1049,17 +1075,23 @@ class ScenarioManager:
         """
         broadcast end to all vehicles
         """
+        start_time = time.time()
+        self.vehicle_state = ecloud.VehicleState.TICK_DONE
         asyncio.get_event_loop().run_until_complete(self.server_end_scenario(self.ecloud_server))
 
-        logger.debug(f"pushed END")
+        logger.info("pushed END")
 
-        # for i in range(0, 5):
-        #     time.sleep(1)
-        #     logger.debug("scenario ending in %d", 5 - i)
         if self.run_distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
             os.kill(self.ecloud_server_process.pid, signal.SIGTERM)
 
+        self.debug_helper.shutdown_time_ms = time.time() - start_time
+
     def do_pickling(self, column_key, flat_list, file_path):
+        logger.info("run stats for %s:\nmean %s: %s \nmedian %s: %s \n95th percentile %s %s",
+                    column_key, column_key, np.mean(flat_list),
+                    column_key, np.median(flat_list),
+                    column_key, np.percentile(flat_list, 95))
+
         data_df = pd.DataFrame(flat_list, columns = [f'{column_key}_ms'])
         data_df['num_cars'] = self.vehicle_count
         data_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
@@ -1078,11 +1110,14 @@ class ScenarioManager:
 
         # pickle the dataFrame
         pickle.dump(data_df, picklefile)
-        logger.info(data_df)
+        logger.debug(data_df)
         #close file
         picklefile.close()
 
     def evaluate_agent_data(self, cumulative_stats_folder_path):
+        if self.run_distributed is False:
+            return
+
         PLANER_AGENT_STEPS = 12
         all_agent_data_lists = [[] for _ in range(PLANER_AGENT_STEPS)]
         for _, vehicle_manager_proxy in self.vehicle_managers.items():
@@ -1102,53 +1137,69 @@ class ScenarioManager:
             self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_network_data(self, cumulative_stats_folder_path):
-        all_network_data_lists = sum(ScenarioManager.debug_helper.network_time_dict.values(), [])
+        if self.run_distributed is False:
+            return
 
-        # logger.error(all_network_data_lists)
+        all_network_data_list = sum(self.debug_helper.network_time_dict_per_client.values(), [])
 
-        all_network_data_list_flat = np.array(all_network_data_lists)
+        all_network_data_list_flat = np.array(all_network_data_list)
         if all_network_data_list_flat.any():
             all_network_data_list_flat = np.hstack(all_network_data_list_flat)
         else:
             all_network_data_list_flat = all_network_data_list_flat.flatten()
-        logger.info(f"mean network: {np.mean(all_network_data_list_flat)} | median network: {np.median(all_network_data_list_flat)} | 95% percentile network {np.percentile(all_network_data_list_flat, 95)}")
+
         data_key = f"network_latency"
         self.do_pickling(data_key, all_network_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate_idle_data(self, cumulative_stats_folder_path):
-        all_idle_data_lists = sum(ScenarioManager.debug_helper.idle_time_dict.values(), [])
+        if self.run_distributed is False:
+            return
+        
+        all_idle_data_lists = sum(self.debug_helper.idle_time_dict.values(), [])
 
         all_idle_data_lists_flat = np.array(all_idle_data_lists)
         if all_idle_data_lists_flat.any():
             all_idle_data_lists_flat = np.hstack(all_idle_data_lists_flat)
         else:
             all_idle_data_lists_flat = all_idle_data_lists_flat.flatten()
-        logger.info(f"mean idle: {np.mean(all_idle_data_lists_flat)} | median idle: {np.median(all_idle_data_lists_flat)} | 95% percentile idle {np.percentile(all_idle_data_lists_flat, 95)}")
         data_key = f"idle"
         self.do_pickling(data_key, all_idle_data_lists_flat, cumulative_stats_folder_path)
 
     def evaluate_client_process_data(self, cumulative_stats_folder_path):
-        all_client_process_data_lists = sum(ScenarioManager.debug_helper.client_process_time_dict.values(), [])
+        all_client_process_data_lists = sum(self.debug_helper.client_process_time_dict.values(), [])
 
         all_client_process_data_list_flat = np.array(all_client_process_data_lists)
         if all_client_process_data_list_flat.any():
             all_client_process_data_list_flat = np.hstack(all_client_process_data_list_flat)
         else:
             all_client_process_data_list_flat = all_client_process_data_list_flat.flatten()
-        logger.info(f"mean client: {np.mean(all_client_process_data_list_flat)} | median client: {np.median(all_client_process_data_list_flat)} | 95% percentile client {np.percentile(all_client_process_data_list_flat, 95)}")
         data_key = f"client_process"
         self.do_pickling(data_key, all_client_process_data_list_flat, cumulative_stats_folder_path)
 
-    def evaluate_individual_client_data(self, cumulative_stats_folder_path):
-        all_client_data_lists = sum(ScenarioManager.debug_helper.client_tick_time_dict.values(), [])
+        data_key = f"client_individual_process_times_dict"
 
-        # logger.error(all_network_data_lists)
+        data_df = pd.DataFrame.from_dict(ScenarioManager.debug_helper.client_process_time_dict)
+        data_df['num_cars'] = self.vehicle_count
+        data_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
+
+        data_df_path = f'./{cumulative_stats_folder_path}/df_{data_key}'
+        picklefile = open(data_df_path, 'wb')
+
+        # pickle the dataFrame
+        pickle.dump(data_df, picklefile)
+        print(data_df)
+        #close file
+        picklefile.close()
+
+    def evaluate_individual_client_data(self, cumulative_stats_folder_path):
+        all_client_data_lists = sum(self.debug_helper.client_tick_time_dict_per_client.values(), [])
 
         all_client_data_list_flat = np.array(all_client_data_lists)
         if all_client_data_list_flat.any():
             all_client_data_list_flat = np.hstack(all_client_data_list_flat)
         else:
             all_client_data_list_flat = all_client_data_list_flat.flatten()
+
         data_key = f"client_individual_step_time"
         self.do_pickling(data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
@@ -1158,6 +1209,9 @@ class ScenarioManager:
             client_data_list = vehicle_manager_proxy.debug_helper.get_debug_data()[client_data_key]
             all_client_data_list.append(client_data_list)
 
+        print(all_client_data_list)
+
+        
         #logger.debug(all_client_data_list)
 
         all_client_data_list_flat = np.array(all_client_data_list)
@@ -1165,6 +1219,9 @@ class ScenarioManager:
             all_client_data_list_flat = np.hstack(all_client_data_list_flat)
         else:
             all_client_data_list_flat = all_client_data_list_flat.flatten()
+
+        if(len(all_client_data_list_flat) == 0):
+          return
         self.do_pickling(client_data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
     def evaluate(self, excludes_list = None):
@@ -1183,34 +1240,37 @@ class ScenarioManager:
 
             perform_txt = ''
 
-            if(self.run_distributed):
-              cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_dist_no_perception'
-              if self.perception:
-                  cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_dist_with_perception'
-            else:
-              cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_seq_no_perception'
-              if self.perception:
-                cumulative_stats_folder_path = './evaluation_outputs/cumulative_stats_seq_with_perception'
 
+            num_clients = len(VEHICLE_IP.split(","))
+            if(self.run_distributed):
+                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_no_perception'
+                if self.perception:
+                  cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_with_perception'
+            else:
+                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_no_perception'
+                if self.perception:
+                    cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_with_perception'
 
             if not os.path.exists(cumulative_stats_folder_path):
                 os.makedirs(cumulative_stats_folder_path)
 
-            self.evaluate_agent_data(cumulative_stats_folder_path)
-            self.evaluate_network_data(cumulative_stats_folder_path)
-            self.evaluate_idle_data(cumulative_stats_folder_path)
-            self.evaluate_client_process_data(cumulative_stats_folder_path)
-            self.evaluate_individual_client_data(cumulative_stats_folder_path)
+            if(self.run_distributed):
+                self.evaluate_agent_data(cumulative_stats_folder_path)
+                self.evaluate_network_data(cumulative_stats_folder_path)
+                self.evaluate_idle_data(cumulative_stats_folder_path)
+                self.evaluate_client_process_data(cumulative_stats_folder_path)
+                self.evaluate_individual_client_data(cumulative_stats_folder_path)
 
-            client_helper = ClientDebugHelper(0)
-            debug_data_lists = client_helper.get_debug_data().keys()
-            for list_name in debug_data_lists:
-                if excludes_list is not None and list_name in excludes_list:
-                    continue
-                self.evaluate_client_data(list_name, cumulative_stats_folder_path)
+                client_helper = ClientDebugHelper(0)
+                debug_data_lists = client_helper.get_debug_data().keys()
+                for list_name in debug_data_lists:
+                    if excludes_list is not None and list_name in excludes_list:
+                        continue
+                    
+                    self.evaluate_client_data(list_name, cumulative_stats_folder_path)
 
             # ___________Client Step time__________________________________
-            client_tick_time_list = ScenarioManager.debug_helper.client_tick_time_list
+            client_tick_time_list = self.debug_helper.client_tick_time_list
             client_tick_time_list_flat = np.concatenate(client_tick_time_list)
             if client_tick_time_list_flat.any():
                 client_tick_time_list_flat = np.hstack(client_tick_time_list_flat)
@@ -1220,7 +1280,7 @@ class ScenarioManager:
             self.do_pickling(client_step_time_key, client_tick_time_list_flat, cumulative_stats_folder_path)
 
             # ___________World Step time_________________________________
-            world_tick_time_list = ScenarioManager.debug_helper.world_tick_time_list
+            world_tick_time_list = self.debug_helper.world_tick_time_list
             world_tick_time_list_flat = np.concatenate(world_tick_time_list)
             if world_tick_time_list_flat.any():
                 world_tick_time_list_flat = np.hstack(world_tick_time_list_flat)
@@ -1230,10 +1290,10 @@ class ScenarioManager:
             self.do_pickling(world_step_time_key, world_tick_time_list_flat, cumulative_stats_folder_path)
 
             # ___________Total simulation time ___________________
-            sim_start_time = ScenarioManager.debug_helper.sim_start_timestamp
+            sim_start_time = self.debug_helper.sim_start_timestamp
             sim_end_time = time.time()
             total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
-            perform_txt += f"Total Simulation Time: {total_sim_time}"
+            perform_txt += f"Total Simulation Time: {total_sim_time} \n\t Registration Time: {self.debug_helper.startup_time_ms}ms \n\t Shutdown Time: {self.debug_helper.shutdown_time_ms}ms"
 
             sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
             try:
@@ -1241,12 +1301,14 @@ class ScenarioManager:
                 sim_time_df = pickle.load(picklefile)  #unpickle the dataframe
             except:
                 picklefile = open(sim_time_df_path, 'wb+')
-                sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'run_timestamp'])
+                sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'startup_time_ms', 'shutdown_time_ms', 'run_timestamp'])
 
             picklefile = open(sim_time_df_path, 'wb+')
             sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records \
                 ([{"num_cars": self.vehicle_count, \
                     "time_s": total_sim_time, \
+                    "startup_time_ms": self.debug_helper.startup_time_ms, \
+                    "shutdown_time_ms": self.debug_helper.shutdown_time_ms, \
                     "run_timestamp": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
                     ignore_index=True)
 

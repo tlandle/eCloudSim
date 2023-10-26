@@ -30,6 +30,8 @@ elif cloud_config["log_level"] == "warning":
 elif cloud_config["log_level"] == "info":
     logger.setLevel(logging.INFO)
 
+ECLOUD_PUSH_BASE_PORT = 50101 # TODO: config
+
 class EcloudClient:
 
     '''
@@ -51,13 +53,13 @@ class EcloudClient:
 
     def __init__(self, channel: grpc.Channel) -> None:
         self.channel = channel
-        self.stub = ecloud_rpc.EcloudStub(self.channel)     
+        self.stub = ecloud_rpc.EcloudStub(self.channel)
 
     async def run(self) -> ecloud.Tick:
         count = 0
         pong = None
         async for ecloud_update in self.stub.SimulationStateStream(ecloud.Tick( tick_id = self.tick_id )):
-            logger.debug(f"T{ecloud_update.tick_id}:C{ecloud_update.command}")
+            logger.debug("T%s:C%s", ecloud_update.tick_id, ecloud_update.command)
             assert(self.tick_id != ecloud_update.tick_id)
             self.tick_id = ecloud_update.tick_id
             count += 1
@@ -66,7 +68,7 @@ class EcloudClient:
         assert(pong != None)
         assert(count == 1)
         return pong
-        
+
     async def register_vehicle(self, update: ecloud.VehicleUpdate) -> ecloud.SimulationInfo:
         sim_info = await self.stub.Client_RegisterVehicle(update)
 
@@ -88,31 +90,74 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
     Lightweight gRPC Server Class for Receiving Push Messages from Ochestrator
     '''
 
-    def __init__(self, 
-                 q: asyncio.Queue):
-        
+    def __init__(self,
+                 que: asyncio.Queue):
+
         logger.info("eCloud push server initialized")
-        self.q = q
+        self.que = que
+        self.last_tick = None
+        self.last_tick_id = 0
+        self.last_tick_command = None
+        self.last_tick_last_client_duration_ns = 0
+        self.port_no = 0
 
-    async def PushTick(self, 
-                       tick: ecloud.Tick, 
-                       context: grpc.aio.ServicerContext) -> ecloud.Empty:
+    def is_dupe(self, tick) -> bool:
+        '''
+        checks if the current tick is a dupe due to resend
+        '''
+        if tick.tick_id == self.last_tick_id and \
+                tick.command == self.last_tick_command and \
+                tick.last_client_duration_ns == self.last_tick_last_client_duration_ns:
+            return True
 
-        logger.debug(f"PushTick(): tick - {tick}")
-        assert(self.q.empty())
-        self.q.put_nowait(tick)
+        return False
 
-        return ecloud.Empty()     
+    def PushTick(self,
+                 request: ecloud.Tick,
+                 context: grpc.aio.ServicerContext) -> ecloud.Empty:
 
-async def ecloud_run_push_server(port, 
-                       q: asyncio.Queue) -> None:
-    
+        tick = request # readability - gRPC prefers overrides preserve variable names
+        is_dupe = self.is_dupe(tick)
+        if is_dupe:
+            logger.warning('received a duplicate tick: had %s | received %s', self.last_tick, tick)
+        else:
+            self.last_tick = tick
+            self.last_tick_id = tick.tick_id
+            self.last_tick_command = tick.command
+            self.last_tick_last_client_duration_ns = tick.last_client_duration_ns
+            logger.info("new tick - %s", tick)
+
+        assert self.que.empty()
+        if is_dupe is False:
+            self.que.put_nowait(tick)
+
+        return ecloud.Empty()
+
+async def ecloud_run_push_server(port,
+                                 que: asyncio.Queue) -> None:
+    '''
+    runs a simple listen server that accepts event-based message from the central ecloud gRPC server
+    '''
+
     logger.info("spinning up eCloud push server")
     server = grpc.aio.server()
-    ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(q), server)
-    listen_addr = f"[::]:{port}"
-    server.add_insecure_port(listen_addr)
-    print(f"starting eCloud push server on {listen_addr}")
-    
+    ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(que), server)
+    server_started = False
+    while not server_started:
+        try:
+            listen_addr = f"0.0.0.0:{port}"
+            server.add_insecure_port(listen_addr)
+            server_started = True
+        except Exception as port_exception: # pylint: disable=broad-exception-caught
+            logger.warning("failed to start push server on port %s - incrementing port & retrying", 
+                           port)
+            port += 1
+            continue
+
+    logger.critical("started eCloud push server on port %s", port)
+
+    if port >= ECLOUD_PUSH_BASE_PORT:
+        que.put_nowait(port)
+
     await server.start()
     await server.wait_for_termination()

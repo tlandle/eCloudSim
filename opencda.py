@@ -72,4 +72,8 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        logger.info(' - Exited by user.')
+        logger.info('exited by user.')
+    except SystemExit as exit:
+        logger.info('system exit - %s', exit)
+    except:
+        logger.exception('unhandled exception')

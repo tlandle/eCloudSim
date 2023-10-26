@@ -69,13 +69,13 @@ class Car():
 
 		if self.pos_x >= map_length:
 			self.scrolled = True
-			
+
 		self.pos_x = self.pos_x % map_length
 
 class Traffic():
 	def __init__(self, dt, numlanes, numcars, map_length, x_initial=None, y_initial=None, v_initial=None):
 		self.numlanes = numlanes
-		self.dt=dt 
+		self.dt=dt
 		self.numcars = numcars
 		self.cars_on_road = []
 		self.time=0
@@ -341,7 +341,7 @@ class Traffic():
 			x_array[carnum,0] = car.pos_x
 			y_array[carnum,0] = car.lane
 			target_velocities[carnum,0] = car.target_velocity
-			velocities[carnum,0] = car.v 
+			velocities[carnum,0] = car.v
 			carnum += 1
 		return x_array, y_array, target_velocities, velocities
 
@@ -520,7 +520,7 @@ def main():
 		plt.xlim([0,1000])
 		plt.ylim([-1,5])
 		plt.savefig(plot_name)
-		
+
 		plt.pause(0.001)
 
 	print("Terminated Successfully")

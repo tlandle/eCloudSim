@@ -37,7 +37,7 @@ import ecloud_pb2 as ecloud
 LOG_NAME = "ecloud_4lane.log" # data drive from file name?
 SCENARIO_NAME = "ecloud_4lane_scenario" # data drive from file name?
 TOWN = 'Town06'
-STEP_COUNT = 50
+STEP_COUNT = 600
 
 def run_scenario(opt, config_yaml):
     step = 0
@@ -75,10 +75,10 @@ def run_scenario(opt, config_yaml):
             scenario_manager.client. \
                 start_recorder(LOG_NAME, True)
 
-        asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
-
+        
         # create single cavs        
         if run_distributed:
+            asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
             single_cav_list = \
                 scenario_manager.create_distributed_vehicle_manager(application=['single']) 
         else:    

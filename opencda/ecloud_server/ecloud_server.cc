@@ -1,3 +1,26 @@
+/****************************************************************************
+ Copyright (c) 2023 Georgia Institute of Technology
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights to
+ use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+ of the Software, and to permit persons to whom the Software is furnished to do so,
+ subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ THE SOFTWARE.
+****************************************************************************/
+
+
 #include <iostream>
 #include <memory>
 #include <string>
@@ -38,14 +61,13 @@
 #define VERBOSE_PRINT_COUNT 5
 #define MAX_CARS 512
 #define INVALID_TIME 0
+#define TICK_ID_INVALID -1
+#define VEHICLE_UPDATE_BATCH_SIZE 32
 
 #define ECLOUD_PUSH_BASE_PORT 50101
 #define ECLOUD_PUSH_API_PORT 50061
 
 ABSL_FLAG(uint16_t, port, 50051, "Sim API server port for the service");
-//ABSL_FLAG(uint16_t, vehicle_one_port, 50052, "Vehicle client server port one for the server");
-//ABSL_FLAG(uint16_t, vehicle_two_port, 50053, "Vehicle client server port for the service");
-ABSL_FLAG(uint16_t, num_ports, 1, "Total number of ports to open - each vehicle client thread will open half this number");
 ABSL_FLAG(uint16_t, minloglevel, static_cast<uint16_t>(absl::LogSeverityAtLeast::kInfo),
           "Messages logged at a lower level than this don't actually "
           "get logged anywhere");
@@ -80,18 +102,9 @@ using ecloud::Timestamps;
 using ecloud::WaypointRequest;
 using ecloud::EdgeWaypoints;
 
-static void _sig_handler(int signo)
-{
-    if (signo == SIGTERM || signo == SIGINT)
-    {
-        exit(signo);
-    }
-}
-
 volatile std::atomic<int16_t> numCompletedVehicles_;
 volatile std::atomic<int16_t> numRepliedVehicles_;
 volatile std::atomic<int32_t> tickId_;
-volatile std::atomic<int32_t> lastWorldTickTimeMS_;
 
 bool repliedCars_[MAX_CARS];
 std::string carNames_[MAX_CARS];
@@ -102,10 +115,8 @@ int16_t numCars_;
 std::string configYaml_;
 std::string application_;
 std::string version_;
-google::protobuf::Timestamp timestamp_;
 
 std::string simIP_;
-std::string vehicleMachineIP_; // TODO: multiple vehicle machines
 
 VehicleState vehState_;
 Command command_;
@@ -113,12 +124,9 @@ Command command_;
 std::vector<std::pair<int16_t, std::string>> serializedEdgeWaypoints_; // vehicleIdx, serializedWPBuffer
 
 absl::Mutex mu_;
-absl::Mutex timestamp_mu_;
-absl::Mutex registration_mu_;
 
-volatile std::atomic<int16_t> numRegisteredVehicles_ ABSL_GUARDED_BY(registration_mu_);
-std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // serialized protobuf
-std::vector<Timestamps> client_timestamps_ ABSL_GUARDED_BY(timestamp_mu_);
+volatile std::atomic<int16_t> numRegisteredVehicles_ ABSL_GUARDED_BY(mu_);
+std::vector<std::string> pendingReplies_ ABSL_GUARDED_BY(mu_); // TODO: Move to a hashmap serialized protobuf allows differing message types in same vector
 
 class PushClient
 {
@@ -126,24 +134,15 @@ class PushClient
         explicit PushClient( std::shared_ptr<grpc::Channel> channel, std::string connection ) :
                             stub_(Ecloud::NewStub(channel)), connection_(connection) {}
 
-        bool PushTick(int32_t tickId, Command command, bool sendTimestamps, int64_t lastClientDurationNS)
+        bool PushTick(int32_t tickId, Command command, int64_t lastClientDurationNS)
         {
             Tick tick;
             tick.set_tick_id(tickId);
             tick.set_command(command);
-            tick.mutable_sm_start_tstamp()->CopyFrom(timestamp_);
 
             LOG_IF(INFO, command == Command::END) << "pushing END";
 
-            if ( sendTimestamps )
-            {
-                tick.set_last_client_duration_ns(lastClientDurationNS);
-                for ( int i = 0; i < client_timestamps_.size(); i++ )
-                {
-                    Timestamps *t = tick.add_timestamps();
-                    t->CopyFrom(client_timestamps_[i]);
-                }
-            }
+            tick.set_last_client_duration_ns(lastClientDurationNS);
 
             grpc::ClientContext context;
             Empty empty;
@@ -191,7 +190,6 @@ public:
             numRepliedVehicles_.store(0);
             numRegisteredVehicles_.store(0);
             tickId_.store(0);
-            lastWorldTickTimeMS_.store(WORLD_TICK_DEFAULT_MS);
 
             vehState_ = VehicleState::REGISTERING;
             command_ = Command::TICK;
@@ -201,17 +199,12 @@ public:
             isEdge_ = false;
 
             simIP_ = "localhost";
-            vehicleMachineIP_ = "localhost";
 
-            std::string connection = absl::StrFormat("%s:%d", simIP_, ECLOUD_PUSH_API_PORT );
+            const std::string connection = absl::StrFormat("%s:%d", simIP_, ECLOUD_PUSH_API_PORT );
             simAPIClient_ = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
 
             vehicleClients_.clear();
-
             pendingReplies_.clear();
-            client_timestamps_.clear();
-
-            timestamp_ = TimeUtil::GetCurrentTime();
 
             init_ = true;
         }
@@ -223,18 +216,24 @@ public:
 
         DLOG(INFO) << "Server_GetVehicleUpdates - deserializing updates.";
 
-        for ( int i = 0; i < pendingReplies_.size(); i++ )
+        const int16_t replies = pendingReplies_.size();
+        for ( int i = 0; i < replies; i++ )
         {
             VehicleUpdate *update = reply->add_vehicle_update();
-            update->ParseFromString(pendingReplies_[i]);
+            const std::string msg = pendingReplies_.back();
+            pendingReplies_.pop_back();
+            update->ParseFromString(msg);
             LOG(INFO) << "update: vehicle_index - " << update->vehicle_index();
+
+            if ( i == VEHICLE_UPDATE_BATCH_SIZE ) // keep from exhausting resources
+                break;
         }
 
         DLOG(INFO) << "Server_GetVehicleUpdates - updates deserialized.";
 
-        numRepliedVehicles_ = 0;
-        pendingReplies_.clear();
-
+        if ( pendingReplies_.size() == 0 )
+            numRepliedVehicles_ = 0;
+    
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
         return reactor;
@@ -248,9 +247,18 @@ public:
         {
             std::string msg;
             request->SerializeToString(&msg);
-            mu_.Lock();
-            pendingReplies_.push_back(msg);
-            mu_.Unlock();
+            if ( isEdge_ || request->vehicle_state() == VehicleState::TICK_DONE || request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
+            {
+                // TODO: hashmap
+                mu_.Lock();
+                pendingReplies_.push_back(msg);
+                mu_.Unlock();
+            }
+            else
+            {
+                assert( request->vehicle_index() == SPECTATOR_INDEX );
+                pendingReplies_.push_back(msg);
+            }
         }
 
         repliedCars_[request->vehicle_index()] = true;
@@ -264,16 +272,6 @@ public:
         }
         else if ( request->vehicle_state() == VehicleState::TICK_OK )
         {
-            Timestamps vehicle_timestamp;
-            vehicle_timestamp.set_vehicle_index(request->vehicle_index());
-            vehicle_timestamp.mutable_client_start_tstamp()->set_seconds(request->client_start_tstamp().seconds());
-            vehicle_timestamp.mutable_client_start_tstamp()->set_nanos(request->client_start_tstamp().nanos());
-            vehicle_timestamp.mutable_client_end_tstamp()->set_seconds(request->client_end_tstamp().seconds());
-            vehicle_timestamp.mutable_client_end_tstamp()->set_nanos(request->client_end_tstamp().nanos());
-            timestamp_mu_.Lock();
-            client_timestamps_.push_back(vehicle_timestamp);
-            timestamp_mu_.Unlock();
-
             numRepliedVehicles_++;
         }
         else if ( request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
@@ -290,11 +288,9 @@ public:
         LOG_IF(INFO, complete_ ) << "tick " << request->tick_id() << " COMPLETE";
         if ( complete_ )
         {
-            int64_t lastClientDurationNS = ( TimeUtil::TimestampToNanoseconds( request->client_end_tstamp() ) - TimeUtil::TimestampToNanoseconds( request->client_start_tstamp() ) );
-            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, true, lastClientDurationNS);
-            t.detach();
+            const int64_t lastClientDurationNS = request->duration_ns();
+            simAPIClient_->PushTick( request->tick_id(), command_, lastClientDurationNS );
         }
-        // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -312,16 +308,23 @@ public:
             if ( wpPair.first == request->vehicle_index() )
             {
                 buffer->set_vehicle_index(request->vehicle_index());
-                WaypointBuffer *wpBuf;
-                wpBuf->ParseFromString(wpPair.second);
-                for ( Waypoint wp : wpBuf->waypoint_buffer())
+                WaypointBuffer wpBuf;
+                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints starting parse";
+                const std::string buf = wpPair.second;
+                wpBuf.ParseFromString(buf);
+                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints parsed";
+                for ( Waypoint wp : wpBuf.waypoint_buffer())
                 {
                     Waypoint *p = buffer->add_waypoint_buffer();
                     p->CopyFrom(wp);
+                    //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " single waypoint copied";
                 }
+                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all waypoints copied";
                 break;
             }
         }
+        //LOG(INFO) << "vehicle " << request->vehicle_index() << " waypoints sent";
+
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -338,27 +341,31 @@ public:
         {
             DLOG(INFO) << "got a registration update";
 
-            registration_mu_.Lock();
-            reply->set_vehicle_index(numRegisteredVehicles_.load());
-            std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), ECLOUD_PUSH_BASE_PORT + numRegisteredVehicles_.load() );
+            mu_.Lock();
+            const int16_t vIdx = numRegisteredVehicles_.load();
+            reply->set_vehicle_index(vIdx);
+            const std::string connection = absl::StrFormat("%s:%d", request->vehicle_ip(), request->vehicle_port());
             PushClient *vehicleClient = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
-            vehicleClients_.push_back(vehicleClient);
+            vehicleClients_.push_back(std::move(vehicleClient));
             numRegisteredVehicles_++;
-            registration_mu_.Unlock();
+            mu_.Unlock();
 
             reply->set_test_scenario(configYaml_);
             reply->set_application(application_);
             reply->set_version(version_);
 
             DLOG(INFO) << "RegisterVehicle - REGISTERING - container " << request->container_name() << " got vehicle id: " << reply->vehicle_index();
+
             carNames_[reply->vehicle_index()] = request->container_name();
         }
         else if ( request->vehicle_state() == VehicleState::CARLA_UPDATE )
         {
-            reply->set_vehicle_index(request->vehicle_index());
+            const int16_t vIdx = request->vehicle_index();
+            reply->set_vehicle_index(vIdx);
 
-            DLOG(INFO) << "RegisterVehicle - CARLA_UPDATE - vehicle_index: " << request->vehicle_index() << " | actor_id: " << request->actor_id() << " | vid: " << request->vid();
+            DLOG(INFO) << "RegisterVehicle - CARLA_UPDATE - vehicle_index: " << vIdx << " | actor_id: " << request->actor_id() << " | vid: " << request->vid();
 
+            // TODO: Hashmap
             mu_.Lock();
             std::string msg;
             request->SerializeToString(&msg);
@@ -371,19 +378,17 @@ public:
             assert(false);
         }
 
-        // BEGIN PUSH
         const int16_t replies_ = numRepliedVehicles_.load();
-        LOG(INFO) << "received " << replies_ << " replies";
+        LOG(INFO) << "received " << numRegisteredVehicles_.load() << " registrations";
+        LOG(INFO) << "received " << replies_ << " replies with Carla data";
         const bool complete_ = ( replies_ == numCars_ );
 
         LOG_IF(INFO, complete_ ) << "REGISTRATION COMPLETE";
         if ( complete_ )
         {
-            assert( vehState_ != VehicleState::REGISTERING || ( vehState_ == VehicleState::REGISTERING && replies_ == pendingReplies_.size() ) );
-            std::thread t(&PushClient::PushTick, simAPIClient_, 1, command_, false, INVALID_TIME);
-            t.detach();
+            assert( vehState_ == VehicleState::REGISTERING && replies_ == pendingReplies_.size() );
+            simAPIClient_->PushTick( TICK_ID_INVALID, command_, INVALID_TIME);
         }
-        // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -397,24 +402,21 @@ public:
             repliedCars_[i] = false;
 
         numRepliedVehicles_ = 0;
-        client_timestamps_.clear();
         assert(tickId_ == request->tick_id() - 1);
         tickId_++;
         command_ = request->command();
-        timestamp_ = request->sm_start_tstamp();
 
         const auto now = std::chrono::system_clock::now();
         DLOG(INFO) << "received new tick " << request->tick_id() << " at " << std::chrono::duration_cast<std::chrono::milliseconds>(
             now.time_since_epoch()).count();
 
-        // BEGIN PUSH
         const int32_t tickId = request->tick_id();
         for ( int i = 0; i < vehicleClients_.size(); i++ )
         {
-            std::thread t(&PushClient::PushTick, vehicleClients_[i], tickId, command_, false, INVALID_TIME);
+            PushClient *v = vehicleClients_[i];
+            std::thread t( &PushClient::PushTick, v, tickId, command_, INVALID_TIME );
             t.detach();
         }
-        // END PUSH
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -426,12 +428,16 @@ public:
                                Empty* empty) override {
         serializedEdgeWaypoints_.clear();
 
+        //LOG(INFO) << "updated waypoints received";
         for ( WaypointBuffer wpBuf : edgeWaypoints->all_waypoint_buffers() )
-        {   std::string serializedWPs;
+        {   
+            std::string serializedWPs;
             wpBuf.SerializeToString(&serializedWPs);
             const std::pair< int16_t, std::string > wpPair = std::make_pair( wpBuf.vehicle_index(), serializedWPs );
             serializedEdgeWaypoints_.push_back(wpPair);
+            //LOG(INFO) << "updated waypoints for vehicle index " << wpBuf.vehicle_index();
         }
+        //LOG(INFO) << "updated waypoints processed";
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -448,7 +454,6 @@ public:
         version_ = request->version();
         numCars_ = request->vehicle_index(); // bit of a hack to use vindex as count
         isEdge_ = request->is_edge();
-        vehicleMachineIP_ = request->vehicle_machine_ip();
         // TODO: simIP_ = // always localhost for now
 
         assert( numCars_ <= MAX_CARS );
@@ -464,14 +469,9 @@ public:
                                Empty* reply) override {
         command_ = Command::END;
 
-        // BEGIN PUSH
-        // TODO: define -1 --> TICK_ID_INVALID
         LOG(INFO) << "pushing END";
         for ( int i = 0; i < vehicleClients_.size(); i++ )
-        {
-            vehicleClients_[i]->PushTick(-1, Command::END, false, INVALID_TIME); // don't thread --> block
-        }
-        // END PUSH
+            vehicleClients_[i]->PushTick(TICK_ID_INVALID, Command::END, INVALID_TIME); // don't thread --> block
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -491,12 +491,9 @@ void RunServer(uint16_t port) {
     grpc::reflection::InitProtoReflectionServerBuilderPlugin();
     ServerBuilder builder;
     // Listen on the given address without any authentication mechanism.
-    for ( int i = 0; i < absl::GetFlag(FLAGS_num_ports); i += 2 )
-    {
-        std::string server_address = absl::StrFormat("0.0.0.0:%d", port + i );
-        builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-        std::cout << "Server listening on " << server_address << std::endl;
-    }
+    const std::string server_address = absl::StrFormat("0.0.0.0:%d", port );
+    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    std::cout << "server listening on port " << port << std::endl;
     // Register "service" as the instance through which we'll communicate with
     // clients. In this case it corresponds to an *synchronous* service.
     builder.RegisterService(&service);
@@ -523,16 +520,6 @@ void RunServer(uint16_t port) {
 
 int main(int argc, char* argv[]) {
 
-    if (signal(SIGINT, _sig_handler) == SIG_ERR) {
-            fprintf(stderr, "Can't catch SIGINT...exiting.\n");
-            exit(EXIT_FAILURE);
-    }
-
-    if (signal(SIGTERM, _sig_handler) == SIG_ERR) {
-            fprintf(stderr, "Can't catch SIGTERM...exiting.\n");
-            exit(EXIT_FAILURE);
-    }
-
     // 2 - std::cout << "ABSL: ERROR - " << static_cast<uint16_t>(absl::LogSeverityAtLeast::kError) << std::endl;
     // 1 - std::cout << "ABSL: WARNING - " << static_cast<uint16_t>(absl::LogSeverityAtLeast::kWarning) << std::endl;
     // 0 - std::cout << "ABSL: INFO - " << static_cast<uint16_t>(absl::LogSeverityAtLeast::kInfo) << std::endl;
@@ -540,14 +527,10 @@ int main(int argc, char* argv[]) {
     absl::ParseCommandLine(argc, argv);
     //absl::InitializeLog();
 
-    //std::thread vehicle_one_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_one_port));
-    //std::thread vehicle_two_server = std::thread(&RunServer,absl::GetFlag(FLAGS_vehicle_two_port));
     std::thread server = std::thread(&RunServer,absl::GetFlag(FLAGS_port));
-
+    
     absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(absl::GetFlag(FLAGS_minloglevel)));
 
-    //vehicle_one_server.join();
-    //vehicle_two_server.join();
     server.join();
 
     return 0;

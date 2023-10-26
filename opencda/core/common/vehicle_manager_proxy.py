@@ -2,7 +2,7 @@
 """
 Basic class of CAV
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
+# Author: Tyler Landle <tlandle3@gatech.edu>, Jordan Rapp <jrapp7@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import uuid
