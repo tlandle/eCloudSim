@@ -12,6 +12,7 @@ import opencda.logging_ecloud
 import logging
 import time
 import random
+import weakref
 
 import carla
 import numpy as np
@@ -34,7 +35,7 @@ from opencda.core.common.misc import compute_distance
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from opencda.client_debug_helper import ClientDebugHelper
 from opencda.core.common.ecloud_config import eLocationType
-from opencda.core.common.traffic_event import TrafficEvent
+from opencda.core.common.traffic_event import TrafficEvent, TrafficEventType
 
 import coloredlogs, logging
 logger = logging.getLogger(__name__)
@@ -335,10 +336,9 @@ class VehicleManager(object):
             return
 
 
-        print("LAne Invasion")
+        print("Lane Invasion")
         actor_location = self.vehicle.get_location()
-
-        lane_invasion_event = TrafficEvent(event_type=actor_type)
+        lane_invasion_event = TrafficEvent(event_type=TrafficEventType.LANE_INVASION)
         lane_invasion_event.set_dict({
             'x': actor_location.x,
             'y': actor_location.y,

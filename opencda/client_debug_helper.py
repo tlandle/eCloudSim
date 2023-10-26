@@ -7,6 +7,7 @@ Analysis + visualization functions for platooning
 
 from opencda.core.plan.planer_debug_helper \
     import PlanDebugHelper
+from opencda.core.common.traffic_event import TrafficEvent
 
 import ecloud_pb2 as ecloud
 
@@ -157,10 +158,10 @@ class ClientDebugHelper(PlanDebugHelper):
         self.timestamps_list.append(t)
 
     def update_collision(self, collision_info=None):
-        self.collision_list.append(collision_info)
+        self.collisions_event_list.append(collision_info)
 
     def update_lane_invasions(self, lane_invasion_info=None):
-        self.lane_invasion_list.append(lane_invasion_info)
+        self.lane_invasions_list.append(lane_invasion_info)
 
     def serialize_debug_info(self, proto_debug_helper):
         # TODO: extend instead of append? or [:] = ?
