@@ -148,6 +148,9 @@ class BehaviorAgent(object):
 
         # debug helper
         self.debug_helper = PlanDebugHelper(self.vehicle.id)
+        # print message in debug mode
+        self.debug = False if 'debug' not in \
+                              config_yaml else config_yaml['debug']
 
     def update_information(self, ego_pos, ego_speed, objects):
         """
@@ -412,7 +415,6 @@ class BehaviorAgent(object):
                 else:
                     # indicate no need to stop
                     return 0
-
 
             if not waypoint.is_junction and (
                     self.light_id_to_ignore != light_id or light_id == -1):
@@ -751,7 +753,6 @@ class BehaviorAgent(object):
             reset_target = \
                 ego_vehicle_wp.next(max(self._ego_speed / 3.6 * 3,
                                         10.0))[0]
-
         logger.debug(
             'Vehicle id: %d :destination pushed forward because of '
             'potential collision, reset destination :%f. %f, %f' %
