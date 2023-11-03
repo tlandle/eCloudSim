@@ -367,9 +367,11 @@ class PerceptionManager:
     def __init__(self, vehicle, config_yaml, cav_world,
                  data_dump=False, carla_world=None, infra_id=None):
         self.vehicle = vehicle
-        self.carla_world = carla_world if carla_world is not None \
+ 
+        if hasattr(vehicle, 'get_world'): 
+          self.carla_world = carla_world if carla_world is not None \
             else self.vehicle.get_world()
-        self._map = self.carla_world.get_map()
+          self._map = self.carla_world.get_map()
         self.id = infra_id if infra_id is not None else vehicle.id
 
 

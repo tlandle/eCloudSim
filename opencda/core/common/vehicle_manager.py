@@ -125,6 +125,7 @@ class VehicleManager(object):
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
 
+        print(config_yaml)
         self.vehicle_index = vehicle_index
         self.location_type = location_type
         self.run_distributed = run_distributed
@@ -153,11 +154,13 @@ class VehicleManager(object):
 
         # ORIGINAL FLOW
 
+        
+
         if run_distributed == False:
             assert( carla_world is not None )
             self.world = carla_world
-            self.carla_map = carla_map
-
+            self.carla_map = self.world.get_map()
+ 
         # eCLOUD BEGIN
 
         else: # run_distributed == True
@@ -293,7 +296,7 @@ class VehicleManager(object):
 
         # map manager
         self.map_manager = MapManager(self.vehicle,
-                                      carla_map,
+                                      self.carla_map,
                                       map_config)
         # safety manager
         self.safety_manager = SafetyManager(vehicle=self.vehicle,

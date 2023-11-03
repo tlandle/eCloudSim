@@ -394,6 +394,7 @@ class ScenarioManager:
 
         #self.config_file = config_file
         self.ecloud_config = EcloudConfig(scenario_params, logger)
+        print(self.ecloud_config)
         self.sm_start_tstamp.GetCurrentTime()
         self.scenario_params = scenario_params
         self.carla_version = carla_version
@@ -518,7 +519,9 @@ class ScenarioManager:
 
             self.debug_helper.update_sim_start_timestamp(time.time())
 
-            self.scenario = scenario_params
+            print(type(scenario_params))
+
+            self.scenario = json.dumps(OmegaConf.to_container(scenario_params))
             self.carla_version = self.carla_version
 
         # eCLOUD END
@@ -532,19 +535,24 @@ class ScenarioManager:
         #self.push_server = threading.Thread(target=ecloud_run_push_server, args=(ECLOUD_PUSH_API_PORT, self.push_q,))
         #self.push_server.start()
 
-        await asyncio.sleep(1) # this yields CPU to allow the PushServer to start
+        try:
+          await asyncio.sleep(1) # this yields CPU to allow the PushServer to start
+          logger.info("Push Server Started")
+          server_request = ecloud.SimulationInfo() 
+          server_request.test_scenario = self.scenario
+          server_request.application = self.application[0]
+          server_request.version = self.carla_version
+          server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
+          server_request.is_edge = self.is_edge or self.verbose_updates
+          server_request.vehicle_machine_ip = VEHICLE_IP
 
-        server_request = ecloud.SimulationInfo()
-        server_request.test_scenario = self.scenario
-        server_request.application = self.application[0]
-        server_request.version = self.carla_version
-        server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
-        server_request.is_edge = self.is_edge or self.verbose_updates
-        server_request.vehicle_machine_ip = VEHICLE_IP
+          logger.info("Waiting for scenario start")
+          await self.server_start_scenario(self.ecloud_server, server_request)
+          logger.info("Start scenario started")
 
-        await self.server_start_scenario(self.ecloud_server, server_request)
-
-        self.world.tick()
+          self.world.tick()
+        except Exception as e:
+          print(e)
 
         logger.debug("eCloud debug: pushed START")
 
@@ -595,7 +603,7 @@ class ScenarioManager:
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        logger.info('Creating single CAVs.')
+        logger.info('Creating single CAVs non dist.')
         single_cav_list = []
         #for vehicle_index in range(self.vehicle_count):
   
@@ -1047,33 +1055,39 @@ class ScenarioManager:
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        logger.info('Creating single CAVs.')
+        logger.info('Creating single CAVs dist.')
         single_cav_list = []
 
-        config_yaml = load_yaml(self.config_file)
+        config_yaml = self.scenario_params
+        print(config_yaml)
+        print(self.vehicle_count)
+        print(application)
         for vehicle_index in range(self.vehicle_count):
-            logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)
+            try:
+              logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)
 
-            # create vehicle manager for each cav
-            vehicle_manager_proxy = VehicleManagerProxy(
-                vehicle_index, config_yaml, application,
-                self.carla_map, self.cav_world,
-                current_time=self.scenario_params['current_time'],
-                data_dumping=data_dump, carla_version=self.carla_version, location_type=self.ecloud_config.get_location_type())
-            logger.debug("finished creating VehiceManagerProxy")
+              # create vehicle manager for each cav
+              vehicle_manager_proxy = VehicleManagerProxy(
+                  vehicle_index, config_yaml, application,
+                  self.carla_map, self.cav_world,
+                  current_time=self.scenario_params['current_time'],
+                  data_dumping=data_dump, carla_version=self.carla_version, location_type=self.ecloud_config.get_location_type())
+              logger.debug("finished creating VehiceManagerProxy")
 
-            # self.tick_world()
+              # self.tick_world()
 
-            # send gRPC with START info
-            self.application = application
+              # send gRPC with START info
+              self.application = application
 
-            vehicle_manager_proxy.start_vehicle()
+              vehicle_manager_proxy.start_vehicle()
 
-            vehicle_manager_proxy.v2x_manager.set_platoon(None)
-            logger.debug("set platoon on vehicle manager")
+              vehicle_manager_proxy.v2x_manager.set_platoon(None)
+              logger.debug("set platoon on vehicle manager")
 
-            single_cav_list.append(vehicle_manager_proxy)
-            self.vehicle_managers[vehicle_index] = vehicle_manager_proxy
+              single_cav_list.append(vehicle_manager_proxy)
+              self.vehicle_managers[vehicle_index] = vehicle_manager_proxy
+            except Exception as e:
+              print("Failed to create vehicle manager proxy:", e)
 
         self.tick_world()
         logger.info("Finished creating vehicle managers and returning cav list")
@@ -1112,7 +1126,6 @@ class ScenarioManager:
                 self.scenario_params['scenario']['edge_list']):
             edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt)
             for vehicle_index, cav in enumerate(edge['members']):
-
                 logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)
 
                 # create vehicle manager for each cav
