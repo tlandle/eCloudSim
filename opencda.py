@@ -36,7 +36,7 @@ def arg_parse():
                              'Set it to true only when you have installed the pytorch/sklearn package.')
     parser.add_argument('-v', "--version", type=str, default='0.9.11',
                         help='Specify the CARLA simulator version, default'
-                             'is 0.9.11, 0.9.12 is also supported.')
+                             'is 0.9.14')
     parser.add_argument("--verbose", action="store_true",
                             help="Make more noise")
     parser.add_argument('-q', "--quiet", action="store_true",

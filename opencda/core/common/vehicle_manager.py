@@ -368,7 +368,6 @@ class VehicleManager(object):
         """
 
         print("Collision\n")
-        exit(1)
 
         self = weak_self()
         if not self:
