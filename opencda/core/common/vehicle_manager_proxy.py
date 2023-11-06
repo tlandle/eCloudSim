@@ -123,7 +123,7 @@ class VehicleManagerProxy(object):
         self.debug_helper = ClientDebugHelper(0)
 
     def start_vehicle(self):
-        # print("eCloud debug | actor_id: " + str(actor_id))
+        #print("eCloud debug | actor_id: " + str(actor_id))
         self.vehicle = ActorProxy(self.vehicle_index)
 
         # retrieve the configure for different modules
@@ -133,6 +133,7 @@ class VehicleManagerProxy(object):
         v2x_config = self.cav_config['v2x']
         # v2x module
         self.v2x_manager = V2XManager(self.cav_world, v2x_config, self.vehicle_index)
+        print("V2X Manager Created")
         # localization module
         self.localizer = LocalizationManager(
             self.vehicle, sensing_config['localization'], self.carla_map)
@@ -143,6 +144,7 @@ class VehicleManagerProxy(object):
         self.perception_manager = PerceptionManager(
             self.vehicle, sensing_config['perception'], self.cav_world,
             self.data_dumping)
+        print("Perception Manager created")
 
         # behavior agent
         self.agent = None
@@ -157,6 +159,7 @@ class VehicleManagerProxy(object):
                 self.carla_map)
         else:
             self.agent = BehaviorAgent(self.vehicle, self.carla_map, behavior_config)
+            print("Behavior Agent Created")
 
         # Control module
         self.controller = ControlManager(control_config)
@@ -167,5 +170,7 @@ class VehicleManagerProxy(object):
                                           save_time=self.current_time)
         else:
             self.data_dumper = None
+
+        print("Created Proxy")
 
         self.cav_world.update_vehicle_manager(self)

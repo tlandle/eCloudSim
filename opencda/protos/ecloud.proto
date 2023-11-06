@@ -132,7 +132,7 @@ message CollisionEvent {
 }
 
 message LaneInvasionEvent {
-  Location actor_location = 1;
+  Location location = 1;
 }
 
 message ClientDebugHelper {

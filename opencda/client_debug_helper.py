@@ -212,7 +212,7 @@ class ClientDebugHelper(PlanDebugHelper):
             lane_invasion_event.location.x = obj.get_dict()['x']
             lane_invasion_event.location.y = obj.get_dict()['y']
             lane_invasion_event.location.z = obj.get_dict()['z']
-            proto_debug_helper.lane_invasions_list.append(obj)
+            proto_debug_helper.lane_invasions_list.append(lane_invasion_event)
 
 
     def deserialize_debug_info(self, proto_debug_helper):

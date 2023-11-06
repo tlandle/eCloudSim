@@ -28,8 +28,10 @@ from opencda.core.sensing.localization.localization_manager \
     import LocalizationManager
 from opencda.core.sensing.perception.perception_manager \
     import PerceptionManager
+from opencda.core.safety.safety_manager import SafetyManager
 from opencda.core.plan.behavior_agent \
     import BehaviorAgent
+from opencda.core.map.map_manager import MapManager
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.common.misc import compute_distance
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
@@ -72,10 +74,10 @@ class VehicleManager(object):
         The CARLA simulation map.
 
     cav_world : opencda object
-        CAV World.
+        CAV World. This is used for V2X communication simulation.
 
     current_time : str
-        Timestamp of the simulation beginning.
+        Timestamp of the simulation beginning, used for data dumping.
 
     data_dumping : bool
         Indicates whether to dump sensor data during simulation.
@@ -123,6 +125,7 @@ class VehicleManager(object):
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
 
+        print(config_yaml)
         self.vehicle_index = vehicle_index
         self.location_type = location_type
         self.run_distributed = run_distributed
@@ -147,13 +150,17 @@ class VehicleManager(object):
             cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
                         else self.scenario_params['scenario']['single_cav_list'][0]
 
+        print(cav_config)
+
         # ORIGINAL FLOW
+
+        
 
         if run_distributed == False:
             assert( carla_world is not None )
             self.world = carla_world
-            self.carla_map = carla_map
-
+            self.carla_map = self.world.get_map()
+ 
         # eCLOUD BEGIN
 
         else: # run_distributed == True
@@ -265,6 +272,7 @@ class VehicleManager(object):
         self.debug_helper = ClientDebugHelper(0)
         # retrieve the configure for different modules
         sensing_config = cav_config['sensing']
+        map_config = cav_config['map_manager']
         behavior_config = cav_config['behavior']
         control_config = cav_config['controller']
         v2x_config = cav_config['v2x']
@@ -286,6 +294,13 @@ class VehicleManager(object):
             data_dumping)
         logger.debug("PerceptionManager created")
 
+        # map manager
+        self.map_manager = MapManager(self.vehicle,
+                                      self.carla_map,
+                                      map_config)
+        # safety manager
+        self.safety_manager = SafetyManager(vehicle=self.vehicle,
+                                            params=cav_config['safety_manager'])
         # behavior agent
         self.agent = None
         if 'platooning' in application:
@@ -353,7 +368,6 @@ class VehicleManager(object):
         """
 
         print("Collision\n")
-        exit(1)
 
         self = weak_self()
         if not self:
@@ -469,6 +483,18 @@ class VehicleManager(object):
         logger.debug("Perception time: %s" %(end_time - start_time))
         self.debug_helper.update_perception_time((end_time-start_time)*1000)
 
+        # update the ego pose for map manager
+        self.map_manager.update_information(ego_pos)
+
+        # this is required by safety manager
+        safety_input = {'ego_pos': ego_pos,
+                        'ego_speed': ego_spd,
+                        'objects': objects,
+                        'carla_map': self.carla_map,
+                        'world': self.vehicle.get_world(),
+                        'static_bev': self.map_manager.static_bev}
+        self.safety_manager.update_info(safety_input)
+
         # update ego position and speed to v2x manager,
         # and then v2x manager will search the nearby cavs
         start_time = time.time()
@@ -502,6 +528,9 @@ class VehicleManager(object):
         pre_vehicle_step_time = time.time()
         try:
             target_speed, target_pos = self.agent.run_step(target_speed)
+            # visualize the bev map if needed
+            self.map_manager.run_step()
+
         except Exception as e:
             logger.warning("can't successfully complete agent.run_step; setting to done.")
             target_speed = 0
@@ -542,3 +571,4 @@ class VehicleManager(object):
         self.perception_manager.destroy()
         self.localizer.destroy()
         self.vehicle.destroy()
+        self.map_manager.destroy()

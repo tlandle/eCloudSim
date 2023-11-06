@@ -140,7 +140,7 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 .idea
-*.json
+#*.json
 *.csv
 output/
 outputs
@@ -151,7 +151,6 @@ opencda/evaluation_figures/
 *cache*
 evaluation_outputs/
 docs/tmp.py
-data_dumping
 video_dumping
 
 
@@ -161,3 +160,5 @@ video_dumping
 *pb2*
 
 velocity_list*
+*data_dumping*
+ready*
