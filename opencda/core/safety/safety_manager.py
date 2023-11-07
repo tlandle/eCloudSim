@@ -4,6 +4,7 @@ control back to human if necessary
 """
 import numpy as np
 import carla
+import logging
 
 from opencda.core.safety.sensors import CollisionSensor, \
     TrafficLightDector, StuckDetector, OffRoadDetector
@@ -20,7 +21,7 @@ class SafetyManager:
     params: dict
         A dictionary of parameters that are used to configure the SafetyManager.
     """
-    def __init__(self, vehicle, params):
+    def __init__(self, vehicle, params, logger):
         self.vehicle = vehicle
         self.print_message = params['print_message']
         self.sensors = [CollisionSensor(vehicle, params['collision_sensor']),
@@ -28,6 +29,7 @@ class SafetyManager:
                         OffRoadDetector(params['offroad_dector']),
                         TrafficLightDector(params['traffic_light_detector'],
                                            vehicle)]
+        self.logger = logger
 
     def update_info(self, data_dict) -> dict:
         status_dict = {}
@@ -42,8 +44,8 @@ class SafetyManager:
                     print_flag = True
                     break
             if print_flag:
-                print("Safety Warning from the safety manager:")
-                print(status_dict)
+                self.logger.info("Safety Warning from the safety manager:")
+                self.logger.debug(status_dict)
 
 
     def destroy(self):

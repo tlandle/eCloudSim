@@ -97,14 +97,14 @@ class VehicleManagerProxy(object):
             location_type=eLocationType.EXPLICIT):
 
         self.is_edge = False
-        if 'single_cav_list' in config_yaml['scenario']:
-                self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
-                                else config_yaml['scenario']['single_cav_list'][0]
-        
-        elif 'edge_list' in config_yaml['scenario']:
+        if 'edge_list' in config_yaml['scenario']:
             # TODO: support multiple edges...
             self.is_edge = True
             self.cav_config = config_yaml['scenario']['edge_list'][0]['members'][vehicle_index]
+        
+        elif 'single_cav_list' in config_yaml['scenario']:
+                self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
+                                else config_yaml['scenario']['single_cav_list'][0]
         
         else:
             assert(False, "no known vehicle indexing format found")

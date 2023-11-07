@@ -7,7 +7,7 @@ Analysis + visualization functions for platooning
 
 from opencda.core.plan.planer_debug_helper \
     import PlanDebugHelper
-from opencda.core.common.traffic_event import TrafficEvent
+from opencda.core.common.traffic_event import TrafficEvent, TrafficEventType
 
 import ecloud_pb2 as ecloud
 
@@ -262,7 +262,18 @@ class ClientDebugHelper(PlanDebugHelper):
  
         self.collisions_event_list.clear()
         for obj in proto_debug_helper.collisions_event_list:
-            collision_event = TrafficEvent()
+
+            if ('static' in obj.type_id or 'traffic' in obj.type_id) \
+                and 'sidewalk' not in obj.type_id:
+                actor_type = TrafficEventType.COLLISION_STATIC
+            elif 'vehicle' in obj.type_id:
+                actor_type = TrafficEventType.COLLISION_VEHICLE
+            elif 'walker' in obj.type_id:
+                actor_type = TrafficEventType.COLLISION_PEDESTRIAN
+            else:
+                continue
+
+            collision_event = TrafficEvent(event_type=actor_type)
             collision_event.set_dict({
               'type': obj.type_id,
               'id': obj.other_actor_id,
@@ -273,11 +284,11 @@ class ClientDebugHelper(PlanDebugHelper):
 
         self.lane_invasions_list.clear()
         for obj in proto_debug_helper.lane_invasions_list:
-            lane_invasion_event = TrafficEvent()
+            lane_invasion_event = TrafficEvent(event_type=TrafficEventType.LANE_INVASION)
             lane_invasion_event.set_dict({
-              'x': obj.actor_location.x,
-              'y': obj.actor_location.y,
-              'z': obj.actor_location.z})
+              'x': obj.location.x,
+              'y': obj.location.y,
+              'z': obj.location.z})
 
             self.lane_invasions_list.append(lane_invasion_event)
  

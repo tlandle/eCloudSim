@@ -125,7 +125,7 @@ class VehicleManager(object):
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
 
-        print(config_yaml)
+        #print(config_yaml)
         self.vehicle_index = vehicle_index
         self.location_type = location_type
         self.run_distributed = run_distributed
@@ -150,7 +150,7 @@ class VehicleManager(object):
             cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
                         else self.scenario_params['scenario']['single_cav_list'][0]
 
-        print(cav_config)
+        #print(cav_config)
 
         # ORIGINAL FLOW
 
@@ -300,7 +300,8 @@ class VehicleManager(object):
                                       map_config)
         # safety manager
         self.safety_manager = SafetyManager(vehicle=self.vehicle,
-                                            params=cav_config['safety_manager'])
+                                            params=cav_config['safety_manager'],
+                                            logger=logger)
         # behavior agent
         self.agent = None
         if 'platooning' in application:
@@ -345,13 +346,13 @@ class VehicleManager(object):
         """
         Callback to update lane invasion count
         """
-        print("lane Invasion") 
+        logger.warning("Lane Invasion") 
+
         self = weak_self()
         if not self:
+            logger.error("Lane Invasion - no weak self ref")
             return
 
-
-        print("Lane Invasion")
         actor_location = self.vehicle.get_location()
         lane_invasion_event = TrafficEvent(event_type=TrafficEventType.LANE_INVASION)
         lane_invasion_event.set_dict({
@@ -367,10 +368,11 @@ class VehicleManager(object):
         Callback to update collision count
         """
 
-        print("Collision\n")
+        logger.warning("Collision\n")
 
         self = weak_self()
         if not self:
+            logger.error("Collision - no weak self ref")
             return
 
         

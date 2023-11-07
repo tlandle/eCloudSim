@@ -42,8 +42,7 @@ message SimulationInfo {
   string application = 3;
   string version = 4;
   bool is_edge = 5;
-  string vehicle_machine_ip = 6; // TODO: multiple
-  string carla_ip = 7;
+  string carla_ip = 6;
 }
 
 message WaypointRequest {
@@ -126,7 +125,7 @@ message PlanerDebugHelper {
 }
 
 message CollisionEvent {
-  int32 type_id = 1;
+  string type_id = 1;
   int32 other_actor_id = 2; 
   Location location = 3;
 }

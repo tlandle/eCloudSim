@@ -90,7 +90,7 @@ TIMEOUT_MS = TIMEOUT_S * 1000
 NSEC_TO_MSEC = 1/1000000
 ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 
-def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
+def car_blueprint_filter(blueprint_library, carla_version='0.9.14'):
     """
     Exclude the uncommon vehicles from the default CARLA blueprint library
     (i.e., isetta, carlacola, cybertruck, t2).
@@ -292,6 +292,7 @@ class ScenarioManager:
 
                 vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
                 if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ) or self.verbose_updates :
+                    #logger.debug("updating transform & velocity - %s", vehicle_update)
                     t = carla.Transform(
                     carla.Location(
                         x=vehicle_update.transform.location.x,
@@ -306,6 +307,7 @@ class ScenarioManager:
                         y=vehicle_update.velocity.y,
                         z=vehicle_update.velocity.z)
                     if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ):
+                        #logger.debug("updating transform & velocity - %s", vehicle_update)
                         vehicle_manager_proxy.vehicle.set_velocity(v)
                         vehicle_manager_proxy.vehicle.set_transform(t)  
                     
@@ -385,7 +387,6 @@ class ScenarioManager:
 
         #self.config_file = config_file
         self.ecloud_config = EcloudConfig(scenario_params, logger)
-        print(self.ecloud_config)
         self.sm_start_tstamp.GetCurrentTime()
         self.scenario_params = scenario_params
         self.carla_version = carla_version
@@ -482,13 +483,13 @@ class ScenarioManager:
             self.vehicle_count = scenario_params['scenario']['ecloud']['num_cars']
             logger.debug("'ecloud' in YAML specified %s cars", self.vehicle_count)
 
-        elif 'single_cav_list' in scenario_params['scenario']:
-            self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
-
         elif 'edge_list' in scenario_params['scenario']:
             # TODO: support multiple edges...
             self.is_edge = True
             self.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['members'])
+
+        elif 'single_cav_list' in scenario_params['scenario']:
+            self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
 
         else:
             assert False, logger.exception("no known vehicle indexing format found")
@@ -510,7 +511,7 @@ class ScenarioManager:
 
             self.debug_helper.update_sim_start_timestamp(time.time())
 
-            print(type(scenario_params))
+            logger.info(type(scenario_params))
 
             self.scenario = json.dumps(OmegaConf.to_container(scenario_params))
             self.carla_version = self.carla_version
@@ -535,7 +536,6 @@ class ScenarioManager:
           server_request.version = self.carla_version
           server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
           server_request.is_edge = self.is_edge or self.verbose_updates
-          server_request.vehicle_machine_ip = VEHICLE_IP
 
           logger.info("Waiting for scenario start")
           await self.server_start_scenario(self.ecloud_server, server_request)
@@ -543,7 +543,7 @@ class ScenarioManager:
 
           self.world.tick()
         except Exception as e:
-          print(e)
+          logger.exception('unhandled exception')
 
         logger.debug("eCloud debug: pushed START")
 
@@ -1051,9 +1051,9 @@ class ScenarioManager:
         single_cav_list = []
 
         config_yaml = self.scenario_params
-        print(config_yaml)
-        print(self.vehicle_count)
-        print(application)
+        logger.info(json.dumps(OmegaConf.to_container(config_yaml, resolve=True)))
+        logger.info(self.vehicle_count)
+        logger.info(application)
         for vehicle_index in range(self.vehicle_count):
             try:
               logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)
@@ -1079,7 +1079,7 @@ class ScenarioManager:
               single_cav_list.append(vehicle_manager_proxy)
               self.vehicle_managers[vehicle_index] = vehicle_manager_proxy
             except Exception as e:
-              print("Failed to create vehicle manager proxy:", e)
+              logger.exception("Failed to create vehicle manager proxy")
 
         self.tick_world()
         logger.info("Finished creating vehicle managers and returning cav list")
@@ -1113,6 +1113,7 @@ class ScenarioManager:
         edge_list = []
 
         config_yaml = self.scenario_params
+        logger.info(json.dumps(OmegaConf.to_container(config_yaml, resolve=True)))
         # create edges
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
@@ -1343,7 +1344,7 @@ class ScenarioManager:
 
         # pickle the dataFrame
         pickle.dump(data_df, picklefile)
-        print(data_df)
+        logger.debug(data_df)
         #close file
         picklefile.close()
 
@@ -1365,7 +1366,7 @@ class ScenarioManager:
             client_data_list = vehicle_manager_proxy.debug_helper.get_debug_data()[client_data_key]
             all_client_data_list.append(client_data_list)
 
-        print(all_client_data_list)
+        logger.debug(all_client_data_list)
 
         
         #logger.debug(all_client_data_list)
@@ -1380,7 +1381,7 @@ class ScenarioManager:
           return
         self.do_pickling(client_data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
-    def evaluate(self, excludes_list = None):
+    def evaluate(self, excludes_list = ['client_collisons_list', 'client_lane_invasions_list']):
         """
         Used to save all members' statistics.
 
@@ -1470,7 +1471,7 @@ class ScenarioManager:
 
         # pickle the dataFrame
         pickle.dump(sim_time_df, picklefile)
-        print(sim_time_df)
+        logger.debug(sim_time_df)
         #close file
         picklefile.close()
 
