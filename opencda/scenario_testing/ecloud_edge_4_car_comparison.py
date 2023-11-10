@@ -24,6 +24,8 @@ import carla
 
 # OpenCDA Utils
 import opencda.scenario_testing.utils.sim_api as sim_api
+import opencda.scenario_testing.utils.customized_map_api as map_api
+from opencda.scenario_testing.utils.yaml_utils import add_current_time
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.evaluations.evaluate_manager import \
@@ -39,10 +41,10 @@ SCENARIO_NAME = "ecloud_4lane_scenario" # data drive from file name?
 TOWN = 'Town06'
 STEP_COUNT = 300
 
-def run_scenario(opt, config_yaml):
+def run_scenario(opt, scenario_params):
     step = 0
     try:
-        scenario_params = load_yaml(config_yaml)
+        scenario_params = add_current_time(scenario_params)
 
         # sanity checks...
         assert('edge_list' not in scenario_params['scenario']) # do NOT use this template for edge scenarios
@@ -68,7 +70,6 @@ def run_scenario(opt, config_yaml):
                                                    opt.version,
                                                    town=TOWN,
                                                    cav_world=cav_world,
-                                                   config_file=config_yaml,
                                                    distributed=run_distributed)
 
         if opt.record:
@@ -86,8 +87,8 @@ def run_scenario(opt, config_yaml):
                 scenario_manager.create_vehicle_manager(application=['single'])
 
         # create background traffic in carla
-        #traffic_manager, bg_veh_list = \
-        #    scenario_manager.create_traffic_carla()
+        traffic_manager, bg_veh_list = \
+            scenario_manager.create_traffic_carla()
 
         # create evaluation manager
         eval_manager = \

@@ -19,6 +19,7 @@ from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.evaluations.evaluate_manager import \
     EvaluationManager
+from opencda.scenario_testing.utils.yaml_utils import add_current_time
 # ONLY *required* for 2 Lane highway scenarios
 # import opencda.scenario_testing.utils.customized_map_api as map_api
 
@@ -28,12 +29,12 @@ import ecloud_pb2 as ecloud
 LOG_NAME = "ecloud_4lane_edge.log" # data drive from file name?
 SCENARIO_NAME = "ecloud_4lane_edge_scenario" # data drive from file name?
 TOWN = 'Town06'
-STEP_COUNT = 300
+STEP_COUNT = 250
 
-def run_scenario(opt, config_yaml):
+def run_scenario(opt, scenario_params):
     step = 0
     try:
-        scenario_params = load_yaml(config_yaml)
+        scenario_params = add_current_time(scenario_params)
 
         cav_world = CavWorld(opt.apply_ml)
         # create scenario manager
@@ -42,7 +43,6 @@ def run_scenario(opt, config_yaml):
                                                    opt.version,
                                                    town=TOWN,
                                                    cav_world=cav_world,
-                                                   config_file=config_yaml,
                                                    distributed=True)
 
         if opt.record:
