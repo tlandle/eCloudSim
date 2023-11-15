@@ -150,7 +150,7 @@ carla_traffic_manager:
 # define scenario. In this scenario, a 4-vehicle platoon already exists.
 scenario:
   ecloud: 
-    num_cars: 4
+    num_cars: 16
     location_type: random # random || explicit - applies to spawn & destination
     done_behavior: control # destroy || control
   single_cav_list: # this is for merging vehicle or single cav without v2x
@@ -162,7 +162,7 @@ scenario:
           activate: false
           camera:
             visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
-            num: 3 # how many cameras are mounted on the vehicle.
+            num: 1 # how many cameras are mounted on the vehicle.
             positions:  # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
               - [2.5, 0, 1.0, 0]
           lidar: # lidar sensor configuration, check CARLA sensor reference for more details

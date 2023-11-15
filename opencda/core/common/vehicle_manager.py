@@ -113,7 +113,7 @@ class VehicleManager(object):
             carla_world=None,
             carla_map=None,
             cav_world=None,
-            carla_version='0.9.12',
+            carla_version='0.9.15',
             current_time='',
             data_dumping=False,
             location_type=eLocationType.EXPLICIT,
@@ -534,7 +534,7 @@ class VehicleManager(object):
             self.map_manager.run_step()
 
         except Exception as e:
-            logger.warning("can't successfully complete agent.run_step; setting to done.")
+            logger.warning("can't successfully complete agent.run_step; setting to done. Error: ", e)
             target_speed = 0
             ego_pos = self.localizer.get_ego_pos()
             target_pos = ego_pos.location

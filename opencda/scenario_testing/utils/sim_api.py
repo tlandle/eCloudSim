@@ -90,7 +90,7 @@ TIMEOUT_MS = TIMEOUT_S * 1000
 NSEC_TO_MSEC = 1/1000000
 ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 
-def car_blueprint_filter(blueprint_library, carla_version='0.9.14'):
+def car_blueprint_filter(blueprint_library, carla_version='0.9.15'):
     """
     Exclude the uncommon vehicles from the default CARLA blueprint library
     (i.e., isetta, carlacola, cybertruck, t2).
@@ -110,7 +110,7 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.14'):
         The list of suitable blueprints for vehicles.
     """
 
-    if carla_version == '0.9.14':
+    if carla_version == '0.9.15':
       blueprints = [
             blueprint_library.find('vehicle.audi.a2'),
             blueprint_library.find('vehicle.audi.tt'),
@@ -146,7 +146,7 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.14'):
         ]
     else:
         sys.exit("Since v0.1.0, we do not support version earlier than "
-                 "CARLA v0.9.14")
+                 "CARLA v0.9.15")
             
     return blueprints
 
@@ -1141,14 +1141,20 @@ class ScenarioManager:
                 edge_manager.add_member(vehicle_manager)
                 self.vehicle_managers[vehicle_index] = vehicle_manager
 
-            self.tick_world()
-            destination = carla.Location(x=edge['destination'][0],
-                                         y=edge['destination'][1],
-                                         z=edge['destination'][2])
+            try:
+              self.tick_world()
+              logger.debug("World ticked")
+              destination = carla.Location(x=edge['destination'][0],
+                                           y=edge['destination'][1],
+                                           z=edge['destination'][2])
 
-            edge_manager.set_destination(destination)
-            edge_manager.start_edge()
-            edge_list.append(edge_manager)
+              edge_manager.set_destination(destination)
+              logger.debug("Set Destination")
+              edge_manager.start_edge()
+              logger.debug("Started edge")
+              edge_list.append(edge_manager)
+            except Exception as e:
+              logger.debug("Can't create edge manager: ", e)
 
         return edge_list
 

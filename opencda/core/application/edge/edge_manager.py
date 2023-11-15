@@ -108,10 +108,13 @@ class EdgeManager(object):
 
     def start_edge(self):
       self.get_four_lane_waypoints_dict()
+      print("Got Waypoints")
       self.processor = transform_processor(self.waypoints_dict)
+      print("Edge: Waypoints transformed")
       _, _ = self.processor.process_waypoints_bidirectional(0)
+      print("Edge: Waypoints processed")
       inverted = self.processor.process_forward(0)
-      logger.debug(len(inverted))
+      print(len(inverted))
       i = 0
 
       # for k in inverted:
@@ -122,9 +125,11 @@ class EdgeManager(object):
       for vehicle_manager in self.vehicle_manager_list:
           spawn_coords = vehicle_manager.vehicle.get_location()
           spawn_coords = np.array([spawn_coords.x,spawn_coords.y]).reshape((2,1))
-          # print(spawn_coords)
+          print("Spawn Coords before transform")
+          print(spawn_coords)
           spawn_coords = self.processor.process_single_waypoint_forward(spawn_coords[0,0],spawn_coords[1,0])
-          # print(spawn_coords)
+          print("Spawn Coords after Transform")
+          print(spawn_coords)
           # sys.exit()
           # self.spawn_x.append(vehicle_manager.vehicle.get_location().x)
           # self.spawn_y.append(vehicle_manager.vehicle.get_location().y)
@@ -354,10 +359,13 @@ class EdgeManager(object):
         # TODO: data drive num cars
         self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
         end_time = time.time()
-        logger.debug("Traffic Tracker Time: %s", (end_time - start_time))
+        print("Traffic Tracker Time: %s", (end_time - start_time))
 
-        for car in self.Traffic_Tracker.cars_on_road:
-            car.target_velocity = self.traffic_velocity
+        for i, car in enumerate(self.Traffic_Tracker.cars_on_road):
+            print(i)
+            print(self.vehicle_manager_list[i].agent.max_speed)
+            car.target_velocity = self.vehicle_manager_list[i].agent.max_speed * 0.277778 # convert to m/s! NOT kph
+
         # sys.exit()
 
         #print("Updated Info")
