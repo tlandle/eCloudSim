@@ -422,7 +422,8 @@ class PerceptionManager:
                                      self.carla_world,
                                      config_yaml['lidar'],
                                      self.global_position)
-            self.o3d_vis = o3d_visualizer_init(self.id)
+            if self.lidar_visualize:
+                self.o3d_vis = o3d_visualizer_init(self.id) 
         else:
             self.lidar = None
             self.o3d_vis = None

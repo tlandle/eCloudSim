@@ -90,7 +90,7 @@ TIMEOUT_MS = TIMEOUT_S * 1000
 NSEC_TO_MSEC = 1/1000000
 ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 
-def car_blueprint_filter(blueprint_library, carla_version='0.9.14'):
+def car_blueprint_filter(blueprint_library, carla_version='0.9.15'):
     """
     Exclude the uncommon vehicles from the default CARLA blueprint library
     (i.e., isetta, carlacola, cybertruck, t2).
@@ -110,7 +110,7 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.14'):
         The list of suitable blueprints for vehicles.
     """
 
-    if carla_version == '0.9.14':
+    if carla_version == '0.9.15':
       blueprints = [
             blueprint_library.find('vehicle.audi.a2'),
             blueprint_library.find('vehicle.audi.tt'),
@@ -144,9 +144,33 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.14'):
             blueprint_library.find('vehicle.nissan.patrol'),
             blueprint_library.find('vehicle.nissan.micra')
         ]
+    elif carla_version == '0.9.12':
+        blueprints = [
+            blueprint_library.find('vehicle.audi.a2'),
+            blueprint_library.find('vehicle.audi.tt'),
+            blueprint_library.find('vehicle.dodge.charger_police'),
+            blueprint_library.find('vehicle.dodge.charger_police_2020'),
+            blueprint_library.find('vehicle.dodge.charger_2020'),
+            blueprint_library.find('vehicle.jeep.wrangler_rubicon'),
+            blueprint_library.find('vehicle.chevrolet.impala'),
+            blueprint_library.find('vehicle.mini.cooper_s'),
+            blueprint_library.find('vehicle.audi.etron'),
+            blueprint_library.find('vehicle.mercedes.coupe'),
+            blueprint_library.find('vehicle.mercedes.coupe_2020'),
+            blueprint_library.find('vehicle.bmw.grandtourer'),
+            blueprint_library.find('vehicle.toyota.prius'),
+            blueprint_library.find('vehicle.citroen.c3'),
+            blueprint_library.find('vehicle.ford.mustang'),
+            blueprint_library.find('vehicle.tesla.model3'),
+            blueprint_library.find('vehicle.lincoln.mkz_2017'),
+            blueprint_library.find('vehicle.lincoln.mkz_2020'),
+            blueprint_library.find('vehicle.seat.leon'),
+            blueprint_library.find('vehicle.nissan.patrol'),
+            blueprint_library.find('vehicle.nissan.micra'),
+        ]
     else:
         sys.exit("Since v0.1.0, we do not support version earlier than "
-                 "CARLA v0.9.14")
+                 "CARLA v0.9.15")
             
     return blueprints
 
@@ -946,12 +970,12 @@ class ScenarioManager:
 						# hazard behavior for traffic
             tm.ignore_lights_percentage(vehicle, traffic_config[
                                                 'ignore_lights_percentage'])
-            tm.ignore_signs_percentage(vehicle, traffic_config[
-                                                'ignore_signs_percentage'])
-            tm.ignore_vehicles_percentage(vehicle, traffic_config[
-                                                'ignore_vehicles_percentage'])
-            tm.ignore_walkers_percentage(vehicle, traffic_config[
-                                                'ignore_walkers_percentage'])
+            #tm.ignore_signs_percentage(vehicle, traffic_config[
+            #                                    'ignore_signs_percentage'])
+            #tm.ignore_vehicles_percentage(vehicle, traffic_config[
+            #                                    'ignore_vehicles_percentage'])
+            #tm.ignore_walkers_percentage(vehicle, traffic_config[
+            #                                    'ignore_walkers_percentage'])
 
             # each vehicle have slight different speed
             tm.vehicle_percentage_speed_difference(
@@ -1141,14 +1165,20 @@ class ScenarioManager:
                 edge_manager.add_member(vehicle_manager)
                 self.vehicle_managers[vehicle_index] = vehicle_manager
 
-            self.tick_world()
-            destination = carla.Location(x=edge['destination'][0],
-                                         y=edge['destination'][1],
-                                         z=edge['destination'][2])
+            try:
+              self.tick_world()
+              logger.debug("World ticked")
+              destination = carla.Location(x=edge['destination'][0],
+                                           y=edge['destination'][1],
+                                           z=edge['destination'][2])
 
-            edge_manager.set_destination(destination)
-            edge_manager.start_edge()
-            edge_list.append(edge_manager)
+              edge_manager.set_destination(destination)
+              logger.debug("Set Destination")
+              edge_manager.start_edge()
+              logger.debug("Started edge")
+              edge_list.append(edge_manager)
+            except Exception as e:
+              logger.debug("Can't create edge manager: ", e)
 
         return edge_list
 

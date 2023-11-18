@@ -30,9 +30,11 @@ RUN python3.7 -m pip install torch torchvision torchaudio yolov5  --extra-index-
 
 #RUN python3.7 -m pip install -qr https://raw.githubusercontent.com/ultralytics/yolov5/master/requirements.txt
 
-#RUN apt-get install -y libglfw3-dev
+RUN apt-get install -y libglfw3-dev
 
 RUN python3.7 -m pip install open3d
+
+RUN export DISPLAY=:0.0
 
 COPY . .
 

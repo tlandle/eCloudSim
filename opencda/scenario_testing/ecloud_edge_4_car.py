@@ -68,7 +68,7 @@ def run_scenario(opt, scenario_params):
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
-        spectator_vehicle = edge_list[0].vehicle_manager_list[0].vehicle
+        spectator_vehicle = edge_list[0].vehicle_manager_list[1].vehicle
 
         # run steps
         step = 0
@@ -105,7 +105,7 @@ def run_scenario(opt, scenario_params):
                 carla.Transform(
                     transform.location +
                     carla.Location(
-                        z=80),
+                        z=120),
                     carla.Rotation(
                         pitch=-
                         90)))
