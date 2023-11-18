@@ -144,6 +144,30 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.15'):
             blueprint_library.find('vehicle.nissan.patrol'),
             blueprint_library.find('vehicle.nissan.micra')
         ]
+    elif carla_version == '0.9.12':
+        blueprints = [
+            blueprint_library.find('vehicle.audi.a2'),
+            blueprint_library.find('vehicle.audi.tt'),
+            blueprint_library.find('vehicle.dodge.charger_police'),
+            blueprint_library.find('vehicle.dodge.charger_police_2020'),
+            blueprint_library.find('vehicle.dodge.charger_2020'),
+            blueprint_library.find('vehicle.jeep.wrangler_rubicon'),
+            blueprint_library.find('vehicle.chevrolet.impala'),
+            blueprint_library.find('vehicle.mini.cooper_s'),
+            blueprint_library.find('vehicle.audi.etron'),
+            blueprint_library.find('vehicle.mercedes.coupe'),
+            blueprint_library.find('vehicle.mercedes.coupe_2020'),
+            blueprint_library.find('vehicle.bmw.grandtourer'),
+            blueprint_library.find('vehicle.toyota.prius'),
+            blueprint_library.find('vehicle.citroen.c3'),
+            blueprint_library.find('vehicle.ford.mustang'),
+            blueprint_library.find('vehicle.tesla.model3'),
+            blueprint_library.find('vehicle.lincoln.mkz_2017'),
+            blueprint_library.find('vehicle.lincoln.mkz_2020'),
+            blueprint_library.find('vehicle.seat.leon'),
+            blueprint_library.find('vehicle.nissan.patrol'),
+            blueprint_library.find('vehicle.nissan.micra'),
+        ]
     else:
         sys.exit("Since v0.1.0, we do not support version earlier than "
                  "CARLA v0.9.15")
@@ -946,12 +970,12 @@ class ScenarioManager:
 						# hazard behavior for traffic
             tm.ignore_lights_percentage(vehicle, traffic_config[
                                                 'ignore_lights_percentage'])
-            tm.ignore_signs_percentage(vehicle, traffic_config[
-                                                'ignore_signs_percentage'])
-            tm.ignore_vehicles_percentage(vehicle, traffic_config[
-                                                'ignore_vehicles_percentage'])
-            tm.ignore_walkers_percentage(vehicle, traffic_config[
-                                                'ignore_walkers_percentage'])
+            #tm.ignore_signs_percentage(vehicle, traffic_config[
+            #                                    'ignore_signs_percentage'])
+            #tm.ignore_vehicles_percentage(vehicle, traffic_config[
+            #                                    'ignore_vehicles_percentage'])
+            #tm.ignore_walkers_percentage(vehicle, traffic_config[
+            #                                    'ignore_walkers_percentage'])
 
             # each vehicle have slight different speed
             tm.vehicle_percentage_speed_difference(
