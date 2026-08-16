@@ -375,9 +375,9 @@ logic is in the picture.
 - [ ] **F6 check:** confirm base-side and container-side `beacon_id_mgr` temp ids diverge, and that no identity path in the base process consults them
 - [ ] Characterize the one-tick lag (Counter-H2) explicitly: which tick's detections does the container fuse at tick N?
 - [ ] Two-edge `-eo` bring-up on the right-merge scenario, handoff block disabled
-- [ ] **D-15 / edge binding:** bind `edge_id` from `EdgeRegistrationInfo.container_name` (`edge_<n>`), not arrival order; fail loudly on collision or unparseable name
-- [ ] Replace the implicit `zip(edge_list, fusion_clients)` with an explicit `edge_index → client` map, asserted against `edge_cfgs` length
-- [ ] **D-15 / vehicle+RSU binding:** audit the actor-discovery loop in `openscenario_multi_edge_right_merge.py` — verify each logical role (ego, NPC, RSU 0, RSU 1) is resolved by CARLA attribute/role_name, not by list index or iteration order. Assert uniqueness.
+- [x] **D-15 / edge binding:** bind `edge_id` from `EdgeRegistrationInfo.container_name` (`edge_<n>`), not arrival order; fail loudly on collision or unparseable name — `983644ae`
+- [x] Replace the implicit `zip(edge_list, fusion_clients)` with an explicit `edge_index → client` map, asserted against `edge_cfgs` length — `983644ae`
+- [x] **D-15 / vehicle+RSU binding:** audit the actor-discovery loop in `openscenario_multi_edge_right_merge.py` — ego resolved by `role_name='hero'` (correct); NPC by velocity filter with multi-vehicle uniqueness check + warning (sufficient for single-NPC scenario); `other_vehicles` list is empty (no list-position binding). — `983644ae`
 
 ### Step 1 — Phase 1.5: make warm import real (sequential, proto round-trip)
 
@@ -401,12 +401,12 @@ Wire the serialization in `SequentialMigrationDaemon.request_handoff` and
 before the import call. One line per method. This is not a no-op; it is the
 protocol validation step.
 
-- [ ] Add `handoff_warm_import` to the edge YAML schema and read it in `__init__` (today `getattr` finds nothing, so the flag is unsettable from config)
-- [ ] **F8:** reconcile gate semantics between `AB3DMOTStateTransferMixin` and `_PluggableEdgeBase` — one meaning of "warm import on"
-- [ ] Import-side reconciliation: on the first detection that associates to an injected track, merge rather than spawn a duplicate. This is the risk Phase 1 deferred; it is the actual content of Phase 1.5.
-- [ ] Add the serialize → deserialize round-trip to both daemon methods (see above)
-- [ ] Instrument `first_track_publish_tick[carla_id]` on the edge manager — the tick edge 1 first publishes a confirmed track for the NPC
-- [ ] Replace the geometric-proxy window in the scenario's closing log with the measured `first_track_publish_tick − handoff_tick`; keep the proxy as a separate labelled line so run-12 comparisons stay possible
+- [x] Add `handoff_warm_import` to the edge YAML schema and read it in `__init__` — `PredictionLateFusionEdge`, `WorldFusionEdge`, `_PluggableEdgeBase` all read from cfg; `getattr` in mixin finds it — `983644ae`
+- [x] **F8:** reconcile gate semantics between `AB3DMOTStateTransferMixin` and `_PluggableEdgeBase` — `_PluggableEdgeBase` now has `_warm_import_enabled()` and gates `_import_track_latent`; `PredictionLateFusionEdge.import_vehicle_state` (class override) also gated — `983644ae`
+- [ ] Import-side reconciliation: on the first detection that associates to an injected track, merge rather than spawn a duplicate. **Analysis:** `max_age=6` in late fusion (6 AB3DMOT steps = 24 world ticks). Handoff at tick ~161; RSU1 detects NPC at tick ~243. Warm track is pruned ~tick 185 — 58 ticks before RSU1 detection. No live warm track at re-detection, so no ghost-duplicate risk at the current operating point. If `max_age` is increased significantly, reconciliation logic must be added. Confirm with run.
+- [x] Add the serialize → deserialize round-trip to both daemon methods — `983644ae` (confirmed: `payload_bytes()=1050`, `len(pickle)=1696`)
+- [x] Instrument `first_track_publish_tick[carla_id]` on the edge manager — `_ab3d_history_to_trajs(tick=tick)` added; `[TRACK_PUBLISH]` log on first per-cid appearance — `983644ae`
+- [x] Replace the geometric-proxy window in the scenario's closing log — proxy now labelled `PROXY`; `MEASURED` line added from `edge1._first_track_publish_tick` — `983644ae`
 - [ ] Negative control harness: run warm-import on vs off, ≥3 runs each, same seed
 - [ ] **Gate:** report the measured warm-vs-cold delta. If ~0, stop and re-plan — Counter-H1a holds and distribution work is premature.
 - [ ] Check for duplicate-ghost regressions: `ghost_brake_events`, ego merge tick, collisions

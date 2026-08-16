@@ -14,7 +14,7 @@ Items to raise at next Tyler sync:
 - **Phase 2 `-eo` distribution plan (Step 8)** — separate plan needed before building. Discuss scope and what Tyler has already scaffolded (registration server, edge-fusion client) vs. what needs wiring.
 - **Curved-road suppression bug `behavior_agent.py:1555`** — `potential_curved_road` term in step-8 guard forces car-following even when `overtake_allowed=True` and `overtake_counter==0`. Fires when merge waypoints look curved to the local planner. Fix: remove `potential_curved_road` from that conditional. Tyler scope (flagged with `#TL`).
 - **Track-birth timing findings** — Scenario B debugging established that AB3DMOT needs `min_hits=3` confirmed detections before a track is published. At 50ms world_dt that's 3 ticks. Relevant for Phase 2 advance-warning window claims.
-- **Warm import gate (Phase 1.5)** — `handoff_warm_import = False` by default. When does Tyler want to enable this? Requires import-side reconciliation to avoid stale-duplicate ghosts.
+- **Warm import gate (Phase 1.5) — RAISE THIS FIRST.** `handoff_warm_import` defaults False and is settable from nowhere (not YAML, not any `__init__`). It gates both vehicle and obstacle import. So run 12 injected nothing at edge 1 and the 82-tick window is a geometric proxy, not a realized benefit. Needs import-side reconciliation to avoid stale-duplicate ghosts. This is now Step 1 of Phase 2 and gates all distribution work — if the warm-vs-cold delta measures ~0, the framing needs rework.
 - **`_PluggableEdgeBase` MRO change** — the 2026-07-27 develop merge removed `AB3DMOTStateTransferMixin` from `_PluggableEdgeBase`'s MRO and replaced it with inline dual-backend dispatch. Check whether any of Tyler's test fixtures do `isinstance(edge, AB3DMOTStateTransferMixin)` — those would now fail.
 - **Open diagnostics in scenario file** — `[EGO-DBG]` and `[SCENB-DBG]` still at WARNING level in `openscenario_multi_edge_right_merge.py`. `[TRACK-DBG]` was resolved in the merge. Remove before Phase 2.
 - **PACE MTR training status** — job 10846208 (8x H200, two-stage clean data) submitted 2026-07-07. Check if it completed and what minADE landed.
@@ -35,6 +35,19 @@ Branch is 10 commits ahead of `origin/develop` (includes 2026-07-27 merge of ori
 
 **Result:** All Phase 1 Scenario B requirements met. Run 12 (commit `6cefda1a`).
 
+> **Scope caveat (established 2026-08-15).** Run 12 validated the *export* half.
+> `handoff_warm_import` defaults False and is settable from nowhere — not the
+> YAML, not any `__init__` — and the gate covers both `import_vehicle_state`
+> (`ab3dmot_state_transfer.py:162`) and `import_tracked_obstacle_state`
+> (line 204). Scenario B's edges are `manager_type: late_fusion` →
+> `PredictionLateFusionEdge(AB3DMOTStateTransferMixin, …)`, so **no KF was
+> injected at edge 1 in run 12**. The 82-tick advance-warning window is tick
+> arithmetic over a 60 m geometric proxy computed in the scenario file; it never
+> reads edge 1's tracker and would print 82 with the import call deleted. It
+> measures opportunity, not realized benefit. Phase 1.5 (enable warm import +
+> import-side reconciliation) is now Step 1 of the Phase 2 plan and gates
+> everything downstream.
+
 | Event | Tick | Detail |
 |---|---|---|
 | Vehicle handoff | 63 | vid, 986 bytes, full KF state |
@@ -54,13 +67,54 @@ Branch is 10 commits ahead of `origin/develop` (includes 2026-07-27 merge of ori
 
 ---
 
-## Next: Phase 2 `-eo` Distribution Plan (Step 8)
+## Next: Phase 2 — Distributed Edges + gRPC State Transfer (2026-08-16)
 
-Separate plan needed. Pre-reads:
-- `docs/agent_plans/edge_only_distributed_mode.md` — Phase 1–4 complete; registration server, fusion client, and standalone mode all built.
-- Tyler's `migration/` primitives: `locale.py`, `registry.py`, `binding.py`, `payload.py` — these are the building blocks.
+**Plan:** `docs/agent_plans/edge_handoff_phase2_distributed_state_transfer.md`
+**Commit:** `983644ae` — Step 0+1 code changes complete. **CARLA runs still needed.**
 
-The research contribution is the advance-warning window (mechanism + cost). Phase 2 wires the mechanism into `-eo` so the handoff traverses a real gRPC hop with modeled transfer cost.
+Scope: Scenario B only. Decisions D-8 … D-15 recorded in the plan.
+Hub transport first, then peer; cost gating config-flagged default off.
+
+**Sequencing is Phase-1.5-first, not distribution-first.** Distributing the
+edges before warm import works builds a real gRPC hop carrying a real payload
+that the destination discards. Step 1 (sequential, in-process, fast iteration)
+must show a non-zero warm-vs-cold delta before Steps 2–6 are worth doing.
+
+### What landed in 983644ae
+
+**Step 0 code (no CARLA run yet):**
+- `edge_registration_server.py`: D-15 edge binding from `container_name` not arrival order; collision/parse errors now fatal.
+- `openscenario_multi_edge_right_merge.py`: `zip(edge_list, fusion_clients)` → explicit `fc_by_edge_idx` map; NPC uniqueness check; `fc_by_edge_idx = {}` guard at top of `run_scenario`.
+
+**Step 1 code (no CARLA run yet):**
+- `openscenario_multi_edge_right_merge.yaml`: `handoff_warm_import: false` in `edge_base` (set true to enable warm import).
+- `PredictionLateFusionEdge.__init__`: `self.handoff_warm_import = bool(cfg.get(...))` + `self._first_track_publish_tick: Dict[int,int] = {}`.
+- `PredictionLateFusionEdge.import_vehicle_state` (class override): added `_warm_import_enabled()` gate (the override was bypassing the mixin's gate).
+- `WorldFusionEdge.__init__`, `_PluggableEdgeBase.__init__`: same `handoff_warm_import` read.
+- `_PluggableEdgeBase`: added `_warm_import_enabled()` + gated `_import_track_latent` (F8 reconciliation).
+- `daemon.py`: `MigrationPayload.deserialize(payload.serialize())` round-trip in both `request_handoff` and `transfer_obstacle_state`. Confirmed: `payload_bytes()=1050` ≠ `len(pickle)=1696` — D-14 parity invariant intact.
+- `_ab3d_history_to_trajs`: optional `tick` parameter; `[TRACK_PUBLISH]` log on first per-cid trajectory appearance. Scenario closing log adds `MEASURED` window beside `PROXY` window.
+
+**Import-side reconciliation analysis:** `max_age=6` → warm track pruned ~24 world ticks after injection (tick ~185). RSU1 first detects NPC at tick ~243. No live warm track at re-detection → no ghost-duplicate risk at current operating point. Confirm with run.
+
+### What still needs CARLA
+
+- Step 0 CARLA run: single-edge `-eo` regression (`openscenario_3_edge_late_fusion`); two-edge `-eo` right-merge with handoff disabled.
+- Step 1 CARLA run: sequential right-merge with `handoff_warm_import: false` (cold baseline), then `handoff_warm_import: true` on edge 1. Compare `[TRACK_PUBLISH]` tick for NPC across both runs. Check `ghost_brake_events=0`.
+- **Gate:** if measured warm-vs-cold delta ~0, re-plan before Steps 2–6.
+
+Architectural findings behind the plan:
+
+- **F1** — under `-eo` the tracker lives in the container (`Edge_PerformFusion` overwrites the VM/RSU lists with `_FeatureStub`s each tick); the base-process edge is a perception+planning shell whose tracker never advances.
+- **F2** — consequently Scenario B's per-tick snapshot loop under `-eo` exports `kf_state=None` and the handoff silently degrades to nothing. Nothing raises.
+- **F3** — the handoff decomposes into *routing* (`relinquish`/`accept` on base shells — unchanged from Phase 1) and *tracker state* (must cross the wire). Only the second needs RPCs.
+- **F4** — the container sees only tracks, so **one** RPC pair keyed on `carla_id` + position hint covers both vehicle and obstacle transfer.
+- **F5** — `edge_id` is assigned by registration arrival order; `zip(edge_list, fusion_clients)` holds only because `start_actors.sh` serializes container launch. Wrong-locale binding would present as a geometry bug. Bind from `EdgeRegistrationInfo.container_name` instead.
+- **F6** — both `collect_features` impls call `update_information()`, running the comm model (latency, packet loss, beacon temp-ids, jitter push) in the base process where nothing drains it. `BeaconIdManager._random_temp_id()` uses `random.randint`, so base and container temp ids diverge — fine, since the RPC contract is `carla_id`-keyed, but base-side beacon state must never be consulted for identity.
+- **F7** — Single-edge `-eo` is validated (Phases 3 and 4 complete in `edge_only_distributed_mode.md` — late fusion confirmed 2026-05-31, WorldFusion confirmed same period). Two-edge `-eo` with ScenarioRunner, handoff block active, and two separate containers is the new, unexercised combination; that is the Step 0 risk.
+- **F8** — `AB3DMOTStateTransferMixin._import_track_latent` honors `handoff_warm_import`; `_PluggableEdgeBase._import_track_latent` has no gate and always injects. Mamba and AB3DMOT results are not comparable until this is reconciled.
+
+**Parity invariant:** the cost model must keep using `MigrationPayload.payload_bytes()`, never `len(pickled_payload)` — the pickle wire size is larger and host-dependent, and switching would break the Phase 1 ↔ Phase 2 byte comparison.
 
 ---
 
