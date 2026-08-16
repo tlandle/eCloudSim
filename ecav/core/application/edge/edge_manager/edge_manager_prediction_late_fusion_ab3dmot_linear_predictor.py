@@ -283,6 +283,13 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
         # AB3DMOT tracker — persistent across ticks (jitter-buffer arch)
         self.anchoring = cfg.get("anchoring", True)
+
+        # Phase 1.5 warm import gate. Default false (reproduce Phase 1 run-12
+        # baseline); set true in YAML to enable KF injection at handoff.
+        # Read here so AB3DMOTStateTransferMixin._warm_import_enabled() finds it
+        # via getattr(self, 'handoff_warm_import', False).
+        self.handoff_warm_import = bool(cfg.get('handoff_warm_import', False))
+
         # LF-guarded: withhold coasting (stale) tracks from published collision
         # predictions. Default off (LF-basic); on => LF-guarded. Orthogonal to SBA.
         self.stale_track_suppression = bool(cfg.get('stale_track_suppression', False))
@@ -317,6 +324,10 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
         self.tracked_trajectories : Dict[int,ObstacleTrajectory] = {}
         self.track_to_carla : Dict[int,int] = {}
+        # Warm-vs-cold delta instrumentation (Step 1): tick at which this edge
+        # first published a confirmed track for each carla_id. Compare across
+        # warm-import-on vs off runs to measure the realized advance-warning window.
+        self._first_track_publish_tick: Dict[int, int] = {}
 
         # Tracking metrics accumulators
         self._prev_track_ids: set = set()
@@ -422,6 +433,11 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         )
         if track is None or track.kf_state is None:
             logger.warning("import_vehicle_state: no KF state for vehicle %d", vehicle_id)
+            return
+        if not self._warm_import_enabled():
+            logger.info(
+                "import_vehicle_state: warm import disabled (Phase 1.5) — "
+                "vehicle=%d payload received, tracker untouched", vehicle_id)
             return
         ks = track.kf_state
         new_tid = self.tracker.ID_count[0]
@@ -676,7 +692,7 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             # ===== 2. convert to trajectories & predict ===================
             with frame.time("detection"):
                 self._latest_source_tick = latest_source_tick
-                self._ab3d_history_to_trajs(self._track_history, horizon=30)
+                self._ab3d_history_to_trajs(self._track_history, horizon=30, tick=tick)
                 num_tracks = len(self.tracked_trajectories)
 
                 # GT snapshot at the source tick of the latest drained frame
@@ -1259,7 +1275,7 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
     # ------------------------------------------------------------------
     #  Trajectory conversion
     # ------------------------------------------------------------------
-    def _ab3d_history_to_trajs(self, hist:Deque[np.ndarray], horizon:int=10):
+    def _ab3d_history_to_trajs(self, hist:Deque[np.ndarray], horizon:int=10, tick:int=None):
         updated: set[int] = set()
         # Only rebuild/publish tracks the tracker still considers ALIVE. The
         # 30-frame history buffer outlives AB3DMOT's max_age pruning, so a track
@@ -1311,6 +1327,15 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                                             tick_id=0)
                     self.tracked_trajectories[tid] = ObstacleTrajectory(
                         dummy, deque(maxlen=horizon))
+                    # First-publish instrumentation for warm-vs-cold delta.
+                    # Record once per carla_id (not per tid); a warm-imported
+                    # track and a cold-started track for the same obstacle will
+                    # have different tids but the same cid.
+                    if tick is not None and cid not in self._first_track_publish_tick:
+                        self._first_track_publish_tick[cid] = tick
+                        logger.info(
+                            "[TRACK_PUBLISH] edge=%s carla_id=%d first_publish_tick=%d",
+                            self.edgeid, cid, tick)
                 traj = self.tracked_trajectories[tid]
                 traj.trajectory.appendleft(tf)
                 traj.obstacle.transform = tf

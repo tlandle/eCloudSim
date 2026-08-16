@@ -84,6 +84,12 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         # GT snapshots for metrics
         self._gt_snapshots: Dict[int, Dict] = {}
 
+        # Phase 1.5 warm import gate (F8 reconciliation): gate semantics must
+        # match AB3DMOTStateTransferMixin._warm_import_enabled() so Mamba and
+        # AB3DMOT edge results are comparable under the same YAML config.
+        # Default false; enable per-edge in YAML once reconciliation confirmed.
+        self.handoff_warm_import = bool(cfg.get('handoff_warm_import', False))
+
     @property
     def _label(self) -> str:
         return self.__class__.__name__
@@ -212,6 +218,17 @@ class _PluggableEdgeBase(_BaseEdgeManager):
             kf_state=kf_state,
         )
 
+    def _warm_import_enabled(self) -> bool:
+        """Gate for state injection at the destination (Phase 1.5).
+
+        Mirrors ``AB3DMOTStateTransferMixin._warm_import_enabled()`` so that
+        Mamba and AB3DMOT edges behave identically under the same YAML
+        ``handoff_warm_import`` flag (F8 reconciliation). Default false —
+        transfers still export real payloads for cost measurement; the
+        destination tracker is untouched until the flag is set.
+        """
+        return getattr(self, 'handoff_warm_import', False)
+
     def _import_track_latent(self, carla_id: int, track: TrackLatent) -> None:
         """Inject a migrated TrackLatent into whichever backend runs.
 
@@ -219,6 +236,11 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         an AB3DMOT edge, or KF-only into a Mamba edge) is logged and skipped;
         the destination cold-starts that track, per the fallback contract.
         """
+        if not self._warm_import_enabled():
+            logger.info(
+                "_import_track_latent: warm import disabled — "
+                "carla_id=%d payload received, tracker untouched", carla_id)
+            return
         raw = self._raw_tracker()
         if self._is_mamba(raw):
             if track.memo_bank is None:

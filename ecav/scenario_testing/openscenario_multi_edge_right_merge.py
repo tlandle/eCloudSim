@@ -139,6 +139,7 @@ def run_scenario(opt, scenario_params):
     obstacle_handoff_pending = None  # (src_edge, dst_edge) after the crossing fires
     handoff_tick = None
     rsu1_first_detect_tick = None
+    fc_by_edge_idx: dict = {}  # edge_index → EdgeFusionClient; populated in -eo mode
 
     try:
         scenario_params = add_current_time(scenario_params)
@@ -170,6 +171,11 @@ def run_scenario(opt, scenario_params):
             )
             for fc in fusion_clients:
                 fc.connect(retry_timeout_s=60.0)
+            # D-15: explicit edge_index → fusion_client map (D-15).
+            # After the container_name binding fix in EdgeRegistrationServer,
+            # fc.edge_index is deterministic (edge_<n> → n) regardless of
+            # registration arrival order.
+            fc_by_edge_idx = {fc.edge_index: fc for fc in fusion_clients}
             sr_process = Process(target=exec_scenario_runner, args=(scenario_params,))
             sr_process.start()
         else:
@@ -285,15 +291,26 @@ def run_scenario(opt, scenario_params):
                         cost.payload_bytes, cost.total_ms)
 
             # Resolve the fast NPC (moving, non-hero) once it is up and moving.
+            # F5 audit: this scenario has exactly one fast non-hero vehicle (the
+            # overtaking NPC). The velocity filter is sufficient disambiguation.
+            # If a second fast non-hero vehicle appears, the first to satisfy the
+            # threshold wins — log a warning in that case.
             if npc_carla_id is None and step > 10:
+                fast_non_hero = []
                 for v in world.get_actors().filter('vehicle.*'):
                     if v.attributes.get('role_name') != 'hero':
                         vel = v.get_velocity()
                         if (vel.x ** 2 + vel.y ** 2) ** 0.5 > NPC_MIN_SPEED_MPS:
-                            npc_carla_id = v.id
-                            logger.info("[SCENB] fast NPC carla_id=%d resolved at tick=%d",
-                                        npc_carla_id, step)
-                            break
+                            fast_non_hero.append(v)
+                if len(fast_non_hero) > 1:
+                    logger.warning(
+                        "[SCENB] %d fast non-hero vehicles at tick=%d; "
+                        "using id=%d (first). F5: bind by role_name if this is wrong.",
+                        len(fast_non_hero), step, fast_non_hero[0].id)
+                if fast_non_hero:
+                    npc_carla_id = fast_non_hero[0].id
+                    logger.info("[SCENB] fast NPC carla_id=%d resolved at tick=%d",
+                                npc_carla_id, step)
 
             # NPC-driven advance-warning proxy + obstacle handoff.
             if npc_carla_id is not None:
@@ -443,7 +460,14 @@ def run_scenario(opt, scenario_params):
             spectator.set_transform(view_transform)
 
             if getattr(opt, 'edge_only', False):
-                for edge, fc in zip(edge_list, fusion_clients):
+                # D-15: explicit map guarantees edge_list[i] drives fc for edge_i,
+                # not whichever container registered first. zip() assumed this
+                # implicitly; the map asserts it.
+                for i, edge in enumerate(edge_list):
+                    fc = fc_by_edge_idx.get(i)
+                    if fc is None:
+                        logger.error("[SCENB] no fusion_client for edge index %d", i)
+                        continue
                     batch = edge.collect_features(step)
                     result = fc.fuse(step, batch)
                     edge.apply_predictions(step, result)
@@ -480,11 +504,15 @@ def run_scenario(opt, scenario_params):
                 for vid_det, step_num in vm.vehicles_detected.items():
                     print(f"VID: {vm.vehicle.id} found VID {vid_det} at step {step_num}")
 
-        # Advance-warning window: hand-off tick vs. NPC entering RSU1's range.
+        # Advance-warning window.
+        # PROXY (geometric): handoff_tick vs. NPC entering RSU1's 60m radius.
+        # Preserved for run-12 comparability; does not read the tracker.
+        # MEASURED (Step 1): edge 1's first_track_publish_tick for the NPC minus
+        # handoff_tick. Compare warm-import-on vs off runs for the realized delta.
         if handoff_tick is not None and rsu1_first_detect_tick is not None:
             logger.info(
-                "[SCENB] advance-warning window = %d ticks "
-                "(handoff tick=%d, RSU1 in-range tick=%d)",
+                "[SCENB] advance-warning PROXY = %d ticks "
+                "(handoff tick=%d, RSU1 in-range tick=%d, 60m geometry)",
                 rsu1_first_detect_tick - handoff_tick, handoff_tick, rsu1_first_detect_tick)
         elif handoff_tick is not None:
             logger.info(
@@ -493,6 +521,30 @@ def run_scenario(opt, scenario_params):
         else:
             logger.warning("[SCENB] no obstacle handoff fired (npc_resolved=%s, steps=%d)",
                            npc_carla_id is not None, step)
+
+        # Measured first-track-publish tick from edge 1 (Step 1 instrumentation).
+        edge1 = edge_list[1] if len(edge_list) > 1 else None
+        if (edge1 is not None
+                and hasattr(edge1, '_first_track_publish_tick')
+                and npc_carla_id is not None):
+            ftp = edge1._first_track_publish_tick.get(npc_carla_id)
+            if ftp is not None and handoff_tick is not None:
+                logger.info(
+                    "[SCENB] advance-warning MEASURED = %d ticks "
+                    "(handoff_tick=%d, edge1 first_publish_tick=%d carla_id=%d) "
+                    "— compare against cold-start run for warm-vs-cold delta",
+                    ftp - handoff_tick, handoff_tick, ftp, npc_carla_id)
+            elif ftp is not None:
+                logger.info(
+                    "[SCENB] edge1 first_track_publish for carla_id=%d at tick=%d "
+                    "(no handoff_tick recorded)", npc_carla_id, ftp)
+            else:
+                logger.warning(
+                    "[SCENB] edge1 has no first_track_publish for carla_id=%d "
+                    "(warm_import=%s, edge1._first_track_publish_tick=%s)",
+                    npc_carla_id,
+                    getattr(edge1, 'handoff_warm_import', '?'),
+                    getattr(edge1, '_first_track_publish_tick', {}))
 
         transfer_costs = (
             scenario_manager.get_handoff_costs()

@@ -252,6 +252,12 @@ edge_base: &edge_base
   uplink_packet_loss_pct: 0.0
   downlink_packet_loss_pct: 0.0
   mode: PREDICTION
+  # Phase 1.5 warm import gate. Default false (reproduce Phase 1 run-12 baseline).
+  # Set true on destination edge (locale_1 / edge_1) to enable KF injection at
+  # handoff. Set to true on both edges when running the warm-vs-cold comparison.
+  # Requires import-side reconciliation to be confirmed safe (ghost_brake_events=0)
+  # before enabling in production runs.
+  handoff_warm_import: false
 
 scenario:
   edge_list:

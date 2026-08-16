@@ -291,13 +291,13 @@ After any proto change, recompile: `python ecav.py --build`.
 
 - [x] Update `start_actors.sh`: spawn edges with `--orchestrator_ip localhost --orchestrator_port 50055` (no `--edge-index`); skip vehicle/RSU/non-ego containers in edge-only mode; use port base 50060 for fusion servers
 - [x] Replace "pushed scenario start" wait with mode-aware signals: wait for "EdgeRegistrationServer" before starting edges, then `[EDGE-ONLY]` after all edges connected
-- [ ] Test: `openscenario_3_edge_worldfusion` end-to-end in edge-only distributed mode
+- [x] Test: `openscenario_3_edge_worldfusion` end-to-end in edge-only distributed mode — PASSED (2026-05-31 / 2026-06-01)
 
 ### Phase 4: Verification
 
-- [ ] Confirm vehicle drives successfully using edge-fused predictions
-- [ ] Confirm edge profiler logs are written (`edge_profiler_<ts>.json`)
-- [ ] Confirm late-fusion scenario also works (same code path, different edge config)
+- [x] Confirm vehicle drives successfully using edge-fused predictions — ✓ (2026-05-31: `avg_speed_mps=9.94`, `ghost_brake_events=0`, `true_positive_gt=8`; JRapp confirmed live)
+- [x] Confirm edge profiler logs are written (`edge_profiler_<ts>.json`) — ✓ (profiler 75 keys confirmed in standalone test 2026-05-30; e2e confirmed 2026-05-31)
+- [x] Confirm late-fusion scenario also works (same code path, different edge config) — ✓ (2026-05-31 fix + run; re-validated post-develop-merge 2026-06-01)
 
 ---
 

@@ -94,7 +94,14 @@ class SequentialMigrationDaemon:
         )
 
         # 3. Inject tracker state into dst.
+        #    Phase 1.5: validate the wire contract by running the payload through
+        #    the actual proto serialize → deserialize path before injection.
+        #    Bytes never cross a socket in sequential mode, but this catches any
+        #    KFState/TrackLatent pickle mismatch before Step 3 adds the network
+        #    hop — a discrepancy after Step 3 is then a network bug, not a
+        #    serialization bug.
         if payload is not None:
+            payload = MigrationPayload.deserialize(payload.serialize())
             dst_edge.import_vehicle_state(vehicle_id, payload)
         else:
             logger.warning(
@@ -142,6 +149,8 @@ class SequentialMigrationDaemon:
                 carla_id, src_edge.edgeid,
             )
             return None
+        # Phase 1.5: proto contract validation — same round-trip as request_handoff.
+        payload = MigrationPayload.deserialize(payload.serialize())
         dst_edge.import_tracked_obstacle_state(carla_id, payload)
         cost = link.model_transfer(payload, src_edge, dst_edge, tick)
         self._costs.append(cost)

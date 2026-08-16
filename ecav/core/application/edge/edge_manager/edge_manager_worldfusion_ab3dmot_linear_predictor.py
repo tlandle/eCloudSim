@@ -162,6 +162,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             'cull_consec_ticks': cfg.get("cull_consec_ticks", 3)
         })
         self.anchoring = cfg.get("anchoring", True)
+        # Phase 1.5 warm import gate — mirrors PredictionLateFusionEdge and
+        # _PluggableEdgeBase so AB3DMOTStateTransferMixin._warm_import_enabled()
+        # finds it via getattr(self, 'handoff_warm_import', False).
+        self.handoff_warm_import = bool(cfg.get('handoff_warm_import', False))
         self.ab3dmot_category = 'Car'
 
         # Create persistent tracker instance (reused across frames)

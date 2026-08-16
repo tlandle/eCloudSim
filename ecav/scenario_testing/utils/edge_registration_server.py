@@ -52,8 +52,8 @@ class _EdgeRegistrationServicer:
         self._expected = expected_num_edges
         self._event = registration_event
         self._lock = asyncio.Lock()
-        self._next_edge_id = 0
         # registered edges: edge_id → (edge_ip, edge_port)
+        # D-15: edge_id is bound from container_name ("edge_<n>"), not arrival order.
         self.registrations: dict = {}
 
         # Pre-build actor index maps once (same logic as sim_api._build_edge_mapping_setup)
@@ -82,9 +82,40 @@ class _EdgeRegistrationServicer:
     async def Edge_Register(self, request, context):
         ecloud, _ = _proto()
 
+        # D-15: bind edge_id from container_name, not arrival order.
+        # Containers set HOSTNAME=edge_<n> via `docker run -e HOSTNAME=edge_<n>`;
+        # the fallback in edge_process.py uses f"edge_{self.edge_index}" for
+        # non-Docker paths. Using container_name makes the assignment deterministic
+        # regardless of registration arrival order, so wrong-locale binding
+        # (which presents as a geometry bug, not a wiring bug) is impossible.
+        cname = getattr(request, 'container_name', '').strip()
+        try:
+            prefix, num_str = cname.rsplit('_', 1)
+            assert prefix == 'edge', f"expected prefix 'edge', got '{prefix!r}'"
+            edge_id = int(num_str)
+        except (ValueError, AssertionError, AttributeError) as exc:
+            logger.error(
+                "Edge_Register: cannot parse edge_id from container_name=%r: %s",
+                cname, exc)
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details(
+                f"Edge_Register: cannot parse edge index from container_name={cname!r}; "
+                f"expected 'edge_<n>'"
+            )
+            return ecloud.EdgeScenarioConfig()
+
         async with self._lock:
-            edge_id = self._next_edge_id
-            self._next_edge_id += 1
+            if edge_id in self.registrations:
+                logger.error(
+                    "Edge_Register: duplicate registration for edge_id=%d "
+                    "(container_name=%r); already registered as %s",
+                    edge_id, cname, self.registrations[edge_id])
+                context.set_code(grpc.StatusCode.ALREADY_EXISTS)
+                context.set_details(
+                    f"Edge_Register: edge_id={edge_id} already registered "
+                    f"(container_name={cname!r})"
+                )
+                return ecloud.EdgeScenarioConfig()
             self.registrations[edge_id] = (request.edge_ip, request.edge_port)
 
         edge_list = self._scenario.get('scenario', {}).get('edge_list', [])
