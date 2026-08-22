@@ -169,6 +169,22 @@ class BehaviorAgent(object):
         time_ahead = config_yaml['collision_time_ahead']
         self._collision_check = CollisionChecker(
             time_ahead=time_ahead)
+        # Separate TTC threshold for candidate lane-change-path safety checks
+        # (overtake_management's dry-run/commit calls, lane_change_management,
+        # the return-to-lane check — all call collision_manager with
+        # adjacent_check=True). collision_time_ahead is tuned for braking
+        # distance against a STATIONARY hazard (e.g. Scenario B's ambulance,
+        # ~44m at cruise speed); reusing it for a FAST-moving hazard in the
+        # target lane (e.g. Scenario B's 18 m/s NPC) demands a proportionally
+        # much larger physical gap (v*time_ahead) before the candidate path
+        # is accepted, which can burn through most of the braking-distance
+        # margin the ambulance check was tuned around. Defaults to 2.0s
+        # (collision_time_ahead's own value before the run-10/11 stationary-
+        # obstacle-specific bump to 4) — a conventional car-following/merge
+        # safety gap, independent of how conservatively braking is tuned for
+        # a stopped obstacle. Override via config_yaml['overtake_lane_safety_time_ahead'].
+        self.overtake_lane_safety_time_ahead = config_yaml.get(
+            'overtake_lane_safety_time_ahead', 2.0)
         self.ignore_traffic_light = config_yaml['ignore_traffic_light']
         self.overtake_allowed = config_yaml['overtake_allowed']
         self.overtake_allowed_origin = config_yaml['overtake_allowed']
@@ -690,6 +706,15 @@ class BehaviorAgent(object):
         def dist(v):
             return v.get_location().distance(waypoint.transform.location)
 
+        # adjacent_check=True means this call is evaluating a CANDIDATE
+        # lane-change path (overtake dry-run/commit, lane_change_management,
+        # return-to-lane), not ego's own intended path — use the lane-safety
+        # threshold, sized for a fast-moving hazard in the target lane,
+        # rather than collision_time_ahead, sized for braking distance
+        # against ego's own-path hazard (may be a stationary obstacle).
+        time_ahead = (self.overtake_lane_safety_time_ahead if adjacent_check
+                      else self._collision_check.time_ahead)
+
         vehicle_state = False
         min_distance = 1000
         target_vehicle = None
@@ -873,7 +898,7 @@ class BehaviorAgent(object):
             # Only act on time-synchronized collisions (valid TTC).
             # TTC=1000 means only the spatial-overlap fallback triggered
             # (e.g. parked cars near the path) — not a real collision course.
-            if collision and ttc < self._collision_check.time_ahead:
+            if collision and ttc < time_ahead:
                 # Re-run WITH drawing for confirmed collisions only,
                 # on the mode that actually conflicted
                 self._collision_check.trajectory_collision_check(
