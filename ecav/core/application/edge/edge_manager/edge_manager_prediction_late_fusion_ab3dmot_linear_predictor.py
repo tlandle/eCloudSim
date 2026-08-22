@@ -1199,6 +1199,18 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             vm.vehicle.apply_control(vm.run_step())
             self._label_brake_attributions_gt(vm)
             self._record_time_to_events(tick, vm)
+        # RSU perception refresh. Dropped when this method was split out of
+        # run_step() during the multi-edge predictive latent migration merge
+        # (46216a12) — the docstring above still promised it, the code
+        # didn't do it. Without this, an RSU-only edge (e.g. edge 0 once its
+        # managed vehicle hands off) never refreshes rsu.objects past its
+        # initial {}, so its tracker sees zero detections for the rest of
+        # the run regardless of what the RSU's own sensors see. Restored to
+        # match run-12 (6cefda1a), the last commit that validated Scenario B
+        # end to end.
+        for rsu in self.rsu_manager_list:
+            rsu.update_info()
+            rsu.run_step()
         # Use the unfiltered live snapshot, not _gt_snapshots: the latter is
         # range-limited to 50m of a managed vehicle and tick-keyed by source
         # frame, so far/approaching cross-traffic is missing exactly when the
