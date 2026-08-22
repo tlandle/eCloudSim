@@ -458,6 +458,11 @@ class AB3DMOT(object):
 			trk.carla_id = cid
 			trk.guid     = int(info[i, GUID])
 			trk.near_identified_ticks = 0  # for post-birth cull
+			# TEMP (Phase 2 Step 1 warm-import reconciliation investigation):
+			# see the matching [TRACK_DEATH] log in output(). Remove once the
+			# reconciliation gap is understood/fixed.
+			print(f"[TRACK_BIRTH] id={trk.id} carla_id={cid} "
+				f"frame_count={self.frame_count}", flush=True)
 			self.trackers.append(trk)
 			new_id_list.append(trk.id)
 
@@ -567,7 +572,15 @@ class AB3DMOT(object):
 			num_trks -= 1
 
 			# deadth, remove dead tracklet
-			if (trk.time_since_update >= self.max_age): 
+			if (trk.time_since_update >= self.max_age):
+				# TEMP (Phase 2 Step 1 warm-import reconciliation investigation):
+				# confirm whether/when a warm-injected track ages out before the
+				# real detection it should reconcile with arrives. Remove once
+				# the reconciliation gap is understood/fixed.
+				print(f"[TRACK_DEATH] id={trk.id} carla_id={trk.carla_id} "
+					f"hits={trk.hits} time_since_update={trk.time_since_update} "
+					f"max_age={self.max_age} frame_count={self.frame_count}",
+					flush=True)
 				self.trackers.pop(num_trks)
 
 		return results
@@ -696,6 +709,13 @@ class AB3DMOT(object):
 		matched, unmatched_dets, unmatched_trks, cost, affi = \
 			data_association(dets, trks, self.metric, self.thres, self.algm, trk_innovation_matrix,
 			                 anchoring=self.anchoring, anchoring_epoch=self.anchoring_epoch)
+		# TEMP (Phase 2 Step 1 warm-import reconciliation investigation): was a
+		# given track even a live candidate for matching this call, and did it
+		# fail to match? Remove once the reconciliation gap is understood/fixed.
+		if unmatched_trks:
+			print(f"[TRACK_UNMATCHED] frame_count={self.frame_count} "
+				f"candidates={[(self.trackers[i].id, self.trackers[i].carla_id) for i in unmatched_trks]}",
+				flush=True)
 		# print_log('detections are', log=self.log, display=False)
 		# print_log(dets, log=self.log, display=False)
 		# print_log('tracklets are', log=self.log, display=False)
