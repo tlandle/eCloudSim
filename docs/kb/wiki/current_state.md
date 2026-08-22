@@ -99,15 +99,20 @@ must show a non-zero warm-vs-cold delta before Steps 2–6 are worth doing.
 - `daemon.py`: `MigrationPayload.deserialize(payload.serialize())` round-trip in both `request_handoff` and `transfer_obstacle_state`. Confirmed: `payload_bytes()=1050` ≠ `len(pickle)=1696` — D-14 parity invariant intact.
 - `_ab3d_history_to_trajs`: optional `tick` parameter; `[TRACK_PUBLISH]` log on first per-cid trajectory appearance. Scenario closing log adds `MEASURED` window beside `PROXY` window.
 
-**Import-side reconciliation analysis:** `max_age=6` → warm track pruned ~24 world ticks after injection (tick ~185). RSU1 first detects NPC at tick ~243. No live warm track at re-detection → no ghost-duplicate risk at current operating point. Confirm with run.
+**Import-side reconciliation analysis — superseded, see "Step 1 conclusion" above.** (Original estimate — warm track pruned ~tick 185 via `max_age=6`, safely before RSU1's ~tick 243 detection, so no ghost risk — was based on the 60m geometric proxy, not the actual first-detection tick. The real mechanism is more involved: two real bugs plus one structural limitation, fully written up above.)
 
-### What still needs CARLA
+### Step 0/1 status — audited 2026-08-22, corrected from earlier overstatement
 
 - [x] Step 0: single-edge `-eo` regression (`openscenario_3_edge_late_fusion`) — clean, no regression.
-- [x] Step 0: two-edge `-eo` right-merge bring-up — clean after the `[EDGE-ONLY]` print fix (`0767ed3a`).
-- [x] Step 1 cold baseline: sequential right-merge, `handoff_warm_import: false` — **`MEASURED=29 ticks`, confirmed reproducible across 3 runs** (`XuwE8k`, `exyzDi`, `vG76bj`), 0 collisions, `ghost_brake_events=0` each time.
-- [ ] Step 1 warm run: same scenario with `handoff_warm_import: true` on edge 1. Compare `[TRACK_PUBLISH]` tick for the NPC against the cold baseline.
-- **Gate:** if measured warm-vs-cold delta ~0, re-plan before Steps 2–6.
+- [~] Step 0: two-edge `-eo` right-merge bring-up — **infrastructure confirmed working** (`nAHj5t.log`, full 700-tick completion, after the `[EDGE-ONLY]` print fix `0767ed3a`), **but not run with the handoff block disabled as the plan's own item specifies.** Retroactive audit of that log confirmed F2's predicted silent degradation exactly (`no KF for carla_id=122` repeating, `no obstacle handoff fired`).
+- [ ] Step 0: **`edge_profiler_<ts>.json` confirmed NOT written** — zero profiler files exist from this session anywhere in the repo; no `end_scenario`/`Edge_EndScenario` log line at all in the successful `-eo` run. Genuinely broken, not investigated further yet.
+- [ ] Step 0: F6 checks (does `collect_features` need `update_information()` for late fusion; does `beacon_id_mgr` diverge base vs. container) — never investigated.
+- [ ] Step 0: Counter-H2 one-tick lag characterization — never investigated.
+- [ ] Step 0: confirm vehicle drives on container-fused predictions vs. silent local fallback — no log evidence either way, unverified.
+- [x] Step 1 cold baseline: sequential right-merge, `handoff_warm_import: false` — `MEASURED=29 ticks`, confirmed reproducible across 3 runs (`XuwE8k`, `exyzDi`, `vG76bj`), 0 collisions, `ghost_brake_events=0` each time.
+- [x] Step 1 warm run and gate: **resolved with a reframed answer, not a stalled `[ ]`.** See "Step 1 conclusion" above — delta was 0 for a specific, now-understood reason (two fixed bugs, one deep limitation deliberately left to Khonsu's design), not because H1 is false. Full writeup in the Phase 2 plan.
+
+**Honesty note:** the two-edge `-eo` and single-edge `-eo` items were previously marked `[x]` in this file based on "the readiness-gate bug is fixed" rather than "the specific checklist item's criteria are met" — those are different claims, and conflating them overstated progress here. Corrected 2026-08-22 after jrapp asked directly whether the unchecked plan items were actually done.
 
 **Three unrelated regressions found and fixed while chasing a clean sequential baseline** (none were Phase-2/warm-import bugs — all were pre-existing, surfaced by finally re-running Scenario B sequential after a long gap):
 1. `fef25d41` — RSU perception never refreshed in sequential mode (`46216a12` merge dropped a loop `_advance_actors()`'s docstring still promised).
