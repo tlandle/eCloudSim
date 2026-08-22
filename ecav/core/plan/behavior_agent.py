@@ -892,9 +892,18 @@ class BehaviorAgent(object):
                 ego_loc=self._ego_pos.location, target_wpt=left_wpt,
                 carla_map=self._map,
                 overtake=True, world=self.vehicle.get_world(), oncoming_lane=True)
-            vehicle_state, _, _ = self.collision_manager(
+            vehicle_state, _dbg_target, _dbg_dist = self.collision_manager(
                 rx, ry, ryaw, self._map.get_waypoint(
                     self._ego_pos.location), True)
+            if vehicle_state and not set_destination:
+                # TEMP (Phase 2 Step 1 collision investigation): identify what
+                # rejects the left-lane dry-run candidate path. Remove once
+                # the ambulance-clip root cause is confirmed.
+                logger.warning(
+                    "[OVERTAKE DRY-RUN left] rejected: trigger_carla_id=%s "
+                    "min_distance=%.2fm ego_pos=(%.1f,%.1f)",
+                    getattr(_dbg_target, 'carla_id', None), _dbg_dist,
+                    self._ego_pos.location.x, self._ego_pos.location.y)
             logger.debug("VehicleState: %s" %vehicle_state)
             #logger.debug("Checked for overtake but possibly saw collision")
             if not vehicle_state:
@@ -1029,9 +1038,19 @@ class BehaviorAgent(object):
                 carla_map=self._map,
                 world=self.vehicle.get_world())
 
-            vehicle_state, _, _ = self.collision_manager(
+            vehicle_state, _dbg_target, _dbg_dist = self.collision_manager(
                 rx, ry, ryaw, self._map.get_waypoint(
                     self._ego_pos.location), True)
+            if vehicle_state and not set_destination:
+                # TEMP (Phase 2 Step 1 collision investigation): identify what
+                # rejects the right-lane dry-run candidate path during the
+                # overtake_wait_counter loop. Remove once the ambulance-clip
+                # root cause is confirmed.
+                logger.warning(
+                    "[OVERTAKE DRY-RUN right] rejected: trigger_carla_id=%s "
+                    "min_distance=%.2fm ego_pos=(%.1f,%.1f)",
+                    getattr(_dbg_target, 'carla_id', None), _dbg_dist,
+                    self._ego_pos.location.x, self._ego_pos.location.y)
             if not vehicle_state:
                 logger.debug("right overtake is operated")
                 # Same floor as the left branch: keep the merge plan viable
