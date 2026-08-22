@@ -1069,13 +1069,22 @@ class BehaviorAgent(object):
             if vehicle_state and not set_destination:
                 # TEMP (Phase 2 Step 1 collision investigation): identify what
                 # rejects the right-lane dry-run candidate path during the
-                # overtake_wait_counter loop. Remove once the ambulance-clip
-                # root cause is confirmed.
+                # overtake_wait_counter loop, and whether it's actually the
+                # obstacle_vehicle (the ambulance) rejecting its own
+                # candidate path near the maneuver's start. Remove once the
+                # ambulance-clip root cause is confirmed.
+                _dbg_target_loc = (_dbg_target.get_location()
+                                   if _dbg_target is not None else None)
                 logger.warning(
                     "[OVERTAKE DRY-RUN right] rejected: trigger_carla_id=%s "
-                    "min_distance=%.2fm ego_pos=(%.1f,%.1f)",
-                    getattr(_dbg_target, 'carla_id', None), _dbg_dist,
-                    self._ego_pos.location.x, self._ego_pos.location.y)
+                    "trigger_pos=%s min_distance=%.2fm ego_pos=(%.1f,%.1f) "
+                    "obstacle_vehicle_pos=(%.1f,%.1f)",
+                    getattr(_dbg_target, 'carla_id', None),
+                    (f"({_dbg_target_loc.x:.1f},{_dbg_target_loc.y:.1f})"
+                     if _dbg_target_loc is not None else None),
+                    _dbg_dist,
+                    self._ego_pos.location.x, self._ego_pos.location.y,
+                    obstacle_vehicle_loc.x, obstacle_vehicle_loc.y)
             if not vehicle_state:
                 logger.debug("right overtake is operated")
                 # Same floor as the left branch: keep the merge plan viable
