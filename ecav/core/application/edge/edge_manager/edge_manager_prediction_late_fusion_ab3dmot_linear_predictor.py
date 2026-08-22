@@ -233,6 +233,23 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
     Back-end for *mode: PREDICTION* (late-fusion with AB3DMOT).
     """
 
+    # Position-gated first-publish match radius (Step 1 instrumentation).
+    # Tight enough to reject the ambulance/ego at handoff-time separation
+    # (>>10m in Scenario B), loose enough for a few ticks of KF drift.
+    _HANDOFF_TARGET_MATCH_M = 5.0
+
+    # ------------------------------------------------------------------
+    def note_target_position(self, carla_id: int, position: tuple) -> None:
+        """Record the live ground-truth (x, y) of an externally-tracked
+        target for the position-gated first-publish check.
+
+        Called once per tick by the scenario driver for identities this
+        edge's own tracker cannot resolve to a real carla_id (e.g. Scenario
+        B's NPC, which never beacons — see the position-gated check in
+        _ab3d_history_to_trajs for why cid-based matching doesn't work here).
+        """
+        self._handoff_target_positions[carla_id] = position
+
     # ------------------------------------------------------------------
     def __init__(self, world, cfg, cav_world, carla_client,
                  *, world_dt=0.05, is_proxy=False, **kw):
@@ -325,9 +342,14 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self.tracked_trajectories : Dict[int,ObstacleTrajectory] = {}
         self.track_to_carla : Dict[int,int] = {}
         # Warm-vs-cold delta instrumentation (Step 1): tick at which this edge
-        # first published a confirmed track for each carla_id. Compare across
-        # warm-import-on vs off runs to measure the realized advance-warning window.
+        # first published a confirmed track matching each externally-tracked
+        # target's ground-truth position (see note_target_position()). Compare
+        # across warm-import-on vs off runs to measure the realized
+        # advance-warning window. Keyed by real carla_id, populated by
+        # position match — see the position-gated check in
+        # _ab3d_history_to_trajs for why cid can't be used directly.
         self._first_track_publish_tick: Dict[int, int] = {}
+        self._handoff_target_positions: Dict[int, tuple] = {}
 
         # Tracking metrics accumulators
         self._prev_track_ids: set = set()
@@ -1327,21 +1349,38 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                                             tick_id=0)
                     self.tracked_trajectories[tid] = ObstacleTrajectory(
                         dummy, deque(maxlen=horizon))
-                    # First-publish instrumentation for warm-vs-cold delta.
-                    # Record once per carla_id (not per tid); a warm-imported
-                    # track and a cold-started track for the same obstacle will
-                    # have different tids but the same cid.
-                    if tick is not None and cid not in self._first_track_publish_tick:
-                        self._first_track_publish_tick[cid] = tick
-                        logger.info(
-                            "[TRACK_PUBLISH] edge=%s carla_id=%d first_publish_tick=%d",
-                            self.edgeid, cid, tick)
                 traj = self.tracked_trajectories[tid]
                 traj.trajectory.appendleft(tf)
                 traj.obstacle.transform = tf
                 traj.obstacle.location  = tf.location
                 traj.obstacle.carla_id  = cid
                 self.track_to_carla[tid]= cid
+
+                # Position-gated first-publish instrumentation (warm-vs-cold
+                # delta measurement, Step 1). cid is unusable for this: an
+                # unbeaconed obstacle (Scenario B's NPC) never resolves a real
+                # carla_id through the tracker's own output — cid stays -1
+                # whether the track is cold-started or warm-injected, and -1
+                # is shared by every other unidentified object on this edge.
+                # Instead, match on ground-truth position via
+                # note_target_position() (scenario calls this once per tick
+                # for identities it cannot beacon). Checked on every live
+                # track, not just new ones, so a warm-injected track — which
+                # already exists in tracked_trajectories from an earlier
+                # tick — is still caught the first tick its position lines up.
+                if tick is not None and self._handoff_target_positions:
+                    for _tcid, (_tx, _ty) in self._handoff_target_positions.items():
+                        if _tcid in self._first_track_publish_tick:
+                            continue
+                        _d = ((tf.location.x - _tx) ** 2
+                              + (tf.location.y - _ty) ** 2) ** 0.5
+                        if _d <= self._HANDOFF_TARGET_MATCH_M:
+                            self._first_track_publish_tick[_tcid] = tick
+                            logger.info(
+                                "[TRACK_PUBLISH] edge=%s carla_id=%d tid=%d "
+                                "first_publish_tick=%d (position-matched, dist=%.1fm)",
+                                self.edgeid, _tcid, tid, tick, _d)
+
                 # KF velocity (m/tick) → m/s for downstream prediction gating
                 # KITTI dx(10)=CARLA vx, KITTI dz(12)=CARLA vy (ground plane)
                 if len(trk) > 12:

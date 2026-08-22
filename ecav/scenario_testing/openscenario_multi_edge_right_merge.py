@@ -321,6 +321,15 @@ def run_scenario(opt, scenario_params):
                     nvel = npc_actor.get_velocity()
                     npc_xy = (nloc.x, nloc.y)
 
+                    # Feed ground truth to every edge's position-gated
+                    # first-publish instrumentation (Step 1). The NPC never
+                    # beacons, so no edge's tracker can resolve it to a real
+                    # carla_id on its own — this is the only channel that
+                    # lets [TRACK_PUBLISH] key on the right object.
+                    for edge in edge_list:
+                        if hasattr(edge, 'note_target_position'):
+                            edge.note_target_position(npc_carla_id, npc_xy)
+
                     if rsu1_first_detect_tick is None and rsu1_pos is not None:
                         d = ((npc_xy[0] - rsu1_pos[0]) ** 2
                              + (npc_xy[1] - rsu1_pos[1]) ** 2) ** 0.5
