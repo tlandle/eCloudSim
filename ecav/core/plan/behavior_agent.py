@@ -1569,12 +1569,22 @@ class BehaviorAgent(object):
         # 8. the case that vehicle is blocking in front and overtake not
         # allowed or it is doing overtaking the second condition is to
         # prevent successive overtaking
+        #
+        # potential_curved_road removed from this guard (2026-08-22): it
+        # latches True on merge-zone geometry the local planner reads as
+        # curved and then does not reliably clear, permanently forcing
+        # car-following even once overtake_allowed=True and
+        # overtake_counter<=0 — confirmed as the proximate cause of a
+        # sustained ego/stationary-obstacle collision (creep-into-obstacle;
+        # see docs/kb/wiki/current_state.md, Phase 2 Step 1 collision
+        # investigation). The two remaining conditions (overtake not
+        # allowed, or an overtake already in its cooldown counter) are
+        # sufficient to justify car-following on their own.
         elif is_hazard and (not left_turn) and (not self.overtake_allowed or
-                self.overtake_counter > 0 or self.get_local_planner().potential_curved_road): #TL - Why is this logic here?
+                self.overtake_counter > 0):
             #logger.debug("Vehicle is blocking in front or overtake is not allowed")
             #logger.debug("Overtake Allowed: %s" %self.overtake_allowed)
             #logger.debug("Overtake Counter: %s" %self.overtake_counter)
-            #logger.debug("Curved Road: %s" %self.get_local_planner().potential_curved_road)
             car_following_flag = True
             end_time_8 = time.time()
         # 9. overtake handeling
