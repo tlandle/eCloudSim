@@ -368,13 +368,13 @@ the result.
 The infrastructure risk. Do this on a single-edge scenario first so no handoff
 logic is in the picture.
 
-- [ ] Run `openscenario_3_edge_late_fusion` under `-eo`, single edge, clean CARLA session. This is previously validated infrastructure; any breakage is a regression from Phase 1 commits.
+- [x] Run `openscenario_3_edge_late_fusion` under `-eo`, single edge, clean CARLA session — ran clean, no regression (2026-08-22).
 - [ ] Confirm the vehicle drives on container-fused predictions (not on empty prediction lists silently falling back to local planning)
 - [ ] Confirm `edge_profiler_<ts>.json` is written from the container via `Edge_EndScenario`
 - [ ] **F6 check:** determine whether `collect_features` needs `update_information()` for late fusion. Instrument `vm.agent.objects` population order across `apply_predictions` → `collect_features`. If not needed, drop the call for late fusion and note the WorldFusion path still requires it.
 - [ ] **F6 check:** confirm base-side and container-side `beacon_id_mgr` temp ids diverge, and that no identity path in the base process consults them
 - [ ] Characterize the one-tick lag (Counter-H2) explicitly: which tick's detections does the container fuse at tick N?
-- [ ] Two-edge `-eo` bring-up on the right-merge scenario, handoff block disabled
+- [ ] Two-edge `-eo` bring-up on the right-merge scenario, handoff block disabled — first attempt (2026-08-22) hit a false failure: `start_actors.sh`'s `-eo` readiness gate polls the base log for the literal string `[EDGE-ONLY]`, which only existed in `openscenario_3_edge_worldfusion.py`/`openscenario_3_edge_late_fusion.py` — nobody added it to the right-merge scenario file because two-edge `-eo` had never been run on it (exactly the F7 gap). Log showed both edges registered, fusion clients connected, actors spawned, RSUs/locales built — the simulation was healthy; the shell script's 60s timeout killed a working run. Fixed: added the matching print. Retry pending.
 - [x] **D-15 / edge binding:** bind `edge_id` from `EdgeRegistrationInfo.container_name` (`edge_<n>`), not arrival order; fail loudly on collision or unparseable name — `983644ae`
 - [x] Replace the implicit `zip(edge_list, fusion_clients)` with an explicit `edge_index → client` map, asserted against `edge_cfgs` length — `983644ae`
 - [x] **D-15 / vehicle+RSU binding:** audit the actor-discovery loop in `openscenario_multi_edge_right_merge.py` — ego resolved by `role_name='hero'` (correct); NPC by velocity filter with multi-vehicle uniqueness check + warning (sufficient for single-NPC scenario); `other_vehicles` list is empty (no list-position binding). — `983644ae`

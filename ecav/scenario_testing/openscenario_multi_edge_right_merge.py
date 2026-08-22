@@ -176,6 +176,7 @@ def run_scenario(opt, scenario_params):
             # fc.edge_index is deterministic (edge_<n> → n) regardless of
             # registration arrival order.
             fc_by_edge_idx = {fc.edge_index: fc for fc in fusion_clients}
+            print(f"[EDGE-ONLY] {len(fusion_clients)} edge(s) ready", flush=True)
             sr_process = Process(target=exec_scenario_runner, args=(scenario_params,))
             sr_process.start()
         else:
