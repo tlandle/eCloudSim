@@ -712,7 +712,7 @@ class AB3DMOT(object):
 		# TEMP (Phase 2 Step 1 warm-import reconciliation investigation): was a
 		# given track even a live candidate for matching this call, and did it
 		# fail to match? Remove once the reconciliation gap is understood/fixed.
-		if unmatched_trks:
+		if len(unmatched_trks) > 0:
 			print(f"[TRACK_UNMATCHED] frame_count={self.frame_count} "
 				f"candidates={[(self.trackers[i].id, self.trackers[i].carla_id) for i in unmatched_trks]}",
 				flush=True)
