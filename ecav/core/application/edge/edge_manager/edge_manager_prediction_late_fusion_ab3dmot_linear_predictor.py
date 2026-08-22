@@ -1411,18 +1411,6 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                                 "[TRACK_PUBLISH] edge=%s carla_id=%d tid=%d "
                                 "first_publish_tick=%d (position-matched, dist=%.1fm)",
                                 self.edgeid, _tcid, tid, tick, _d)
-                        # TEMP (Phase 2 Step 1 reconciliation investigation):
-                        # wide-net trace to see a warm-injected track's own
-                        # predicted position drift relative to the real target,
-                        # even when it's too far to count as a match. Remove
-                        # once the reconciliation gap is understood/fixed.
-                        elif _d <= 100.0 and cid != -1:
-                            logger.warning(
-                                "[TRACK_DRIFT] edge=%s carla_id=%d tid=%d "
-                                "tick=%d dist_to_target=%.1fm "
-                                "pos=(%.1f,%.1f) target=(%.1f,%.1f)",
-                                self.edgeid, _tcid, tid, tick, _d,
-                                tf.location.x, tf.location.y, _tx, _ty)
 
                 # KF velocity (m/tick) → m/s for downstream prediction gating
                 # KITTI dx(10)=CARLA vx, KITTI dz(12)=CARLA vy (ground plane)

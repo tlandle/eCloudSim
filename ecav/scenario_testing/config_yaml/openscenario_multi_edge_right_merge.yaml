@@ -316,6 +316,7 @@ scenario:
     - <<: *edge_base
       manager_type: late_fusion
       predictor_type: linear
+      handoff_warm_import: false
       locale:
         id: "locale_1"
         polygon: [[105, 134], [310, 134], [310, 150], [105, 150]]
