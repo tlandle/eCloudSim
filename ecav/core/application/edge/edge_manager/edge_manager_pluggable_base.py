@@ -89,6 +89,11 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         # AB3DMOT edge results are comparable under the same YAML config.
         # Default false; enable per-edge in YAML once reconciliation confirmed.
         self.handoff_warm_import = bool(cfg.get('handoff_warm_import', False))
+        # Survival budget (AB3DMOT tracker calls, not world ticks) for a warm-
+        # imported track before max_age pruning applies -- see
+        # AB3DMOTStateTransferMixin._inject_warm_kf. Only consulted at
+        # injection time, so inert unless handoff_warm_import is also true.
+        self.handoff_track_grace_ticks = int(cfg.get('handoff_track_grace_ticks', 60))
 
     @property
     def _label(self) -> str:
@@ -273,7 +278,9 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         new_kf.kf.P = ks.covariance.copy()
         new_kf.carla_id = carla_id
         new_kf.hits = max(ks.hits, raw.min_hits)
-        new_kf.time_since_update = 0
+        # Grace period, not 0 -- see AB3DMOTStateTransferMixin._inject_warm_kf
+        # for why max_age alone isn't enough survival budget for a warm track.
+        new_kf.time_since_update = -getattr(self, 'handoff_track_grace_ticks', 0)
         new_kf.anchoring_age = ks.anchoring_age
         raw.trackers.append(new_kf)
         self.track_to_carla[new_tid] = carla_id

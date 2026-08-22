@@ -166,6 +166,11 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # _PluggableEdgeBase so AB3DMOTStateTransferMixin._warm_import_enabled()
         # finds it via getattr(self, 'handoff_warm_import', False).
         self.handoff_warm_import = bool(cfg.get('handoff_warm_import', False))
+        # Survival budget (AB3DMOT tracker calls, not world ticks) for a warm-
+        # imported track before max_age pruning applies -- see
+        # AB3DMOTStateTransferMixin._inject_warm_kf. Only consulted at
+        # injection time, so inert unless handoff_warm_import is also true.
+        self.handoff_track_grace_ticks = int(cfg.get('handoff_track_grace_ticks', 60))
         self.ab3dmot_category = 'Car'
 
         # Create persistent tracker instance (reused across frames)

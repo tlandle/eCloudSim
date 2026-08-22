@@ -306,6 +306,11 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # Read here so AB3DMOTStateTransferMixin._warm_import_enabled() finds it
         # via getattr(self, 'handoff_warm_import', False).
         self.handoff_warm_import = bool(cfg.get('handoff_warm_import', False))
+        # Survival budget (AB3DMOT tracker calls, not world ticks) for a warm-
+        # imported track before max_age pruning applies -- see
+        # AB3DMOTStateTransferMixin._inject_warm_kf. Only consulted at
+        # injection time, so inert unless handoff_warm_import is also true.
+        self.handoff_track_grace_ticks = int(cfg.get('handoff_track_grace_ticks', 60))
 
         # LF-guarded: withhold coasting (stale) tracks from published collision
         # predictions. Default off (LF-basic); on => LF-guarded. Orthogonal to SBA.
@@ -470,7 +475,9 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         new_kf.kf.P = ks.covariance.copy()
         new_kf.carla_id = vehicle_id
         new_kf.hits = max(ks.hits, self.tracker.min_hits)
-        new_kf.time_since_update = 0
+        # Grace period, not 0 -- see AB3DMOTStateTransferMixin._inject_warm_kf
+        # for why max_age alone isn't enough survival budget for a warm track.
+        new_kf.time_since_update = -getattr(self, 'handoff_track_grace_ticks', 0)
         new_kf.anchoring_age = ks.anchoring_age
         self.tracker.trackers.append(new_kf)
         self.track_to_carla[new_tid] = vehicle_id
@@ -842,7 +849,9 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             # time_since_update==0, so a real detected obstacle is never withheld.
             stale_pred_idx = set()
             if getattr(self, 'stale_track_suppression', False):
-                _stale_tids = {trk.id + 1 for trk in self.tracker.trackers
+                # id, not id + 1 -- see the live_tids fix in _ab3d_history_to_trajs
+                # for why; obstacle.track_id below is the same raw, unoffset tid.
+                _stale_tids = {trk.id for trk in self.tracker.trackers
                                if trk.time_since_update >= self.stale_track_n}
                 stale_pred_idx = {
                     i for i, p in enumerate(preds)
@@ -1316,10 +1325,20 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # aged out of self.tracker.trackers can otherwise linger in `hist` and be
         # republished as a frozen "zombie" at its last position, which the
         # consumer planner then brakes for. Gate on the live tracker id set
-        # (published tid = trk.id + 1) so a pruned track stops being published.
+        # (published tid = trk.id, matching output()'s row format) so a pruned
+        # track stops being published.
+        #
+        # Was `trk.id + 1` until 2026-08-22 (introduced in 1f970053) -- output()
+        # in AB3DMOT_libs/model.py emits `[trk.id]` with no offset and always
+        # has, so every genuinely-alive track was being marked a zombie here
+        # unless some OTHER track with id == this one's id - 1 also happened to
+        # be alive, coincidentally producing a matching live_tids entry. Found
+        # while investigating why a Phase 2 warm-imported track (id=4, correctly
+        # alive, hits above min_hits) never appeared in a single published
+        # frame during its whole lifetime.
         live_tids = None
         try:
-            live_tids = {trk.id + 1 for trk in self.tracker.trackers}
+            live_tids = {trk.id for trk in self.tracker.trackers}
         except Exception:
             live_tids = None  # fail open if tracker state is unavailable
         # Drop trajectories whose track is no longer alive.
@@ -1462,14 +1481,15 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
         # ZOMBIE TRACE: for each PUBLISHED track, is its tid still alive in the
         # AB3DMOT tracker (tracker.trackers), and what is its time_since_update?
-        # Published tid = trk.id + 1. A published track absent from tracker.trackers
-        # is a zombie (aged out of AB3DMOT but still rebuilt from the 30-frame
-        # _track_history). This is what the ego can brake for.
+        # Published tid = trk.id (see the live_tids fix above). A published
+        # track absent from tracker.trackers is a zombie (aged out of AB3DMOT
+        # but still rebuilt from the 30-frame _track_history). This is what
+        # the ego can brake for.
         if os.environ.get('ZOMBIE_TRACE') and self.tracked_trajectories:
             live = {}
             try:
                 for trk in self.tracker.trackers:
-                    live[trk.id + 1] = getattr(trk, 'time_since_update', -1)
+                    live[trk.id] = getattr(trk, 'time_since_update', -1)
             except Exception as _e:
                 live = {'ERR': str(_e)}
             pub = sorted(self.tracked_trajectories.keys())

@@ -115,6 +115,17 @@ class AB3DMOTStateTransferMixin:
         Sets hits >= min_hits so the track appears in output immediately,
         without a confirmation-dwell wait. Assigns a fresh tid from this
         edge's own ID_count counter; carla_id is the stable cross-edge key.
+
+        time_since_update starts at -handoff_track_grace_ticks rather than 0:
+        AB3DMOT's max_age (a handful of ticks, tuned to kill cold-tracker
+        ghosts quickly) counts *any* unmatched call on this tracker, not
+        ticks elapsed toward this specific object's own detection. A warm
+        track waiting to reconcile with the destination's first real
+        detection can need tens of ticks (confirmed: 29 ticks in Scenario B,
+        against max_age=6) — a gap that has nothing to do with the object
+        being a ghost. The negative start gives it max_age + grace calls of
+        survival budget without loosening ghost suppression for normal
+        cold-started tracks, whose time_since_update still starts at 0.
         """
         new_tid = self.tracker.ID_count[0]
         self.tracker.ID_count[0] += 1
@@ -124,7 +135,7 @@ class AB3DMOTStateTransferMixin:
         new_kf.kf.P = ks.covariance.copy()
         new_kf.carla_id = carla_id
         new_kf.hits = max(ks.hits, self.tracker.min_hits)
-        new_kf.time_since_update = 0
+        new_kf.time_since_update = -getattr(self, 'handoff_track_grace_ticks', 0)
         new_kf.anchoring_age = ks.anchoring_age
         self.tracker.trackers.append(new_kf)
         self.track_to_carla[new_tid] = carla_id
