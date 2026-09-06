@@ -129,6 +129,7 @@ class SequentialMigrationDaemon:
         link: InterLocaleLink,
         tick: int,
         position=None,
+        committed: bool = False,
     ) -> Optional[TransferCost]:
         """Share a tracked obstacle's KF state from src_edge to dst_edge.
 
@@ -266,6 +267,11 @@ class SequentialMigrationDaemon:
         own_dst.dest_prepare(carla_id, pe)
         dst_edge.import_tracked_obstacle_state(carla_id, payload)
         own_dst.dest_commit(carla_id, pe)
+        # PUBLISH GATE (paper 3.5): imported track is a SHADOW until COMMIT;
+        # prepare marks shadow, the commit refresh (committed=True) clears it.
+        if not hasattr(dst_edge, '_shadow_obstacles'):
+            dst_edge._shadow_obstacles = {}
+        dst_edge._shadow_obstacles[int(carla_id)] = (not committed)
         # FENCING=off baseline (T7): the source does not fence itself at
         # commit, so both sides stay publishable until the source would
         # naturally drop the track — the double-publish window the paper's

@@ -764,6 +764,25 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 )
                 num_predictions = len(predictions) if predictions else 0
 
+                # PUBLISH GATE (paper 3.5): suppress forecasts for tracks this
+                # locale imported but has not COMMITTED (shadow). The owner
+                # (source) still publishes; the destination publishes only
+                # after commit. Filter by carla_id against _shadow_obstacles.
+                _shadow = getattr(self, '_shadow_obstacles', {})
+                if predictions and _shadow:
+                    _kept = []
+                    for _pr in predictions:
+                        _cid = getattr(_pr.obstacle_trajectory.obstacle,
+                                       'carla_id', None)
+                        if _cid is not None and _shadow.get(int(_cid), False):
+                            logger.info("[PUBGATE] tick=%d edge=%s suppressed "
+                                        "uncommitted carla_id=%d", tick,
+                                        getattr(self, 'edgeid', '?'), int(_cid))
+                        else:
+                            _kept.append(_pr)
+                    predictions = _kept
+                    num_predictions = len(predictions)
+
                 # 8.5 Evaluate predictions vs actual trajectories and get metrics
                 pred_metrics = self._evaluate_predictions(
                     tick, predictions, carla_snapshot_at_capture, lag_steps
