@@ -89,6 +89,7 @@ Primary context-switching artifact. Read this first after a gap.
 - freeze-1i candidate = ab5bab5a (branch fix-oncoming-gate off 71c9f37e): behavior_agent.py (opposing lateral bound lifted; recheck-while-latched with hold + subj_ahead) and edge_manager [EVAL] horizons [5,10,25,60,100] with tick/arm/tag stamped; FDE@5 s joins predicted@T with the actor's Actual line at T+100 (GT not loggable at prediction time). Microbench replay emits the same horizons. Smoke on cetus (~40 min); on pass: tag + push 1i, config rows, stop block A on 1h, restart both chains.
 - Planner-fix smoke (partial): DETECTION works ([OT RECHECK] fires every latched tick; HOLD with clear 40 < need 91, onc_spd 15.7; the gate now sees the head-on oncoming) but the RESPONSE fails: at the first HOLD subj_ahead=18.8 m (not cleared) and the brake ttl I set is overridden by the overtake-continuation path (brake_ttl=0, 10.9-11.1 m/s), so the ego drives through; accel warm r1/r2 still collide (episodes 1). NOT tagged (the collision moved failure modes). Ordered: abort-to-lane when clear < need and subj_ahead > 0 (do_overtake False, return-to-lane path, [OT RECHECK] ABORT), COMPLETE when subj_ahead < 0, 10-tick hysteresis before re-commit; re-smoke; tag only on accel warm 3/3 zero-contact with completion reported, cold colliding, flow/burst at pattern.
 - Abort-to-lane implemented (1i candidate bd8d9133): clear<need & subj_ahead>=0 -> ABORT (do_overtake False, counter cancelled, return-to-lane); subj_ahead<0 -> COMPLETE; re-commit blocked until 10 consecutive clear ticks; [OT RECHECK] ABORT/COMPLETE/CLEAR/RECOMMIT-OK. Detection-only smoke had reached only 4/11 cells (accel warm 3/3 collided, accel cold running); flow/burst folded into the abort re-smoke (11 arms, ~55 min). Another ssh pkill self-match killed a session; kill+relaunch moved into a named remote script. Tag criteria unchanged; completion reported alongside contact.
+- Jordan (message to Tyler, Sep 6): has unpushed planner fixes from Friday: (1) separate TTC for own-lane collision (stopped 'ambulance'/truck ahead) vs other-lane (oncoming during overtake): the ego conflated them, decided to overtake, saw the oncoming, could not, and kept creeping into the stopped vehicle (the same failure we pinned today); (2) removed the curved-road suppression (local_planner_behavior.py potential_curved_road gating) which caused false collision warnings on merges. Not in the repo (no commits by Jordan since June; branches distributed-integration / ecav_2_distributed are old). Our planner changes this week: 050ce4bb (Aug 9) overtake gate _nearest_oncoming_ahead; b7d5a143 (Aug 11) ego holds edge predictions across broadcast gaps; 8976a592/d4f592e6 (Sep 5) T12 AOI knob + AOIROW; bd8d9133 (fix-oncoming-gate) opposing lateral bound + recheck/abort + EVAL horizons. Decision for Tyler: fold Jordan's fix into 1i (hold tag; merge; re-smoke) or tag now and fold into freeze-2. Eval session told to hold the tag.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3844,3 +3845,22 @@ actually clean. Smoke still finishing flow/burst cells (confirm fix 1 does not b
 the working arms). Awaiting peer direction on the abort-to-lane response before
 re-implementing + re-smoking. Block A still on 1h; nothing tagged; no campaign code
 changed.
+
+ABORT-TO-LANE RESPONSE implemented (2026-09-06, peer-approved, freeze-1i candidate
+bd8d9133 on fix-oncoming-gate). Detection-only smoke had confirmed the brake-hold
+was ineffective (accel warm 0/3, detection worked: HOLD=93/277 onc_spd=15.7, but
+brake_ttl=0 spd~11 -> collide; first HOLD subj_ahead=18.8m = not cleared). New
+response (behavior_agent): on recheck clear<need -> subj_ahead>=0 ABORT
+(do_overtake=False, overtake_counter=0, return-to-lane), subj_ahead<0 COMPLETE;
+re-commit blocked until 10 consecutive clear ticks (guard added at the do_overtake
+=True commit, and an elif branch counts clear ticks while aborted); [OT RECHECK]
+logs ABORT/COMPLETE/CLEAR/RECOMMIT-OK + subj_ahead; __init__ adds _ot_aborted /
+_ot_abort_hold_ticks. edge_manager [EVAL] horizons/tag change stays bundled.
+Folded flow/burst into the abort re-smoke (all 11 arms; detection-only smoke had
+only reached 4/11, no flow/burst run). Abort re-smoke RUNNING on cetus (overlay
+verified to carry abort code). Process note: inline ssh pkill self-matched the
+session (cmdline contained the script name) - moved kill+relaunch to a named remote
+script cetus_fixsmoke_relaunch.sh. TAG CRITERIA (peer): accel warm 3/3 zero contact,
+<=1 ABORT-recommit cycle/run, accel cold colliding, flow warm look1/reactive at 1h
+pattern, burst warm clean; report the completion field (abort-and-never-pass = clean
+-but-did-not-complete, a different result, not a pass). No tag until met.
