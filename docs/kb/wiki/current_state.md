@@ -70,6 +70,7 @@ Primary context-switching artifact. Read this first after a gap.
 - cid 199 trace (accel n4 s1, commit 86 -> contact ~164): one tid ever (tid 1, 158 tracker lines), alive at contact (act=True, tsu=3), coasting correctly (|v| 11.91), MTR predicting it; the identity merge never fired; the fix is CLEARED and block A is trusted. edge_preds_received_total=0 is an accounting artifact (same 0 in clean flow runs). The accel 9/9 is a separate scenario issue: the 2-actor geometry (Tesla x=210, truck x=278) collides at constant velocity under the current constants and ONCOMING_ACCEL=1 was never set. Ordered: recover the pre-freeze accel batch's full env (q4_accel_redo / khonsu_design_sweep.sh accel entries) and diff against the T12 accel env; resume only when control 3 (ONCOMING_ACCEL=1) or a reproduced-env warm cell is clean. Accel sweep and accel 5.3 arms paused.
 - ACCEL 9/9 EXPLAINED BY THE KB (August 'REMAINING BLOCKER', ~line 2912): in the single-oncoming scenario the ego's overtake commit (truck + ov_wait timer) fires BEFORE the oncoming's handoff into the ego's locale (dr_warm: commit 110, handoff 143); the ego's locale has no track -> GO -> stall -> hit. Pre-freeze warm 3/4 relied on the pre-commit publish leak closed in 1g; with the gate the ego is blind to source-owned actors until commit; the 8-vehicle flow masks it. Conclusion: FORWARDING is required (the destination forwards the source's forecast for a prepared track under epoch e until commit; §3.5's epoch rule presumes it). Ordered: confirm on two collided accel runs (commit tick vs handoff tick; ego cache at commit), then implement in shared edge code, smoke (accel warm with ONCOMING_ACCEL=1, accel cold, burst warm/cold, flow look1/look4, reactive), tag freeze-1i, restart block A on 1i. The earlier reverted §3.4 forwarding sentence will be restored once confirmed.
 - FORWARDING HYPOTHESIS REFUTED (t12_ac_n4_s1, wall-clock aligned): Tesla commit to locale_0 at 16:36:51 (tick 86), destination first use tick 109; ego do_ov commit at 16:37:02 (x=307.7, inside locale_0, ov_wait=0); first collision 16:37:18. The ego held the committed forecast ~11 s before committing and collided 16 s later: a forecast-content or decision problem, not blindness. Forwarding withdrawn; nothing built. Ordered trace: consumed forecast (position/speed/TTC) vs GT at the ego commit and per edge cycle to contact; whether the gate consulted it; the track's velocity estimate over the window (clue: collision_check obs_spd 3.4 m/s vs COASTROW |v| 11.91, true 12); suspect: the identity merge adopting a fresh native pose with a one-frame velocity near zero. Block A continues (trusted). Controls still finishing.
+- Accel controls (N=4, identical env, no ONCOMING_ACCEL): regen cold 2/2 collided; OLD runner (2e5ea710) warm 2/2 CLEAN; regen warm 0/5 collided; control3 pending. The pre-freeze redo_accel.sh also never set ONCOMING_ACCEL, so the accel discriminator is migration timing, not maneuvering. Content trace: velocity-reset refuted (coast |v| flat 11.91; obs_spd 3.4 was post-collision); blind-commit refuted; REAL SIGNAL: EGO-DBG ttc=1000, hazard False from the ego commit to near-contact and no TRAJ_COLL before commit: the ego's collision_check never receives the oncoming trajectory although the edge holds the correct track -> forecast DELIVERY into collision_check fails in the single-oncoming case; the 8-vehicle flow masks it ('GT injection within 50 m keeps one in range'). Ordered: (1) verify on block-A hl_warm/hl_cold runs that TRAJ_COLL fires from EDGE-delivered trajectories and state exactly what GT injection injects (identity vs trajectory) and its range; stop block A if the gate is fed by injected GT; (2) clarify whether the old-runner control ran the old runner on the 1h stack or the whole old tree; (3) trace edge broadcast -> ego cache -> collision_check for cid 199 and name the dropping filter; bisect if needed. No code changes yet.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3679,3 +3680,24 @@ The accel 9/9 is scenario_1_accel.xml geometry/timing + missing ONCOMING_ACCEL,
 accel-specific. Controls running: regen cold N=4 x2, old-runner(2e5ea710) warm N=4
 x2, control3 regen warm+ONCOMING_ACCEL=1 N=4 x2. Cetus accel sweep + tail (has 5.3
 accel arms) PAUSED until the accel scenario definition is settled.
+
+ACCEL ROOT CAUSE = FREEZE-LINEAGE FORECAST-DELIVERY REGRESSION (2026-09-06):
+Controls (N=4, identical env, NO ONCOMING_ACCEL): regen cold 2/2 COLLIDED (baseline);
+old-runner(2e5ea710) warm 2/2 CLEAN (raw_collision=0, dist 92.9/95.2); regen warm
+0/5 COLLIDED. Same env, old CLEAN vs regen COLLIDED => regression is in the
+code/stack 2e5ea710->freeze-1h, NOT the env. (pre-freeze redo_accel.sh also never
+set ONCOMING_ACCEL; accel discriminates on migration TIMING not maneuvering.)
+Two peer suspects REFUTED by the content trace (t12_ac_n4_s1):
+  - velocity-reset-on-merge: tid=1 coast |v| flat 11.91 across the window incl. commit;
+    no dip. obs_spd=3.4 was post-collision (EGO-DBG tick 345), not the commit value.
+  - blind-commit (publish gate): migration COMMIT REFRESH npc=199 16:36:51 (tick 86)
+    PRECEDES ego overtake commit 16:37:02; ego inside locale_0 owning cid 199.
+REAL mechanism: EGO-DBG ttc=1000 hazard_flag=False at EVERY tick commit->contact, and
+NO TRAJ_COLL (collision_check output) before commit. The overtake gate never receives
+the oncoming trajectory -> no threat -> GO -> collide, though the edge holds the correct
+11.91 track. Defect = forecast DELIVERY into the ego collision_check for the single-
+oncoming case, introduced in the freeze lineage; migration itself works. Block A (flow)
+NOT degraded (warm 9/10 historical; 8 oncoming + GT-injection<=50m keeps the gate fed);
+recommend spot-check one block-A warm TRAJ_COLL/ttc. Forwarding WITHDRAWN by peer (not
+the cause). NO code changed. Next: confirm flow gate is fed, then bisect the freeze
+commit that dropped single-oncoming delivery. control3 result pending.
