@@ -172,3 +172,30 @@ persists prepare->use. look4 improved 4->2 episodes at n=1 (residual launch
 tail remains; 5 seeds will confirm if look4 now ~9/10). Batch restarted from
 block A on 1g; tail (faults->netem->T19b) + block-lander re-armed on 1g.
 T12 stays on 1f (no migration); 5.3+visible re-tag to 1g.
+
+## look4 second mechanism: coast-drift -> duplicate track (2026-09-06)
+Gate held (1g: first_use>commit, 0 violations, all collisions are ego-vs-TRUCK
+during overtake, not the oncoming). Second mechanism, confirmed on collided vs
+clean look4:
+- The migrated obstacle track COASTS (dead-reckons at migrated vel_mps) during
+  the lead. At 4s it OVER-SHOOTS: collided r1 npc200 migrated tid=1 coasted to
+  x=175 while the TRUE oncoming (native re-detection) is at x=156 -> ~18m drift,
+  >> tracker match gate (lost_match_dist_m=8m).
+- At the crossing the destination natively re-detects the oncoming at its true
+  x; association to the drifted migrated track FAILS -> a DUPLICATE track is
+  created (tid=7 alongside migrated tid=1, both stamped cid=200). Clean runs
+  have only tid=1 (drift < 8m, association succeeds).
+- The ego forecast cache keys per carla_id ('c',cid) latest-wins, so two
+  same-cid tracks flip-flop the oncoming forecast -> overtake gate mis-decides
+  -> ego grinds the truck. (2) compute is secondary; (5) source keeps tracking
+  + publishing the NPC through the window (2 OBSTACLE_HANDOFF, share not move);
+  (4) inject_latent_into_tracker APPENDS (never dedups) but the duplicate here
+  is native-vs-migrated association failure, both rooted in the coast drift.
+This is a REAL systems result and a better justification for the 2.5s computed
+cap than staleness: leads beyond ~2.5-3s drift past the association gate.
+Capped arms (computed/mtr/oracle ~1s) are in the safe regime. FIX (optional,
+Tyler's call): identity-aware association - merge a native detection with an
+existing migrated track by beacon carla_id, not position, so long leads do not
+duplicate. Not a protocol violation (unlike the shadow gate); the cap already
+covers the paper's operating point, so reporting look4 as the cap's
+justification needs no rerun.
