@@ -64,6 +64,7 @@ Primary context-switching artifact. Read this first after a gap.
 - 1h ETAs (measured 3.4 min/run on Atlas incl. CARLA restart; ~4 min on cetus): Atlas A 120 runs -> ~22:50 Sep 6; B 120 -> ~05:40 Sep 7; E 25 -> ~07:00 Sep 7; faults+netem after (config being finalized). Cetus: accel T12 35 -> ~18:30 Sep 6; N=28 flow x5 ~0.3 h; 5.3 matrix 180 ~12 h; Table 8 60 ~4 h; T19b 100 ~7 h (estimates firm up after the first accel run). hl_warm_r1 clean.
 - Sep 6 16:23 status: Atlas 1h block A running (5 of 120 done; first rep: warm/reactive/handover_snapshot clean, kf/edgewarp collided). Cetus accel T12 chain BROKEN: all 20 logs are one line, 'cetus_t12_accel_1h.sh: line 26: NS3_LUT_N=16: command not found' (env assignment executed as a command); no run started, no ecav process, no tmux session; ~30 min lost. Ordered: fix, run one accel cell by hand with its config row and marker counts before relaunching (the first-run sign-off was skipped here), then relaunch from accel T12.
 - Cetus fixed and relaunched (~+40 min): root cause `( "$@" VAR=x cmd )` without `env` (words from $@ are not parsed as assignments); Atlas used `env "$@"`. Hand-run accel cell signed off: openscenario_1_accel_gt @ 71c9f37e, NS3_LUT_N=4, warm/predictive/1 s, 12/300; RUNROW 1, AGEROW 227, HANDOFFROW 1, COASTROW 16; lut_n=4 applied end to end. WATCH ITEM: that accel warm run at N=4 COLLIDED (episodes 2, contact ticks 21; realized age 400 ms); the smoke's accel_warm was clean (n=2: 1/1). If accel warm collides at the lightest load across seeds, the accel limit is below the pipeline floor (~300 ms) and tau(accel) is a bound in the other direction: a finding about cadence vs maneuvering actors, not about radio load. Lesson recorded: smoke validated runners, not batch scripts' env passing; one hand cell per new batch script before any chain.
+- Cetus healthy (16:35 relaunch; t12_ac_n4_s1 real: RUNROW 1, AGEROW 242, HANDOFFROW 1). Cetus ETAs at ~5 min/run: accel T12 -> ~19:30 Sep 6; N=28 flow ~0.4 h; 5.3 matrix ~15 h; Table 8 ~5 h; T19b (125) ~10 h. Process hazard fixed: inline ssh 'pkill -f cetus...' self-matched the ssh session; kill/clean/launch now in a named remote script (cetus_relaunch.sh).
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3629,3 +3630,23 @@ nsdi_push_tasks.md:179) NOT YET BUILT (needs PLATOON_N knob check; ~18h runway).
 Cetus tail logs need extraction to CSV when blocks land (tail runs but does not
 self-extract). Both chains: one CARLA per GPU, fd 9>&- so CARLA cannot hold the
 flock, HEAD-verified before running.
+
+CETUS ENV-BUG INCIDENT (2026-09-06 16:2x): the cetus accel run() used
+`( "$@" ONCOMING_SPEED=... cmd )` WITHOUT `env`. Words from "$@" expansion are
+NOT parsed as shell assignments, so NS3_LUT_N=16 became the command word ->
+"command not found"; every cell failed instantly, the chain churned CARLA
+restarts (~55s each) for ~30min producing 35 one-line logs, no run started. The
+Atlas script was correct (`env "$@"`), which is why Atlas ran. FIX: `env "$@"` in
+both cetus scripts. Verified by one-cell-by-hand (accel N=4 warm): cmd_not_found=0,
+RUNROW=1 AGEROW=227 HANDOFFROW=1 COASTROW=16, AGEROW lut_n=4 applied. Two standing
+lessons: (1) run ONE cell by hand for every new batch SCRIPT before the chain (the
+smoke validated runners, not the script's env passing); a `"$@" VAR=x` construct
+silently runs the assignment as a command. (2) An inline `ssh host 'pkill -f
+PATTERN ...'` SELF-MATCHES: the ssh session's own remote-command line contains
+PATTERN, so pkill -9 kills the session before later commands run (symptom:
+"Bash completed with no output"). Put kill/clean/launch logic in a named script
+on the remote (e.g. cetus_relaunch.sh) invoked by a short ssh command whose
+cmdline does not contain the target patterns; use exact script-name patterns that
+do not match the manager. Data note: one accel N=4 warm run collided (episodes=2)
+vs smoke accel_warm clean; the accel-warm tau at low N is a watch-item for the
+accel Table 5 story, to be resolved by the T12 x5-per-level data.
