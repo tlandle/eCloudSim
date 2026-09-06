@@ -98,3 +98,19 @@ Delta_use (AGEROW realized_age_ms). network_age_ms (UL+DL LUT only, added
 freeze-1f=7c28b753) is the radio contribution per load for the load-to-age
 table. T12 reruns on 1f (N=4 on 1e was pilot). 50ms bins kept; levels land on
 300,450,600,... (sparse bins expected).
+
+## Lead metric correction (2026-09-05)
+HANDOFFROW crossing_tick = destination ENTRY (locale_0.contains, x>240), but
+the predictive trigger targets source EXIT (locale_1 exit, x>250). The 10m
+locale overlap [240,250] makes dest-entry ~0.1s after prepare, so the naive
+prepare->crossing "lead" reads ~0.1s. The TRUE predictive lead (prepare ->
+source-exit) is ~0.88s at LOOKAHEAD_S=1 and SCALES with config: prepare fires
+at npc x=239/227/215/202 for look 1/2/3/4 = (250-x)/12 = 0.9/1.9/2.9/4.0s.
+So the lead axis DOES vary; the earlier "detection-capped ~0.1s" note was a
+metric artifact, RETRACTED. Source RSU tracks the oncoming continuously from
+spawn (frame 14) through the crossing (not occluded from source; paper's
+"source observes up to crossing" holds). freeze-1 look2/3/4 -> 0/3 is the
+staleness x lead interaction: longer true lead = more stale record WITHOUT the
+final update; the final-update fix removes it. True-lead per arm:
+frozen1c_truelead_summary.csv. Metric fix for freeze-2: log source_exit_tick
+in HANDOFFROW.
