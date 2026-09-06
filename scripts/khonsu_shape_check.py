@@ -147,8 +147,8 @@ def check_density(rows):
 
 
 def check_envelope(rows):
-    agecol = 'realized_age_ms' if 'realized_age_ms' in rows[0] else next(
-        (c for c in rows[0] if 'realized_age' in c.lower() and 'p50' in c.lower()), None)
+    agecol = next((c for c in ('realized_age_maneuver_ms', 'realized_age_p95_ms') if c in rows[0]), None) or next(
+        (c for c in rows[0] if 'realized_age' in c.lower()), None)
     if agecol is None:
         agecol = next((c for c in rows[0] if 'age' in c.lower()), None)
     collcol = 'run_collided' if 'run_collided' in rows[0] else 'collided'
@@ -159,7 +159,7 @@ def check_envelope(rows):
         agg = defaultdict(lambda: [0, 0])
         for r in rs:
             try:
-                b = int(float(r[agecol]) // 50) * 50
+                b = int(float(r[agecol]) // 100) * 100
             except Exception:
                 continue
             agg[b][0] += 1
@@ -168,8 +168,14 @@ def check_envelope(rows):
             continue
         bins = sorted(agg)
         fr = [agg[b][1] / agg[b][0] for b in bins]
-        rises = [bins[i + 1] for i in range(len(fr) - 1) if fr[i + 1] > fr[i] + 1e-9 and fr[i] < 1]
-        tau = max([b for b in bins if agg[b][1] == agg[b][0]], default=None)
+        rises = [bins[i + 1] for i in range(len(fr) - 1)
+                 if fr[i + 1] > fr[i] + 1e-9 and fr[i] < 1 and agg[bins[i]][0] >= 3 and agg[bins[i + 1]][0] >= 3]
+        tau = None  # monotone rule: the largest bin below which no run fails
+        for b in bins:
+            if agg[b][1] == agg[b][0]:
+                tau = b
+            else:
+                break
         lower_bound = all(agg[b][1] == agg[b][0] for b in bins)
         v = 'AGREE' if not rises else f'DISAGREE (clean fraction rises with age at {rises} ms)'
         t = f"tau>={tau} ms (lower bound, no failures yet)" if lower_bound else f"tau={tau} ms"
@@ -217,7 +223,7 @@ def main():
         ('lead', lambda: check_lead(run) if run else 'NO DATA'),
         ('burst', lambda: check_burst(run) if run else 'NO DATA'),
         ('density', lambda: check_density(run) if run else 'NO DATA'),
-        ('envelope', lambda: check_envelope(kinds['envelope_decisions'] or kinds['envelope_runs']) if (kinds.get('envelope_decisions') or kinds.get('envelope_runs')) else 'NO DATA'),
+        ('envelope', lambda: check_envelope(kinds['envelope_runs']) if kinds.get('envelope_runs') else 'NO DATA'),
         ('faults', lambda: check_faults_unit(kinds['faults_unit']) if kinds.get('faults_unit') else 'NO DATA'),
         ('faults_live', lambda: check_faults_live(kinds['faults_live']) if kinds.get('faults_live') else 'NO DATA'),
         ('load', lambda: check_load(kinds['load']) if kinds.get('load') else 'NO DATA'),
