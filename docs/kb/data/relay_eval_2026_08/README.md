@@ -293,3 +293,17 @@ accel_visible, burst (idfix-assoc 71c9f37e). corridor still to regenerate at
 freeze-2. Forwarding fix HELD pending the burst-warm smoke on the fixed runner
 (>=4/5 -> at-commit delivery suffices, no forwarding; <4/5 -> forwarding).
 Burst smoke adds per-platoon (first_use - crossing) tick + ego min-TTC.
+
+## Process-mgmt lesson: flock chains; stop batch before block D (2026-09-06)
+When block C completed on 1g, the batch auto-advanced to block D (accel) while
+the smoke chain also started -> 2+ simultaneous ecav (CARLA contention).
+Compounded by repeated kill+relaunch leaving duplicate smoke chains (pkill -f
++ setsid did not reliably clear them). FIX: (1) wrap long chains in flock
+(exec 9>lock; flock -n 9 || exit) so duplicates exit immediately - only one
+runs regardless of relaunch mistakes; (2) a stop-before-block-D marker must
+gate the batch when a mid-batch stop is planned, so it does not start the next
+block during the handoff. pgrep -f / ps grep self-match the checking command
+and setsid doubles the process line - count ecav/CARLA (the contention risk),
+not the bash waiters. Landed: frozen1g_trigger_lead_summary.csv (true lead +
+warm-before-use per trigger arm: look2/3/4 = 1.88/2.83/3.91s, computed/mtr/
+oracle ~0.8s). Smoke running flock-guarded; T9/T22/corridor-regen queued CPU-side.
