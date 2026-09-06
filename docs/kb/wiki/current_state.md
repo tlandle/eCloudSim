@@ -77,6 +77,7 @@ Primary context-switching artifact. Read this first after a gap.
 - Control 3: regen warm + ONCOMING_ACCEL=1 = 0/2 (collided). Control table: regen cold 0/2, regen warm 0/5, regen warm+ACCEL 0/2, old tree (2e5ea710) warm 2/2 clean; control 4 (old runner .py on the 1h stack) pending. The regression is in code between 2e5ea710 and freeze-1h; ONCOMING_ACCEL is not the fix.
 - Anchored-history hypothesis REFUTED by numbers: MTR IN world_past advances with the coast (tail 248.5 -> 255.7 == COASTROW 248.52 -> 255.67); at the ego commit the forecast is correct (oncoming x~256-260 closing at 11.91 m/s, ego x=307.7, ~2.2 s to close) yet EGO-DBG ttc=1000, hazard False, do_ov=True. Defect = the EGO's collision_check / overtake gate not consuming the available oncoming forecast in the single-oncoming case (flow: TRAJ_COLL fires, hazard True). Ordered for the gate trace after control 4: what collection the gate iterates (merged predictions vs local perception objects; with occlusion the ego's own perception has no oncoming) and whether a lane/heading filter excludes the Tesla (y 199.2 vs ego 195.2) before pull-out. Three writing-session hypotheses refuted today (forwarding, velocity reset, anchored history); the localizer decides.
 - Gate trace (behavior_agent.py): the overtake gate calls _nearest_oncoming_ahead (line 2189 -> def 1092) over generated_predictions (merged edge cache + local; lines 357-383), not local objects; filters (1133-1157: ahead>0.5, 1<|lateral|<9, speed>=3, opposing) pass the Tesla at commit (ahead 51.7, lateral 4.0, 11.91 m/s). Since need = 4*(7+onc) ~ 75.6 > clear 51.7 would WAIT, the GO means cid 199 was ABSENT from generated_predictions at commit: a delivery gap edge broadcast -> ego cache. 'Broadcasting 0 predictions' on 531/704 cycles points at the EDGE-side broadcast filter (risk-budget gating, ROI, publishable check, k_cav) rather than the ego cache. Ordered: DEBUG run with [OT SIGHT]/[OT PREDS] plus edge-side per-track broadcast/exclusion logging; confirm no AOI_INJECT_MS in the batch env. Control 4 still running.
+- ACCEL ROOT CAUSE NAMED (eval session, code + logs): behavior_agent.py:1140 the overtake gate reads obs.kf_speed_mps (track_utils.py:107-119, the tracker KF velocity estimate), and line 1147 skips tracks with speed < 3.0 (moving-only filter). For the occluded single oncoming the destination never gets a native detection (occlusion_check), so the KF estimate ramps from 0 (0.00 -> 0.71 -> 1.93 -> 3.49 -> 6.49 over ~30 ticks) while the migrated velocity is a correct 11.91; the gate treats the oncoming as stationary clutter, returns inf, GO, collision. Flow masks it (unoccluded oncoming within 50 m converge the KF). Control 4 inconclusive (old runner crashes on the new stack, API drift); the filter is stack-side; old tree clean 2/2. FIX APPROVED (design, §3.3/§4.2 velocity in the record): imported/coasting tracks publish the migrated velocity until k native updates; [VELSRC] log; speed<3 filter kept. Block A finishes on 1h (pre-fix reference, superseded); smoke (accel warm x2 clean, accel cold collide, flow look1/look4, burst warm/cold; gate onc_spd == migrated velocity); tag freeze-1i; restart Atlas A -> B -> E -> faults -> netem and the cetus chain on 1i (~14 h for A+B). Tyler notified.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3727,3 +3728,24 @@ receive the oncoming forecast when it is the lone actor. BLOCK A STANDS (edge-fe
 warm 9/10 vs cold collides with identical GT injection; §5.1 = gt oracle within
 50m, exclude_managed, occlusion_check, model executed for latency). NO code changed;
 await control4 to point at runner (regenerated, flow assumption) vs stack.
+
+ACCEL ROOT CAUSE NAMED (2026-09-06): the overtake gate's moving-only filter drops
+the occluded migrated oncoming. behavior_agent.py:1140 reads speed=obs.kf_speed_mps;
+line 1147 `if speed < 3.0: continue` skips it. obs.kf_speed_mps (track_utils.py:
+107-119) is the TRACKER KF estimate (trk[10]/trk[12]), NOT the migrated latent
+velocity. The KF estimate ramps from 0 at track birth (kf_speed 0.00@src13 -> 0.71
+@25 -> 1.93@28 -> 3.49@31 -> 6.49@42). For the OCCLUDED single oncoming
+(occlusion_check=true, no native detection at destination) the KF never converges,
+so kf_speed_mps stays <3, the gate reads a "stationary" oncoming, _nearest_oncoming
+_ahead (uses generated_predictions = merged edge+local, def l.1092) returns inf,
+_need collapses, GO, collision. COASTROW/migrated v is a correct 11.91 the gate does
+NOT use. Flow masks it: unoccluded oncoming within 50m get native GT detections, KF
+converges, kf_speed>3. Controls: regen cold 2/2 coll, regen warm 0/5, regen
+warm+ACCEL 0/2, old-tree warm 2/2 CLEAN, control4 (old runner .py on freeze stack)
+INCONCLUSIVE (API drift 437+ errs). Regression is STACK-side (kf_speed sourcing /
+the speed<3 filter is a freeze-lineage change), not the regenerated runner. FIX
+DIRECTION (peer's call, no code yet): seed obs.kf_speed_mps for imported/coasting
+tracks from the migrated latent velocity (available, correct 11.91), or have the
+gate use the coast/migrated velocity; stationary-clutter intent preserved. Block A
+(flow) unaffected. DEBUG [OT SIGHT] run confirms onc_spd-at-commit (pending). Accel
+sweep + cetus tail PAUSED; block A continues.
