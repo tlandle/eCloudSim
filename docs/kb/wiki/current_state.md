@@ -86,6 +86,7 @@ Primary context-switching artifact. Read this first after a gap.
 - Planner fix implemented on branch fix-oncoming-gate (8d5bf1f6, behavior_agent.py only): (1) opposing tracks (adv<0) use |lateral| < 9 (lower bound lifted), non-opposing unchanged; (2) per-tick recheck while do_overtake latched: need = 4*(7+max(onc,2)); clear < need -> HOLD via the RSS proper-response brake (_committed_brake_ttl >= 20), [OT RECHECK] HOLD/CLEAR per tick. Smoke on cetus (11 arms: accel warm x3/cold x2 with ONCOMING_ACCEL=1, flow warm look1 x2, reactive, cold, burst warm/cold), assertion: latched overtake must log a recheck. Writing-session reading rule sent: if accel warm still collides with HOLDs present, braking in the oncoming lane is a stall, and the recheck must abort to lane (not yet past the truck) or complete the pass; log ego x relative to the truck on each recheck. T9 runs on CPU in parallel.
 - Tyler: report FDE. T9 lead column = minFDE@5 s (then minADE@3 s, miss@2 m), per arm with CIs; the replay microbench gets FDE@5 s / ADE@3 s columns for cold, one-frame, history over the four maneuvers (microbench_fde.csv) so §5.2's two tables share the unit. Decision tie: the overtake gate needs ~76 m clearance at 12 m/s, so metres of FDE at 5 s flip wait into go.
 - T9 BLOCKER: the [EVAL] future-prediction logging samples only +0.25/+0.50/+1.25 s (edge_manager line 2221, horizons=[5,10,25] steps), so FDE@5 s / ADE@3 s cannot be computed from any existing log (1h included); extrapolating from +1.25 s would re-measure the input. Fix bundled into freeze-1i: horizons=[5,10,25,60,100] (+3 s, +5 s; the predicted trajectory is 100 points = 5 s), GT position logged alongside, arm and eval_tag in the line; the replay microbench emits the same horizons. T9 and microbench_fde land from 1i. Answer to Tyler's 'why isn't FDE in the paper': the horizon was never logged.
+- freeze-1i candidate = ab5bab5a (branch fix-oncoming-gate off 71c9f37e): behavior_agent.py (opposing lateral bound lifted; recheck-while-latched with hold + subj_ahead) and edge_manager [EVAL] horizons [5,10,25,60,100] with tick/arm/tag stamped; FDE@5 s joins predicted@T with the actor's Actual line at T+100 (GT not loggable at prediction time). Microbench replay emits the same horizons. Smoke on cetus (~40 min); on pass: tag + push 1i, config rows, stop block A on 1h, restart both chains.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3797,3 +3798,29 @@ Planner change -> must smoke flow warm/cold + burst before freeze-1i. kf_speed f
 already present+working (cid199 spd=11.9 at gate) - NOT re-implemented. cetus
 behavior_agent.py restored to freeze-1h (0 ONCDBG, HEAD 71c9f37e); NO campaign code
 changed. Block A continues on 1h (pre-fix reference).
+
+FREEZE-1i FIX (2026-09-06, peer-approved, branch fix-oncoming-gate off 71c9f37e,
+commit ab5bab5a). Two files:
+- behavior_agent.py: (1) _nearest_oncoming_ahead lifts the lateral LOWER bound for
+  opposing (adv<0) tracks (|lateral|<9 vs 1<|lateral|<9), so a head-on aligning
+  oncoming (measured lateral 0.6m) is no longer dropped; non-opposing/flow geometry
+  unchanged. (2) run_step re-evaluates the overtake sight distance EVERY latched
+  tick (was 2 evals over a 255-tick latch), holds via the proper-response brake
+  (_committed_brake_ttl) when an opposing track is inside the required clearance,
+  logs [OT RECHECK] HOLD/CLEAR with subj_ahead (ego-along-heading distance to the
+  overtake subject: >0 not-yet-cleared=stall, <0 cleared=safe; per peer's
+  stall-vs-escape rule).
+- edge_manager: [EVAL] Future-predictions horizons [5,10,25]->[5,10,25,60,100]
+  (+3.0s,+5.0s; index clamped for the 100-pt traj) and stamps tick/arm/tag on the
+  [EVAL] line so the post-handoff FDE@5s/ADE@3s extractor (T9 + microbench_fde)
+  joins on cid+tick. T9-from-1h DROPPED (1h logs cap forecast at +1.25s); T9 +
+  microbench_fde land from 1i.
+Smoke (cetus, 11 arms: accel warm x3 + cold x2 [ONCOMING_ACCEL=1], flow warm look1
+x2 + reactive + cold, burst warm + cold) RUNNING on the gate fix; assert [OT
+RECHECK] logged whenever latched, and (peer rule) if accel warm collides WITH HOLD
+lines, inspect subj_ahead (stall) before tagging. On pass: tag+push
+khonsu-eval-freeze-1i on ab5bab5a, stop block A on 1h, restart Atlas A->B->E->
+faults->netem and cetus (accel T12 ONCOMING_ACCEL=1, N=28 flow, 5.3, Table8, T19b)
+on 1i. cid=-1 sibling recorded as T10 (unidentified native detections near a
+migrated track; leave the 8m gate). CPU queue: T9 -> microbench_fde -> corridor
+regen -> T22.
