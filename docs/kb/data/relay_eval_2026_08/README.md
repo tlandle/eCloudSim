@@ -259,3 +259,21 @@ REVISED CHAINS: Atlas 1h = A6x20 -> B7x20 -> E theta x5 -> faults -> netem
 accel rerun folded in. Lesson: burst/visible were regenerated from flow;
 accel was the one runner never regenerated - check ALL scenario runners share
 the flow runner's instrumentation before trusting their rows.
+
+## Runner-signature rule + corridor runner is stale (2026-09-06)
+Sign-off now requires, per scenario runner a batch uses: the smoke log shows
+RUNROW+HANDOFFROW+AGEROW+PUBGATE+COASTROW present in one run, and the runner
+is generated from the flow runner at the tag (record gen commit). A runner
+missing any marker does not run.
+CORRIDOR (freeze-2) CHECKED NOW: openscenario_1_corridor_gt.py (t13-corridor)
+is STALE - RUNROW+HANDOFFROW+SCENB only, NO AGEROW/PUBGATE/COASTROW, and lacks
+the freeze-1e..1g + idfix runner-side changes (publish-gate wiring
+committed=True + t19_crossing shadow-clear, computed EMA seed, mtr lead gate,
+wired backhaul). MUST be regenerated from the freeze-1h flow runner with the
+N-locale surgery re-applied (dest resolver _dest_locale_for, crossing_idx
+HANDOFFROW, per-crossing rows) before the corridor smoke. Corridor files:
+openscenario_1_corridor_gt.py (regenerate), openscenario_1_corridor_gt.yaml
+(4-locale), scenario_1_corridor.xml. Note: AGEROW/COASTROW/PUBGATE come from
+shared edge/tracker code so a current-code run emits them; RUNROW+HANDOFFROW
+are runner-side, so the runner must be current. Cetus 1h order: T12 accel
+(7x5 ~3h) FIRST, then 5.3 matrix, then T19b.
