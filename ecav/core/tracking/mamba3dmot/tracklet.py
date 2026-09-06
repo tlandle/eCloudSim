@@ -127,14 +127,27 @@ class MambaTracklet3D(BaseTrack):
                 # tracker's live seconds-per-frame. The memo diffs are in the
                 # SOURCE cadence and mis-scale here (measured 2x lag on GT).
                 spf = float(self.cfgs.get('_spf_live', 0.2))
-                vel = np.zeros(BOX_DIM, dtype=np.float32)
-                vel[0] = mig_vel[0] * spf
-                vel[1] = mig_vel[1] * spf
+                # (a) idfix: PROJECT from the record anchor (memo_bank[-1] is
+                # the last OBSERVED pose and is not mutated while coasting), so
+                # pose = record + vel*elapsed, re-anchored every tick; never
+                # integrated from the previous prediction (no compounding).
                 steps = self.time_since_update + 1
-                pred[0] += vel[0] * steps
-                pred[1] += vel[1] * steps
+                pred[0] = self.memo_bank[-1][0] + mig_vel[0] * spf * steps
+                pred[1] = self.memo_bank[-1][1] + mig_vel[1] * spf * steps
                 self.time_since_update += 1
                 self.predicted_last_bbox = pred
+                # instrument: source velocity (m/s) + spf + steps for the drift
+                # report (was unlogged; needed to quantify residual drift).
+                try:
+                    import logging as _lg
+                    _lg.getLogger(__name__).info(
+                        "[COASTROW] tid=%s vel_mps=(%.2f,%.2f) |v|=%.2f "
+                        "spf=%.3f steps=%d proj=(%.2f,%.2f)",
+                        getattr(self,'track_id','?'), mig_vel[0], mig_vel[1],
+                        float((mig_vel[0]**2+mig_vel[1]**2)**0.5), spf, steps,
+                        pred[0], pred[1])
+                except Exception:  # noqa: BLE001
+                    pass
                 return
             if len(self.memo_bank) >= 2:
                 # Velocity from the memo-bank ENDPOINTS (net displacement over
