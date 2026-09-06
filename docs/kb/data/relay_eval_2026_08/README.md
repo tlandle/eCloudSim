@@ -1,5 +1,12 @@
 # relay_eval_2026_08: Khonsu closed-loop data
 
+Provenance (2026-09-06): the paper's evaluation DATA lives here, in docs/kb/data on
+the develop branch. The CODE is frozen in the git tags (khonsu-eval-freeze-1X);
+from freeze-1i on, the tags are CODE-ONLY and carry no evaluation data. Each row
+names the code it was produced under in its `eval_tag` column; join a row to its
+code by checking out that tag. Do not read CSVs out of a tag checkout (they are
+absent from 1i on, and stale on older tags that happened to carry committed data).
+
 One CSV row per run. Binary outcome fields: `collided` (any ego contact), `completed`. Report collided-or-not and completed-without-collision only; never mean episodes.
 
 | File | What | Harness (develop) | Status |
@@ -48,6 +55,61 @@ bilinear interp). ns-3 IS part of this platform. LUT ranges: UL p50 9.6-37.8,
 DL p50 5.3-304, DL p95 up to 952 ms at N=31 / 16.9KB. T12 (freeze-1e) sweeps
 NS3_LUT_N over the LUT range; MAC_BG_SENDERS dropped. The paper's platform
 sentence: ns-3-derived C-V2X Uu latency (payload/N-aware LUT), UL+DL.
+
+## t12_lut_rows.csv collided-flag correction (2026-09-06)
+The freeze-1f blind-overtake half (35 runs, 7 N-levels x 5 seeds) was landed
+with an inline t12 extractor whose collided detection used a literal-adjacent
+`- WARNING - Collision` regex. The live collision-sensor line is not
+adjacent (WARNING and Collision are separated by other tokens), so the regex
+matched nothing and every row got collided=0. Two runs were internally
+inconsistent (collided=0 but completed=no), which flagged the bug. Authoritative
+RUNROW re-check: N=31 s1 (episodes=1, contact_ticks=30, 1408 raw collision
+warnings) and N=31 s4 (episodes=1, contact_ticks=30, 1396) collided; all other
+33 runs clean (episodes=0). Corrected in place: N=31 s1/s4 collided 0->1. N=31
+is 3/5 completed-without-collision; every other N-level is 5/5. The runs are
+valid and complete (RUNROW present; the core dumps are post-run teardown
+segfaults, not run failures), so this is a column re-derivation, not a re-run.
+Root cause isolated to this one inline path; the general extractor
+(scripts/khonsu_design_extract.py:53) derives collided from RUNROW episodes and
+is unaffected.
+
+## tau(blind overtake) statistic (2026-09-06, final)
+NS3_LUT_N overrides only the lookup-table index; the scene (FLOW_N, spawns,
+speeds) is identical at every level, so there is no density difference between
+levels. What differs is the sampled latency distribution.
+
+The safe-age limit is defined on age_at_maneuver_ms, NOT on whole-run p50/p95:
+  age_at_maneuver_ms(W) = max realized age of the forecasts the planner consumed
+  over the W-second window of AGEROW ending at the maneuver tick (first-contact
+  tick if the run contacts, else the conflict tick; the conflict tick is 236 in
+  every run since the scene is identical). tau(u) = the largest 100ms bin of
+  age_at_maneuver below which no run fails.
+Whole-run statistics do NOT work here: the clean N=31 runs take an age spike
+early in the approach (tick ~447-538, actor still far / ego not committed) that
+they recover from, so whole-run/full-pre-contact max is 1400-2000ms for clean
+runs, ABOVE the failures at 1200-1250; that reading is non-monotone and yields
+no threshold. Bounding to the maneuver window removes that spike.
+
+W=2s is the planner's collision look-ahead horizon, not an arbitrary constant:
+config collision_time_ahead=2 feeds CollisionChecker(time_ahead=2), which
+projects the consumed obstacle forecast 2s ahead (lookahead_interp) and runs the
+collision-circle check over that window (ecav/core/plan/collision_check.py:245,
+643-644). The overtake commit gate consumes the forecast to decide over a 2s
+horizon, so the relevant freshness is the age over the 2s window at the commit.
+
+Result (realized_age_maneuver_ms in t12_lut_rows.csv, W=2s): every run with
+age_at_maneuver <= 1000ms completes (all of N<=24, and N=31 s2/s3 at 1000); at
+1200ms N=31 s5 completes while s1/s4 fail. tau(blind overtake) = 1.0s, onset
+1.2s. Sensitivity (extraction only, no runs): tau=1.0s and onset=1.2s are STABLE
+across W=1s, 2s, 3s. The only W-dependence is the onset bin: at W=1s no clean run
+reaches 1200 (max clean 1000, pure-fail onset), at W>=2s the clean s5 also
+reaches 1200 (mixed onset). The 800-1150ms band is unsampled (N=24 maneuver
+<=1000 jumps to N=31 >=1000), so NS3_LUT_N=28 x5 is queued to sample it.
+
+Checker rule: keep collided from the general extractor's eps>0; read tau off
+realized_age_maneuver_ms with the largest-all-clean-bin rule. Accel scenario
+uses the same planner (collision_time_ahead=2), so W=2s carries over; its
+conflict tick and window land with the accel T12 half.
 
 ## AGEROW availability + adaptive-lineage LUT (2026-09-05, restart-4 rescinded)
 CONFIRMED (peer + code): edge_manager_worldfusion_ab3dmot_mtr_adaptive.run_step
