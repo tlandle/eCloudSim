@@ -59,6 +59,7 @@ Primary context-switching artifact. Read this first after a gap.
 - Freshness statistic SETTLED (after the eval session showed no N=31 run has p95 1.0 s and that failed runs' whole-run p95 includes post-contact samples): per run, the MAX realized age consumed before the first contact (whole run if none), realized_age_max_precontact_ms; tau(u) = largest 100 ms bin of it below which no run fails. Data: all runs with max <= 1000 ms complete (N<=24; N=31 s2/s3), at 1200 ms s5 completes and s1/s4 fail (contact at edge tick 236; window p50 600-800, max 1200) -> tau(overtake) = 1.0 s, onset 1.2 s. Ordered: the column in t12_lut_rows.csv, README aligned, NS3_LUT_N=28 x5 after the accel T12 to sample the 800-1150 ms band. Paper definition, figure axis, and checker switched to this statistic.
 - Freshness statistic FINAL: the literal 'max age before first contact' is non-monotone (clean N=31 runs spike to 1400-2000 ms early in the approach, t=447-538, while failures are at 1200-1250), so the statistic is age_at_maneuver = max realized age over the W = 2 s window ending at the conflict tick (contact tick if any). On that: all runs with window-max <= 1000 ms complete (N<=24, N=31 s2/s3), at 1200 ms s5 completes and s1/s4 fail -> tau(overtake) = 1.0 s, onset 1.2 s. W must be grounded in the planner (overtake commit gate / stage-hold-commit-pass timing); W = 1 and 3 s sensitivity requested; the same window definition needed for the accel scenario. Columns realized_age_maneuver_ms / network_age_maneuver_ms to be landed. Paper, figure axis, checker switched. Smoke: worktree lacked the three pb2 stubs (gitignored; --build compiles only ecloud); copied; re-running. N=28 x5 queued after accel T12.
 - Maneuver-window columns landed (realized_age_maneuver_ms, network_age_maneuver_ms; window ends at the first-contact tick or the conflict tick 236). W = 2 s is the planner's collision look-ahead (collision_time_ahead=2 -> CollisionChecker(time_ahead=2), behavior_agent.py:169; lookahead_interp projects the consumed forecast 2 s ahead, collision_check.py:245,643-644). tau(overtake) = 1.0 s, onset 1.2 s, invariant for W = 1/2/3 s (only the onset bin purity changes). Accel uses the same planner horizon; its conflict tick and window land with its T12 half. Paper §5.4 states the grounding and the sensitivity. Smoke: the idfix worktree lacked four untracked assets (pb2 stubs, WorldFusion+MTR model dirs, the sort submodule, plus a flock/CARLA fd-inheritance bug); fixed, import-tested, re-running; tag only after a cell reaches full runtime. Worktree provisioning checklist recorded by the eval session.
+- FREEZE-1h = commit 71c9f37e (branch idfix-assoc; tag to be pushed). Smoke passed: warm_look4 CLEAN (single tid for cid 200, first_use > crossing 61>55/165>156/265>257, PUBGATE 28); warm_look1 collided (episodes 2; within the 9/10 baseline; mechanics correct); reactive clean; accel_warm clean with HANDOFFROW 1, AGEROW 598, COASTROW 32 (regenerated runner current); burst_warm CLEAN with all 6 platoon members warm_before_first_use (forwarding NOT needed); burst_cold collided (negative control). Runners flow/accel/burst at 71c9f37e, 0-diff, five markers. Campaign signed off and launched: Atlas A 6x20 -> B 6x20 (look2/3/4, computed, mtr, oracle; 1 s row = A's warm) -> E theta x5 -> faults x fencing -> netem; cetus accel T12 x5 -> N=28 x5 -> 5.3 matrix 6x10 x3 cells -> Table 8 -> T19b. Paper §4.2 states the identity merge, projected gate, and replace-on-final-update.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3584,3 +3585,27 @@ Before running the full stack in any worktree, from repo root:
    does not release a lock a CARLA child still holds).
 Verify with an import test (pb2 + sort.sort + TrackingManager + RSUManager +
 WorldFusionEdge) BEFORE launching, not by burning smoke cells one failure at a time.
+
+SMOKE VALIDATION NUANCE (2026-09-06): a 1-run-per-arm smoke CANNOT validate the
+stochastic warm/reactive arms by outcome. frozen1g baseline: hl_warm 9/10 clean
+(r9 collided eps=1), hl_reactive 8/10 clean (r1,r4 collided). So a single smoke
+warm run colliding is within baseline variance, NOT an idfix regression. The
+idfix-1h smoke warm_look1 collided (eps=2) but with bytes=4816 (identical
+migration payload to the clean 1g runs), all 3 handoffs warm_before_first_use=YES,
+first_use>crossing, and zero duplicate-tid events - i.e. migration mechanics
+correct, collision is a downstream overtake-variance event. The DECISIVE idfix
+gate is MECHANISTIC on look4 (the deterministic pre-fix collapse: duplicate track
+from coast drift): no duplicate tid for cid 200 + first_use>commit. Outcome
+validation of warm/reactive needs the 20-run campaign, not the smoke.
+
+SMOKE PASSED + TAG khonsu-eval-freeze-1h (2026-09-06): commit 71c9f37e (branch
+idfix-assoc), local annotated tag not pushed. Six cells all real runs:
+look4 CLEAN (idfix fixed the collapse: single tid=1 for cid 200, first_use>commit,
+PUBGATE=28), warm_look1 collided (within 1g 9/10 variance), reactive clean,
+accel_warm clean (regenerated runner: HANDOFFROW+AGEROW+COASTROW, wbfu=YES),
+burst_warm CLEAN with 6/6 platoon handoffs wbfu=YES -> FORWARDING NOT NEEDED
+(held question resolved: at-commit delivery suffices), burst_cold collided/0
+handoffs (negative control). All three runners 0-diff vs flow (strong currency).
+1h campaign launch pending peer per-arm sign-off (arm-list confirm). Plan:
+Atlas A(6 flow arms x20)->B(trigger arms x20)->E theta->faults; cetus accel-T12
+x35 FIRST -> NS3_LUT_N=28 x5 (samples 800-1150ms band) -> 5.3 -> Table8 -> T19b.
