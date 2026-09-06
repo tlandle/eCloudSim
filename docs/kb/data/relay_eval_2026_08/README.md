@@ -216,3 +216,23 @@ the normal tail - no batch contention. NOT tagged/restarted; awaiting Tyler's
 fix-vs-report pick. Record answered: warm look1 final update has NO persistent
 duplicate (only tid=2 for cid199); the look4 dup is native(tid7)-vs-
 migrated(tid1), a different phenomenon than the inject re-append.
+
+## Tyler: FIX + timestamp projection (2026-09-06)
+Decision FIX (identity-aware assoc = paper 3.5 step 4). Drift explained
+(code-verified): the shadow coast PROJECTS from the record (tracklet.predict:
+pred=memo_bank[-1]+mig_vel*spf*(tsu+1), memo[-1] never mutated while coasting
+-> re-anchored each tick, NOT compounding). So the ~18m over-shoot is a
+mig_vel magnitude / spf-steps scaling error, not integration. mig_vel_mps was
+unlogged and TRACKER DBG can't split source-native vs dest-shadow (both
+tid=1 cid=200 on different edges) -> added [COASTROW] logging; exact magnitude
++ residual drift come from the smoke, not asserted from current logs.
+FIX on branch idfix-assoc (844ea3fe): (a) explicit record-anchored projection
++ COASTROW; (b) position gate compares detections to the projected
+predicted_last_bbox; (c) identity merge PRIMARY (_merge_duplicate_carla_ids,
+same carla_id -> keep history, adopt fresh pose, drop dup) - load-bearing for
+the drift since coast already projects; (d) inject REPLACE same-tid.
+PLAN (Tyler, 20 seeds): Table 8 (burst+density) stays 1g. Stop 1g before
+block D. freeze-1h: Atlas A 6x20 + B 7x20 + E theta x5 (~285 runs ~22h) +
+tail; cetus 5.3 matrix accel+flow_visible+accel_visible 6x10 on 1h (headline
+cell from Atlas 1h); block D dropped. Corridor Sep 8-9, go/no-go Sep 9.
+Smoke armed post-blockC; tag 1h after smoke verified.
