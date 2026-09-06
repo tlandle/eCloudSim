@@ -68,6 +68,7 @@ Primary context-switching artifact. Read this first after a gap.
 - Sep 6 17:06: Atlas block A 17/120 (warm 2/3, reactive 2/3, handover_snapshot 1/3, kf 0/3, edgewarp 0/3, cold 0/2). ALARM: accel T12 on cetus: warm 0/5 clean at N=4 and 0/4 at N=8 with p95 age 400-600 ms: Khonsu fails every acceleration run at the lightest load (pre-freeze accel had warm 3/4 clean). Either the accel limit is below the pipeline floor (cadence finding) or the regenerated accel runner (flow-derived) is not running the old accel scenario (constants like MAX_STEP/ego speed/ONCOMING_ACCEL profile). Ordered: pause the accel sweep; contact actor/tick evidence for the 9 collided runs; diff regenerated vs old accel runner's effective scenario; controls on cetus (accel cold N=4 x2; accel warm N=4 x2 on the OLD runner from develop@2e5ea710).
 - Accel diagnosis (eval session): scenario config unchanged (Scenario_1, num_actors=2, scenario_1_accel.xml; Tesla oncoming at x=210, carlacola truck at x=278); the old runner docstring was stale. LIKELY CAUSE: ONCOMING_ACCEL=1 was never set by the accel T12 batch (nor runner nor YAML), so every 'accel' run so far is a constant-velocity 2-actor overtake; the pre-freeze warm 3/4 vs kf 0/4 result requires maneuvering, so the old batch harness must have set it. Forensics on collided runs: migration works (prepare 85, crossing 86), ego travels ~93 m, contact with the Tesla at tick ~164 with 'Broadcasting 0 predictions' at the collision tick. Writing-session concern: Khonsu 9/9 collided with ONE constant-velocity oncoming is suspicious in itself (flow 9/10, FLOW_N=2 5/5); ordered a per-tick trace of cid 199 at the destination from commit to contact (alive/publishable/published/ego cache), checking whether the identity merge dropped the live track or the track aged out after commit. Controls: regen cold N=4 x2, old-runner warm N=4 x2 (both without ONCOMING_ACCEL), plus regen warm N=4 x2 WITH ONCOMING_ACCEL=1. ONCOMING_ACCEL=1 now part of the accel config row.
 - cid 199 trace (accel n4 s1, commit 86 -> contact ~164): one tid ever (tid 1, 158 tracker lines), alive at contact (act=True, tsu=3), coasting correctly (|v| 11.91), MTR predicting it; the identity merge never fired; the fix is CLEARED and block A is trusted. edge_preds_received_total=0 is an accounting artifact (same 0 in clean flow runs). The accel 9/9 is a separate scenario issue: the 2-actor geometry (Tesla x=210, truck x=278) collides at constant velocity under the current constants and ONCOMING_ACCEL=1 was never set. Ordered: recover the pre-freeze accel batch's full env (q4_accel_redo / khonsu_design_sweep.sh accel entries) and diff against the T12 accel env; resume only when control 3 (ONCOMING_ACCEL=1) or a reproduced-env warm cell is clean. Accel sweep and accel 5.3 arms paused.
+- ACCEL 9/9 EXPLAINED BY THE KB (August 'REMAINING BLOCKER', ~line 2912): in the single-oncoming scenario the ego's overtake commit (truck + ov_wait timer) fires BEFORE the oncoming's handoff into the ego's locale (dr_warm: commit 110, handoff 143); the ego's locale has no track -> GO -> stall -> hit. Pre-freeze warm 3/4 relied on the pre-commit publish leak closed in 1g; with the gate the ego is blind to source-owned actors until commit; the 8-vehicle flow masks it. Conclusion: FORWARDING is required (the destination forwards the source's forecast for a prepared track under epoch e until commit; §3.5's epoch rule presumes it). Ordered: confirm on two collided accel runs (commit tick vs handoff tick; ego cache at commit), then implement in shared edge code, smoke (accel warm with ONCOMING_ACCEL=1, accel cold, burst warm/cold, flow look1/look4, reactive), tag freeze-1i, restart block A on 1i. The earlier reverted §3.4 forwarding sentence will be restored once confirmed.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3653,3 +3654,27 @@ cmdline does not contain the target patterns; use exact script-name patterns tha
 do not match the manager. Data note: one accel N=4 warm run collided (episodes=2)
 vs smoke accel_warm clean; the accel-warm tau at low N is a watch-item for the
 accel Table 5 story, to be resolved by the T12 x5-per-level data.
+
+ACCEL SWEEP HALT + DIAGNOSIS (2026-09-06, peer-flagged): accel T12 warm collided
+9/9 (N=4 0/5, N=8 0/4) at p95 age 400-600ms, contradicting flow (8 oncoming, same
+geometry) 9/10 and FLOW_N=2 5/5. Sweep PAUSED. Findings:
+(1) Scenario config UNCHANGED old(2e5ea710) vs freeze-1h: Scenario_1, num_actors=2,
+scenario_1_accel.xml (Tesla oncoming spawn x=210 + carlacola truck x=278). Old
+runner's "MultiEdgeRightMerge" docstring is STALE.
+(2) ONCOMING_ACCEL=1 NOT set by the accel batch, runner, or YAML (grep=0 all three).
+scenario_1.py only maneuvers (cruise 5 -> floor 16) when ONCOMING_ACCEL==1; else
+constant ONCOMING_SPEED. So accel ran as a NON-maneuvering 2-actor overtake. The
+pre-freeze warm-3/4-vs-kf-0/4 REQUIRES maneuvering (kf snapshot predicts constant
+velocity fine), so the OLD batch harness set ONCOMING_ACCEL=1. FIX: set
+ONCOMING_ACCEL=1 in every accel batch; it is part of the "occluded, maneuvering"
+scenario definition and belongs in the per-arm config row.
+(3) idfix CLEARED (not the cause): cid 199 trace in a collided run = single tid=1
+(158 tracker lines), ALIVE at contact (act=True tsu=3), coasting 11.91 m/s, MTR
+predicting it (x=290-300). No duplicate, no _merge_duplicate drop, not aged out.
+(4) edge_preds_received_total=0 is an ACCOUNTING ARTIFACT: block-A FLOW runs show
+the same 0 yet are clean (GT injection + edge broadcasts still act). Not the defect.
+CONCLUSION: no idfix track-drop; block A's 20-seed rows are TRUSTWORTHY, continues.
+The accel 9/9 is scenario_1_accel.xml geometry/timing + missing ONCOMING_ACCEL,
+accel-specific. Controls running: regen cold N=4 x2, old-runner(2e5ea710) warm N=4
+x2, control3 regen warm+ONCOMING_ACCEL=1 N=4 x2. Cetus accel sweep + tail (has 5.3
+accel arms) PAUSED until the accel scenario definition is settled.
