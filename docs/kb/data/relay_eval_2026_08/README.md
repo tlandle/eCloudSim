@@ -236,3 +236,26 @@ block D. freeze-1h: Atlas A 6x20 + B 7x20 + E theta x5 (~285 runs ~22h) +
 tail; cetus 5.3 matrix accel+flow_visible+accel_visible 6x10 on 1h (headline
 cell from Atlas 1h); block D dropped. Corridor Sep 8-9, go/no-go Sep 9.
 Smoke armed post-blockC; tag 1h after smoke verified.
+
+## STALE accel runner found (2026-09-06) - major
+The accel crash on cetus led to the real root cause: openscenario_1_accel_gt.py
+was a stale 565-line file with NONE of the flow runner's instrumentation
+(only SCENB; no RUNROW/HANDOFFROW/AGEROW/PUBGATE/COASTROW) and NONE of the
+freeze-1b..1g fixes (no final update, no publish gate, no projection). So every
+accel-based result (T12 accel, 5.3 accel cells, accel_visible) ran OLD code.
+- T12 accel realized_age was never captured (no AGEROW) -> NOT salvageable ->
+  must RERUN on the fixed runner (migration-free, tag-immaterial, needs AGEROW).
+- The GIL teardown crash on cetus is orthogonal (fires in the ego destroy race
+  after the eval dict); data before it was valid but had no AGEROW/RUNROW.
+FALLBACK VALIDATED: SCENB tx/by reproduces RUNROW exactly, 120/120 flow logs;
+other fields RUNROW-independent. But moot for accel (rerun needed for the fix).
+FIX (idfix-assoc 18b6b9a8): regenerated openscenario_1_accel_gt.py +
+openscenario_1_accel_visible_gt.py from the flow runner (accel_visible was also
+stale). accel differs only by configFile (scenario_1_accel.xml). Smoke now
+includes accel_warm to validate the regenerated runner + accel-with-both +
+whether flow-based teardown clears the cetus GIL crash.
+REVISED CHAINS: Atlas 1h = A6x20 -> B7x20 -> E theta x5 -> faults -> netem
+(T19b removed). Cetus 1h = 5.3 matrix -> T19b platoon sweep (100 runs) + T12
+accel rerun folded in. Lesson: burst/visible were regenerated from flow;
+accel was the one runner never regenerated - check ALL scenario runners share
+the flow runner's instrumentation before trusting their rows.
