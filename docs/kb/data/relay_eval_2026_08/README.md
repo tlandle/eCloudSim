@@ -199,3 +199,20 @@ existing migrated track by beacon carla_id, not position, so long leads do not
 duplicate. Not a protocol violation (unlike the shadow gate); the cap already
 covers the paper's operating point, so reporting look4 as the cap's
 justification needs no rerun.
+
+## idfix (identity-aware assoc) PREPARED on branch (2026-09-06)
+Branch idfix-assoc (worktree idfix_wt). (a) inject_latent_into_tracker
+REPLACEs the same-tid tracklet instead of append. (b) _merge_duplicate_
+carla_ids: post-track pass - when >1 tracklet shares a carla_id (migrated +
+native, position-assoc failed after coast drift), keep the longer-history
+track, adopt the freshest observed position, drop the duplicate from
+trajectories/id-map/tracker; logs [IDMERGE]. ARCHITECTURAL NOTE: the mamba
+tracker takes raw bboxes (no id), so §3.5 "associate by stable ID" cannot
+live in the associator without threading ids through; (b) is the post-track
+identity merge instead. Smoke ARMED (idfix_smoke_then_tail.sh): after the
+frozen1g batch _all_done, runs warm look1/look4 + reactive from the worktree
+(expect no dup tid for cid200 on look4; warm/reactive identical to 1g), then
+the normal tail - no batch contention. NOT tagged/restarted; awaiting Tyler's
+fix-vs-report pick. Record answered: warm look1 final update has NO persistent
+duplicate (only tid=2 for cid199); the look4 dup is native(tid7)-vs-
+migrated(tid1), a different phenomenon than the inject re-append.
