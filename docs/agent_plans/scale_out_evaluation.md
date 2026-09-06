@@ -170,6 +170,15 @@ Ordered by dependency. Each item names the files to touch.
 ## 3. Experiment specifications
 
 ### Q1 Does the gap exist (live + trace replay)
+
+IMPORTANT metric note (found live 2026-07-06): the EGO's own track is trivially warm at
+the destination because the ego's self-beacon carries authoritative pose, so warm-vs-cold
+on the ego track shows no gap (first paired run confirmed: cold reacquired in 1 tick from
+the beacon det). The gap lives on NON-CONNECTED actors (the cross-traffic Tesla, the
+pedestrian), whose history cannot be re-beaconed. Q1/Q4 measure the gap on the
+safety-critical ACTOR's track and forecasts, not the ego's. This is also exactly why the
+NHTSA boundary scenarios put the actor, not the ego, across the boundary. B4 frame logging
+must therefore log the actor's track (obstacle-state export path), keyed by actor id.
 - Setup: B0 + B4 + B5. Boundary scenario, learned stack. Force one crossing. Run two arms:
   warm reference (no handoff, single edge owns throughout) vs cold destination (handoff,
   no migration).
@@ -218,6 +227,7 @@ Ordered by dependency. Each item names the files to touch.
 | Axis | Values | Used by |
 |------|--------|---------|
 | Payload | none, latest-box, Kalman mean+cov, N-frame history, tracker-latent, predictor-context, both, oracle | Q2 |
+| Alternative arch | dual-service overlap (both edges serve overlap zone; measures duplicated per-edge load + consistency conflicts + residual gap); mirroring rate (cold / trigger-once / continuous standby) | Q3, Q4, Q5 |
 | Trigger | radio-proxy, distance-to-boundary, trajectory-crossing, probabilistic-trajectory, oracle | Q3 |
 | Link | base latency, jitter std, packet loss, bandwidth | Q5, Q6 |
 | Scene | active agents {4,8,16,32}; boundary crossings/min | Q5 |
@@ -275,3 +285,30 @@ step produced.
 - Reuse the measured ns-3 / SEE-V2X latency path for B2 so backhaul is measured, not an
   injected constant (matches the safety-envelope methodology).
 - Collision signal: use `focal_collisions`, the `conflict_kinematics collision_flag` is dead.
+
+### Q7 Deployability: locale sizing, placement, and city-scale geometry (added 2026-08-13)
+
+The protocol questions (Q1-Q6) take locale geometry as given. Q7 answers the
+design questions the locale model raises: what is the appropriate locale
+sizing, where do boundaries go, and does the partition work at city scale.
+
+- Partition rule (Design section): locales anchor on conflict zones (junction
+  centers, merges); a boundary never sits at a conflict — it is placed in the
+  plain stretch at maximal road-graph distance from both adjacent conflicts
+  (midpoint of each inter-junction road). Sizing is DERIVED, not chosen: each
+  migration protocol imposes a minimum boundary-to-conflict separation
+  D* = v x T_recover; ours makes D* ~ 0 so sizing follows load/coverage
+  instead of the migration protocol. That inversion is the sizing claim.
+- Method: offline map study, no perception or MTR dependency. Extract the
+  road graph + junctions from CARLA towns (validation: Town01, our scenario;
+  city-like: Town03/Town05), apply the rule, measure per-boundary
+  conflict separations and per-locale road length.
+- Outputs: (a) partitioned-map figure (locales, anchors, boundary points);
+  (b) separation distribution with each protocol's D* overlaid at
+  residential (8.3 m/s) and arterial (14 m/s) speeds -> fraction of a real
+  map's boundaries each protocol can serve safely; (c) per-locale load stats.
+- Tooling: ecav/scenario_testing/utils/locale_partition.py (map -> partition
+  -> metrics/figures). Extend later with OSM district extracts and measured
+  crossing rates (ties into Q5 load).
+- Depends: none (runs offline against a CARLA server). Status: tooling built
+  and first measured results produced 2026-08-13.

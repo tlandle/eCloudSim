@@ -50,14 +50,30 @@ class WorldFusionAdaptiveEdge(WorldFusionEdge):
         self.predictor = MTREdgePredictor(
             cmp_root=mtr_cfg.get('cmp_root'),
             mtr_checkpoint=mtr_cfg.get('checkpoint'),
+            cfg_yaml=mtr_cfg.get('cfg_yaml'),
+            intention_points_file=mtr_cfg.get('intention_points_file'),
+            dataset=mtr_cfg.get('dataset', 'opv2v'),
+            aggregator=mtr_cfg.get('aggregator'),
+            past_frames=mtr_cfg.get('past_frames', 10),
+            future_frames=mtr_cfg.get('future_frames', 50),
+            time_interval=mtr_cfg.get('time_interval', 0.1),
+            history_subsample=mtr_cfg.get('history_subsample', 1),
             device=mtr_cfg.get('device', 'cuda'),
-            num_output_steps=25,
+            # One entry per sim tick (the predictor resamples model steps at
+            # time_interval to output_dt); default covers the full horizon.
+            num_output_steps=mtr_cfg.get('num_output_steps', 100),
+            output_dt=world_dt,
+            lane_map=(mtr_cfg.get('lane_map')
+                      if mtr_cfg.get('lane_map') != 'auto' else None),
             budget_ms=mtr_cfg.get('budget_ms', 50.0),
             enable_amortization=mtr_cfg.get('enable_amortization', True),
             enable_risk_budget=mtr_cfg.get('enable_risk_budget', True),
             ego_vehicles=[vm.vehicle for vm in self.vehicle_manager_list],
         )
         self.lin_pred = self.predictor
+
+        if mtr_cfg.get('lane_map') == 'auto':
+            self._set_auto_lane_raster(world, mtr_cfg)
 
         # Controller configuration
         self.deadline_ms = adapt_cfg.get('deadline_ms', 100.0)
@@ -155,6 +171,16 @@ class WorldFusionAdaptiveEdge(WorldFusionEdge):
         result = super().run_step(tick)
         compute_ms = (time.perf_counter() - t0) * 1000
         self._compute_history.append(compute_ms)
+        # T21: per-locale compute accounting. Accumulate GPU-side compute
+        # (ms) and the vehicle-seconds it served (agents this tick x edge_dt),
+        # so compute-per-vehicle-second = sum(compute_ms)/1000 / veh_seconds.
+        if not hasattr(self, '_t21_compute_ms_sum'):
+            self._t21_compute_ms_sum = 0.0
+            self._t21_veh_seconds = 0.0
+        self._t21_compute_ms_sum += compute_ms
+        _k_served = 1 + (self._k_cav_star if self._k_cav_star is not None
+                         else n_cav)
+        self._t21_veh_seconds += _k_served * getattr(self, 'edge_dt', 0.2)
 
         # Update M_hat estimator
         k_total = 1 + (self._k_cav_star if self._k_cav_star is not None else n_cav)

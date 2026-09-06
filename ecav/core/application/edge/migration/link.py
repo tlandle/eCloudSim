@@ -76,6 +76,19 @@ class InterLocaleLink:
     ):
         self._latency_model = latency_model
         self._rate = serialize_rate_ms_per_byte
+        # Inter-locale transfer is WIRED backhaul between edge servers, NOT
+        # the C-V2X radio. Sampling latency_model here was the wrong medium
+        # (accounting + computed-EMA only; mechanism never delayed). Wired
+        # model: base + payload/bandwidth + queueing (0.5 x service).
+        import os as _osw
+        self._wired = _osw.environ.get('TRANSFER_MEDIUM', 'wired') == 'wired'
+        # 5G-MOBIX D5.2 v3.0 Table 30 (CS_14 inter-MEC, fibre 100km):
+        # one-way network latency ~3 ms, stdev ~0.5 ms, zero loss (TCP).
+        self._backhaul_base_ms = float(_osw.environ.get('BACKHAUL_BASE_MS', 3.0))
+        self._backhaul_jitter_ms = float(
+            _osw.environ.get('BACKHAUL_JITTER_MS', 0.5))
+        self._backhaul_bw_mbps = float(
+            _osw.environ.get('BACKHAUL_BW_MBPS', 1000.0))
 
     @classmethod
     def from_cfg(
@@ -100,7 +113,16 @@ class InterLocaleLink:
         """
         n_bytes = payload.payload_bytes()
         sim_serialize_ms = n_bytes * self._rate
-        sim_network_ms = self._latency_model.sample_ms()
+        if self._wired:
+            _service_ms = (n_bytes * 8.0 / (self._backhaul_bw_mbps * 1e6)) \
+                * 1000.0
+            import random as _rnd
+            _jit = _rnd.gauss(0.0, self._backhaul_jitter_ms) \
+                if self._backhaul_jitter_ms > 0 else 0.0
+            sim_network_ms = max(0.5, self._backhaul_base_ms + _jit) \
+                + _service_ms + 0.5 * _service_ms  # 5G-MOBIX + tx + queue
+        else:
+            sim_network_ms = self._latency_model.sample_ms()
         total_ms = sim_serialize_ms + sim_network_ms + sim_serialize_ms
 
         vid = payload.tracks[0].persistent_vehicle_id if payload.tracks else -1

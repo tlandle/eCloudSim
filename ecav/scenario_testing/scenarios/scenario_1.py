@@ -32,22 +32,53 @@ class Scenario_1(BasicScenario):
     timeout = 1200
 
     def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
-                 timeout=600, scenario_params=None):
+                 timeout=600, vehicle_index=-1, scenario_params=None, distributed=False):
         """
         Setup all relevant parameters and create scenario
         """
         print("Running Overtake Scenario")
         self.timeout = timeout
+        self.vehicle_index = vehicle_index
+        self.distributed = distributed
         self._map = CarlaDataProvider.get_map()
         self._reference_waypoint = self._map.get_waypoint(
             config.trigger_points[0].location)
 
-        self.num_vehicle = 4
-        self.vehicle_01_velocity = 0
-        self.vehicle_02_velocity = 8
-        self.vehicle_03_velocity = 6
-        self.vehicle_04_velocity = 6
-        self._trigger_distance = 150
+        # Vehicle count follows the XML actor list so denser oncoming
+        # streams (two-locale variant) need only more <other_actor> rows.
+        # First actor is the stationary blocker (velocity 0); the rest are
+        # oncoming traffic. The single-locale XML (4 actors) keeps its
+        # original [0, 8, 6, 6] profile exactly.
+        self.num_vehicle = len(config.other_actors)
+        _base = [0, 8, 6, 6]
+        self.vehicle_velocities = [
+            (_base[i] if i < len(_base) else 8)
+            for i in range(self.num_vehicle)]
+        # ONCOMING_SPEED overrides every oncoming actor's constant speed (all
+        # but the stationary blocker at index 0). A fast, constant oncoming is
+        # tracked with good velocity SNR upstream and handed off at its true
+        # speed, which the timing-necessity arms (predictive vs reactive
+        # migration) need; the default profile is unchanged when unset.
+        import os as _os
+        _onc_spd = _os.environ.get('ONCOMING_SPEED')
+        if _onc_spd is not None:
+            _v = float(_onc_spd)
+            self.vehicle_velocities = [
+                (0 if i == 0 else _v) for i in range(self.num_vehicle)]
+        # FLOW_N caps how many oncoming actors participate (first N lift
+        # from their parked pose; the rest stay parked): the crossings-per-
+        # minute axis for the scale evaluation, one knob on one XML.
+        _flow_n = _os.environ.get('FLOW_N')
+        if _flow_n is not None:
+            _n = int(_flow_n)
+            for _i in range(1 + _n, self.num_vehicle):
+                self.vehicle_velocities[_i] = 0
+        # Distance at which an actor begins moving (ego within this range of
+        # the actor spawn). TRIGGER_DIST decouples the oncoming's start from
+        # the ego start so the oncoming's timeline (and its locale handoff) is
+        # independent of how far back the ego begins; the two-locale accel
+        # scenario needs the handoff to precede the ego's overtake commit.
+        self._trigger_distance = float(_os.environ.get('TRIGGER_DIST', 150))
         self.agents = []
 
         super(Scenario_1, self).__init__("Scenario_1",
@@ -90,18 +121,55 @@ class Scenario_1(BasicScenario):
             trigger_location = getattr(self, f"vehicle_0{i + 1}_trigger_location")
             actor = self.other_actors[i]
             transform = getattr(self, f"car_0{i + 1}_visible")
-            velocity = getattr(self, f"vehicle_0{i + 1}_velocity")
+            velocity = self.vehicle_velocities[i]
 
             trigger_behavior = InTriggerDistanceToLocation(self.ego_vehicles[0], trigger_location,
                                                            self._trigger_distance)
             set_transform_behavior = ActorTransformSetter(actor, transform)
-            drive_behavior = WaypointFollower(actor, velocity)
 
-            sequence_vehicle[i].add_child(set_transform_behavior)
-            sequence_vehicle[i].add_child(trigger_behavior)
-            sequence_vehicle[i].add_child(drive_behavior)
-            sequence_vehicle[i].add_child(Idle())
-            self.agents.append(drive_behavior)
+            import os as _os
+            _accel = _os.environ.get('ONCOMING_ACCEL', '0') == '1'
+            if _accel and i >= 1 and velocity > 0:
+                # Aggressive oncoming: cruise slow, then floor it near the
+                # conflict. A box+velocity SNAPSHOT migrated upstream (kf arm)
+                # captures only the slow cruise speed, so the destination
+                # predicts constant velocity and the ego thinks it has a gap;
+                # the actor then accelerates and arrives early -> collision.
+                # The full memo-bank latent carries the motion history, so the
+                # destination predictor sees the acceleration and the ego waits.
+                car_transform = actor.get_transform()
+                conflict_loc = carla.Location(
+                    278.0, car_transform.location.y,
+                    car_transform.location.z + 501)
+                cruise_v = 5.0     # slow approach; a snapshot sees this speed
+                fast_v = 16.0      # floor it as the ego reaches the conflict
+                # The oncoming cruises upstream (tracked and migrated by the
+                # previous locale) and accelerates when the EGO nears the
+                # conflict, so the fast approach overlaps the overtake window
+                # regardless of the ego's exact deceleration profile. This is
+                # the aggressive-driver case: a full-latent migration recovers
+                # the accelerating speed and the ego waits; a snapshot
+                # under-predicts it and the ego commits into a closing gap.
+                phase1 = py_trees.composites.Parallel(
+                    f"accel_gate_0{i + 1}",
+                    policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                phase1.add_child(WaypointFollower(actor, cruise_v))  # cruise
+                phase1.add_child(InTriggerDistanceToLocation(
+                    self.ego_vehicles[0], conflict_loc, 30.0))       # ego near conflict
+                fast = WaypointFollower(actor, fast_v)               # floor it
+                sequence_vehicle[i].add_child(set_transform_behavior)
+                sequence_vehicle[i].add_child(trigger_behavior)
+                sequence_vehicle[i].add_child(phase1)
+                sequence_vehicle[i].add_child(fast)
+                sequence_vehicle[i].add_child(Idle())
+                self.agents.append(fast)
+            else:
+                drive_behavior = WaypointFollower(actor, velocity)
+                sequence_vehicle[i].add_child(set_transform_behavior)
+                sequence_vehicle[i].add_child(trigger_behavior)
+                sequence_vehicle[i].add_child(drive_behavior)
+                sequence_vehicle[i].add_child(Idle())
+                self.agents.append(drive_behavior)
 
         # End condition
         termination = DriveDistance(self.ego_vehicles[0], 100)

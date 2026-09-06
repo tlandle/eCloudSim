@@ -59,6 +59,10 @@ from .edge_manager_base import _BaseEdgeManager
 import logging
 logger = logging.getLogger(__name__)
 
+# Shared eval-mode WF fusion models keyed by checkpoint path —
+# multi-edge sims on one GPU reuse rather than duplicate weights.
+_EDGE_WF_MODEL_CACHE = {}
+
 
 def _box_to_transform(box: np.ndarray):
     """Convert a detection box [x,y,z,h,w,l,yaw] to picklable Transform."""
@@ -103,6 +107,14 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # Load model configuration
         wf_cfg = cfg['worldfusion_model']
         hypes = load_yaml(wf_cfg['hypes_yaml'])
+        # Optional per-scenario detection threshold override (the model
+        # config's value is a shared artifact; mover det scores can straddle
+        # it and flicker, fragmenting downstream tracks).
+        if 'score_threshold' in wf_cfg:
+            hypes['postprocess']['target_args']['score_threshold'] = \
+                float(wf_cfg['score_threshold'])
+            print(f"[WorldFusion Edge] score_threshold override: "
+                  f"{wf_cfg['score_threshold']}")
         self.hypes = hypes
 
         # World anchor pose from config [x, y, z, roll, yaw, pitch]
@@ -119,18 +131,36 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._gt_inject_enabled = bool(gt_cfg.get('enabled', False))
         self._gt_max_range_m = float(gt_cfg.get('max_range_m', 70.0))
         self._gt_exclude_managed = bool(gt_cfg.get('exclude_managed', True))
+        self._gt_occlusion = bool(gt_cfg.get('occlusion_check', False))
+        # skip_model: bypass the fusion forward pass entirely (oracle arm).
+        # Default False preserves the original semantics: model runs, its
+        # compute latency and payload stay realistic, output is replaced
+        # (that mode is the E6 "C-lat" control: GT content, arm-C latency).
+        self._gt_skip_model = bool(gt_cfg.get('skip_model', False))
         if self._gt_inject_enabled:
             print(f"[WorldFusion Edge] GT detection injection ENABLED "
                   f"(max_range={self._gt_max_range_m}m, "
-                  f"exclude_managed={self._gt_exclude_managed})")
+                  f"exclude_managed={self._gt_exclude_managed}, "
+                  f"skip_model={self._gt_skip_model})")
 
-        # Load WorldFusion model
+        # Load WorldFusion model. Multi-edge sims load byte-identical
+        # checkpoints per edge; share one eval-mode instance per checkpoint
+        # (deployment runs one edge per server — sim-hosting optimization
+        # only; two full copies OOM'd a 16 GB card next to CARLA/Town06).
         from opencood.models.point_pillar_worldfusion import PointPillarWorldFusion
-        self.model = PointPillarWorldFusion(hypes['model']['args']).cuda().eval()
-        ckpt_dir = os.path.dirname(wf_cfg['checkpoint'])
-        epoch_id = int(wf_cfg['checkpoint'].split('epoch')[-1].split('.')[0])
-        _, self.model = train_utils.load_model(ckpt_dir, self.model, epoch_id)
-        print(f"[WorldFusion Edge] Model loaded from epoch {epoch_id}.")
+        _wf_key = os.path.abspath(wf_cfg['checkpoint'])
+        _shared = _EDGE_WF_MODEL_CACHE.get(_wf_key)
+        if _shared is not None:
+            self.model = _shared
+            print(f"[WorldFusion Edge] Reusing shared model "
+                  f"({os.path.basename(_wf_key)}).")
+        else:
+            self.model = PointPillarWorldFusion(hypes['model']['args']).cuda().eval()
+            ckpt_dir = os.path.dirname(wf_cfg['checkpoint'])
+            epoch_id = int(wf_cfg['checkpoint'].split('epoch')[-1].split('.')[0])
+            _, self.model = train_utils.load_model(ckpt_dir, self.model, epoch_id)
+            _EDGE_WF_MODEL_CACHE[_wf_key] = self.model
+            print(f"[WorldFusion Edge] Model loaded from epoch {epoch_id}.")
 
         # Post-processor for detection output (must match training config)
         self.post_processor = WorldVoxelPostprocessor(
@@ -406,6 +436,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             # only N_cav uplink packets contend.
             if self._lut_sampler is not None:
                 n_cav = max(1, len(feature_dicts) - 1)  # exclude RSU
+                import os as _osn
+                _nover = _osn.environ.get('NS3_LUT_N')
+                if _nover:
+                    n_cav = int(_nover)  # T12 load sweep override
                 # Per-CAV UL payload = bytes of one agent's spatial_features.
                 first_feat = feature_dicts[0].get('spatial_features')
                 if first_feat is not None and hasattr(first_feat, 'numel'):
@@ -417,6 +451,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     for _ in range(n_cav)
                 ]
                 ul_ms = max(ul_samples_ms) if ul_samples_ms else 0.0
+                self._last_ul_ms = ul_ms  # for network_age_ms (T12)
                 ul_ticks = int(math.ceil(ul_ms / self._sim_dt_ms))
                 arrival = frame_idx + ul_ticks
             else:
@@ -432,6 +467,55 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 self._excluded_snapshots.pop(old, None)
         else:
             print(f"[WorldFusion Edge] WARNING: No feature_dicts collected!")
+
+    def _format_dets_for_tracker(self, det_results):
+        """Hook: adapt the detection dict to the tracker's expected axis
+        convention. Base (AB3DMOT) consumes the KITTI-swapped layout the
+        WF pipeline already produces, so this is the identity."""
+        return det_results
+
+    def _track_row_to_box(self, trk):
+        """Hook: tracker output row -> [x,y,z,h,w,l,yaw].
+
+        AB3DMOT rows are KITTI-swapped: [3]=x, [4]=height (KITTI y),
+        [5]=world_y (KITTI z), so map [3]->x, [5]->y_world, [4]->z."""
+        return np.array([trk[3], trk[5], trk[4], trk[0], trk[1], trk[2],
+                         trk[6]])
+
+    def _deliver_predictions(self, vm, predictions, step):
+        """Deliver predictions to a vehicle agent, serving the last held set
+        (up to 1 s stale) on ticks without a fresh delivery. Predictions are
+        5 s horizons produced at the edge cadence; hard-clearing between
+        deliveries starved the planner on ~3 of 4 ticks (oracle/late-fusion
+        managers already deliver stale copies for the same reason)."""
+        if predictions and random.random() * 100 > self.downlink_pl:
+            self._last_predictions = list(predictions)
+            self._last_pred_tick = step
+            vm.agent.edge_predictions = list(predictions)
+        elif (getattr(self, '_last_predictions', None)
+                and step - getattr(self, '_last_pred_tick', -999) <= 20):
+            vm.agent.edge_predictions = list(self._last_predictions)
+        else:
+            vm.agent.edge_predictions = []
+
+    def _set_auto_lane_raster(self, world, mtr_cfg):
+        """Render the zone lane raster live from the CARLA HD map and hand
+        it to the predictor. Used by the MTR edge variants when the yaml
+        sets mtr_predictor.lane_map: auto. Centered on world_anchor: that
+        is the fusion reference frame the predictor's tracks live in
+        (rsu_manager_list is still empty at construction time)."""
+        import torch
+        from ecav.core.map.rsu_lane_raster import generate_rsu_lane_raster
+
+        loc = carla.Location(x=float(self.world_anchor[0]),
+                             y=float(self.world_anchor[1]),
+                             z=float(self.world_anchor[2]))
+        raster = generate_rsu_lane_raster(
+            world, world.get_map(), loc,
+            range_m=mtr_cfg.get('lane_range_m', 90.0))
+        self.predictor.set_lane_map(torch.from_numpy(raster))
+        print(f"[WorldFusion Edge] Auto lane raster at "
+              f"({loc.x:.1f}, {loc.y:.1f})")
 
     def run_step(self, tick: int):
         """
@@ -490,23 +574,39 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
             # 3. Stack features and compute pairwise transforms
             with frame.time("fusion"):
-                torch.cuda.empty_cache()
-                spatial_features = torch.cat(
-                    [d['spatial_features'] for d in feature_dicts], dim=0
-                ).float().cuda()
+                if self._gt_inject_enabled and self._gt_skip_model:
+                    # Oracle arm: GT replaces the model output entirely, so the
+                    # forward pass is skipped and fusion contributes no compute
+                    # latency. Tracking and prediction still run downstream.
+                    fused_feature, pred_dict = None, None
+                else:
+                    torch.cuda.empty_cache()
+                    spatial_features = torch.cat(
+                        [d['spatial_features'] for d in feature_dicts], dim=0
+                    ).float().cuda()
 
-                pairwise_t_matrix = self._compute_world_pairwise_transforms(poses)
-                record_len = torch.tensor([len(feature_dicts)], dtype=torch.int64).cuda()
+                    pairwise_t_matrix = self._compute_world_pairwise_transforms(poses)
+                    record_len = torch.tensor([len(feature_dicts)], dtype=torch.int64).cuda()
 
-                # 4. Run backbone + Where2comm fusion
-                with torch.no_grad():
-                    fused_feature, pred_dict = self._run_fusion(
-                        spatial_features, pairwise_t_matrix, record_len
-                    )
+                    # 4. Run backbone + Where2comm fusion
+                    with torch.no_grad():
+                        fused_feature, pred_dict = self._run_fusion(
+                            spatial_features, pairwise_t_matrix, record_len
+                        )
+                    # Hand the fused BEV context to the predictor (MTR uses it;
+                    # the linear predictor has no such hook). Without this the
+                    # predictor previously fell back to a placeholder tensor.
+                    if fused_feature is not None and hasattr(self.predictor, 'set_fused_feature'):
+                        self.predictor.set_fused_feature(fused_feature.detach())
 
             # 5. Post-process to get detections in world frame
             with frame.time("detection"):
-                det_results = self._to_ab3dmot_format(pred_dict, frame_id)
+                if pred_dict is None:
+                    # skip_model path: placeholder immediately replaced by the
+                    # GT injection below (skip_model implies injection enabled).
+                    det_results = {'dets': [], 'info': [], 'scores': [], 'frame': frame_id}
+                else:
+                    det_results = self._to_ab3dmot_format(pred_dict, frame_id)
                 num_dets = len(det_results.get('dets', []))
 
                 # 5.1 Optional GT injection: replace model output with simulator
@@ -522,6 +622,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                         self.world, self.world_anchor, frame_id,
                         exclude_actor_ids=excl_ids,
                         max_range_m=self._gt_max_range_m,
+                        occlusion_check=self._gt_occlusion,
                     )
                     logger.info("GT INJECT: replaced %d model dets with %d GT actor boxes",
                                 num_dets, len(det_results['dets']))
@@ -561,27 +662,40 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 false_negatives=det_metrics['fn']
             )
 
-            # 6. Track with AB3DMOT using persistent tracker
+            # 6. Track using the persistent tracker (AB3DMOT by default;
+            # subclasses may swap in another tracker and reformat dets)
             with frame.time("tracking"):
+                det_results = self._format_dets_for_tracker(det_results)
                 self.track_history.appendleft(det_results)
                 _n_in = len(det_results.get('dets', []))
-                _n_trks_before = len(self.tracker.trackers)
+                _has_internals = hasattr(self.tracker, 'trackers')
+                _n_trks_before = len(self.tracker.trackers) if _has_internals else -1
                 tracks, _ = self.tracker.track(det_results, frame_id)
                 _n_out = len(tracks[0]) if tracks and len(tracks) > 0 and len(tracks[0]) > 0 else 0
-                _n_trks_after = len(self.tracker.trackers)
+                _n_trks_after = len(self.tracker.trackers) if _has_internals else -1
                 print(f"[TRACKER DBG] tick={frame_id} dets_in={_n_in} "
                       f"trackers_before={_n_trks_before} trackers_after={_n_trks_after} "
                       f"output_rows={_n_out}")
 
                 # Per-tick KF dump for every tracker, so we can see which
                 # one carries the cross-traffic Tesla (CARLA id changes per run).
-                for _trk in self.tracker.trackers:
+                for _trk in (self.tracker.trackers if _has_internals else []):
                     _kfx = _trk.kf.x.reshape(-1)
                     print(f"[TRACKER DBG] tid={_trk.id} cid={getattr(_trk, 'carla_id', -1)} "
                           f"hits={_trk.hits} tsu={_trk.time_since_update} "
                           f"kf_pos=({_kfx[0]:.2f},{_kfx[1]:.2f},{_kfx[2]:.2f}) "
                           f"theta={_kfx[3]:.3f} "
                           f"kf_vel=({_kfx[7]:.4f},{_kfx[8]:.4f},{_kfx[9]:.4f})")
+                # Mamba-branch equivalent: per-tick tracklet table
+                if not _has_internals:
+                    for _t in getattr(getattr(self.tracker, 'tracker', None),
+                                      'tracked_tracklets', []):
+                        _st = _t.state
+                        print(f"[TRACKER DBG] tid={_t.track_id} "
+                              f"cid={getattr(_t, 'carla_id', -1)} "
+                              f"act={_t.is_activated} tsu={_t.time_since_update} "
+                              f"pos=({_st[0]:.2f},{_st[1]:.2f},{_st[2]:.2f}) "
+                              f"yaw={_st[6]:.2f}")
 
                 # Reconcile any pending BSM temp-ID rotations
                 for evt in self.beacon_id_mgr.pop_pending_rotations():
@@ -659,6 +773,25 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 )
                 num_predictions = len(predictions) if predictions else 0
 
+                # PUBLISH GATE (paper 3.5): suppress forecasts for tracks this
+                # locale imported but has not COMMITTED (shadow). The owner
+                # (source) still publishes; the destination publishes only
+                # after commit. Filter by carla_id against _shadow_obstacles.
+                _shadow = getattr(self, '_shadow_obstacles', {})
+                if predictions and _shadow:
+                    _kept = []
+                    for _pr in predictions:
+                        _cid = getattr(_pr.obstacle_trajectory.obstacle,
+                                       'carla_id', None)
+                        if _cid is not None and _shadow.get(int(_cid), False):
+                            logger.info("[PUBGATE] tick=%d edge=%s suppressed "
+                                        "uncommitted carla_id=%d", tick,
+                                        getattr(self, 'edgeid', '?'), int(_cid))
+                        else:
+                            _kept.append(_pr)
+                    predictions = _kept
+                    num_predictions = len(predictions)
+
                 # 8.5 Evaluate predictions vs actual trajectories and get metrics
                 pred_metrics = self._evaluate_predictions(
                     tick, predictions, carla_snapshot_at_capture, lag_steps
@@ -682,6 +815,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             compute_ms = (time.perf_counter() - t_compute_start) * 1000.0
             if self._lut_sampler is not None:
                 n_cav_for_dl = max(1, num_agents - 1)  # exclude RSU
+                import os as _osn2
+                _nover2 = _osn2.environ.get('NS3_LUT_N')
+                if _nover2:
+                    n_cav_for_dl = int(_nover2)  # T12 load sweep override
                 try:
                     import pickle as _pkl
                     dl_bytes = (len(_pkl.dumps(predictions))
@@ -694,7 +831,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 dl_ms = 0.0
             deliver_tick = tick + int(math.ceil(
                 (compute_ms + dl_ms) / self._sim_dt_ms))
-            self._outbound_queue.append((deliver_tick, predictions))
+            _src_tick = getattr(self, '_latest_source_tick', tick)
+            _net_ms = getattr(self, '_last_ul_ms', 0.0) + dl_ms
+            self._outbound_queue.append(
+                (deliver_tick, predictions, _src_tick, _net_ms))
             if hasattr(frame, 'set_compute_dl'):
                 frame.set_compute_dl(compute_ms=compute_ms, dl_ms=dl_ms,
                                     deliver_tick=deliver_tick)
@@ -815,10 +955,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                      step, len(predictions) if predictions else 0)
 
         for vm in self.vehicle_manager_list:
-            if predictions and random.random() * 100 > self.downlink_pl:
-                vm.agent.edge_predictions = list(predictions)
-            else:
-                vm.agent.edge_predictions = []
+            self._deliver_predictions(vm, predictions, step)
             vm.update_info(step)
             vm.vehicle.apply_control(vm.run_step())
             self._label_brake_attributions_gt(vm)
@@ -1508,10 +1645,9 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 else:
                     cid = cid_raw
 
-                # Convert to [x,y,z,h,w,l,yaw] for transform.
-                # AB3DMOT cols: [3]=x, [4]=height (KITTI y), [5]=world_y (KITTI z),
-                # so map [3]->x, [5]->y_world, [4]->z_height.
-                box_7dof = np.array([trk[3], trk[5], trk[4], trk[0], trk[1], trk[2], trk[6]])
+                # Convert to [x,y,z,h,w,l,yaw] for transform (row layout is
+                # tracker-specific; see _track_row_to_box).
+                box_7dof = self._track_row_to_box(trk)
                 tf = _box_to_transform(box_7dof)
 
                 updated.add(tid)
@@ -1558,8 +1694,20 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 # KITTI dx(10)=CARLA vx, KITTI dz(12)=CARLA vy
                 if len(trk) > 12:
                     kf_vx, kf_vy = float(trk[10]), float(trk[12])
-                    traj.obstacle.kf_speed_mps = (
-                        (kf_vx**2 + kf_vy**2)**0.5) / 0.1
+                    _step_s = float(self.cfg.get('edge_dt', 0.2))                         if hasattr(self, 'cfg') else 0.2
+                    # Col 13 flags the unit: Mamba rows carry m/s directly
+                    # (cadence-independent, measured from the source-tick
+                    # stride in the wrapper). AB3DMOT rows are per TRACKER
+                    # STEP; the tracker is fed once per edge cycle (edge_dt),
+                    # not per world tick or a hard-coded 0.1 s.
+                    if len(trk) > 13 and float(trk[13]) == 1.0:
+                        traj.obstacle.kf_speed_mps = (
+                            kf_vx**2 + kf_vy**2)**0.5
+                        kf_vx *= _step_s
+                        kf_vy *= _step_s
+                    else:
+                        traj.obstacle.kf_speed_mps = (
+                            (kf_vx**2 + kf_vy**2)**0.5) / _step_s
                     traj.obstacle.kf_vx = kf_vx
                     traj.obstacle.kf_vy = kf_vy
 
@@ -1840,14 +1988,23 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         """
         if not self._outbound_queue:
             return None
-        ready = [(dt, p) for dt, p in self._outbound_queue if dt <= tick]
+        ready = [e for e in self._outbound_queue if e[0] <= tick]
         if not ready:
             return None
         # Keep only entries that are still in flight (deliver_tick > tick).
-        self._outbound_queue = [(dt, p) for dt, p in self._outbound_queue
-                                if dt > tick]
+        self._outbound_queue = [e for e in self._outbound_queue if e[0] > tick]
         ready.sort(key=lambda x: x[0])
-        return ready[-1][1]
+        _dt, _p, _src, _net = ready[-1]
+        # T12: TOTAL age at use (Delta_use = t_c - t_o) = delivery - source
+        # frame tick (cadence + buffer + DL queue + network); tau(u) is
+        # defined on this. network_age_ms = UL+DL LUT delay only (radio
+        # contribution) for the load-to-age table. One row per decision.
+        logger.info("[AGEROW] tick=%d edge=%s realized_age_ms=%.1f "
+                    "network_age_ms=%.1f lut_n=%s",
+                    tick, getattr(self, 'edgeid', '?'),
+                    (tick - _src) * self.dt * 1000.0, _net,
+                    __import__('os').environ.get('NS3_LUT_N', 'scene'))
+        return _p
 
     def _update_agents(self, tick: int, predictions: Optional[List]):
         """
@@ -1882,11 +2039,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
         # Distribute predictions to vehicles
         for index, vm in enumerate(self.vehicle_manager_list):
-            if predictions is not None and len(predictions) > 0 and random.random() * 100 > self.downlink_pl:
-                vm.agent.edge_predictions = list(predictions)
-                print(f"[WorldFusion Edge] Set {len(vm.agent.edge_predictions)} edge_predictions on vehicle")
-            else:
-                vm.agent.edge_predictions = []
+            self._deliver_predictions(vm, predictions, tick)
 
             if pickled_edge_predictions is not None:
                 object_buffer = ecloud.ObjectBuffer(
@@ -2205,9 +2358,11 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         metrics.update(self._get_contract_metrics())
         if hasattr(self, 'mot_tracker') and self.mot_tracker is not None:
             metrics['birth_gate'] = {
-                'birth_attempts_anon': self.mot_tracker.birth_attempts_anon,
-                'birth_suppressed_by_gate': self.mot_tracker.birth_suppressed_by_gate,
-                'births_anon_after_gate': self.mot_tracker.births_anon_after_gate,
-                'anon_cull_count': self.mot_tracker.anon_cull_count,
+                # AB3DMOT birth-gate counters; other trackers (mamba)
+                # don't expose them
+                'birth_attempts_anon': getattr(self.mot_tracker, 'birth_attempts_anon', 0),
+                'birth_suppressed_by_gate': getattr(self.mot_tracker, 'birth_suppressed_by_gate', 0),
+                'births_anon_after_gate': getattr(self.mot_tracker, 'births_anon_after_gate', 0),
+                'anon_cull_count': getattr(self.mot_tracker, 'anon_cull_count', 0),
             }
         return fig, txt, metrics

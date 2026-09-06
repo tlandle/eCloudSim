@@ -143,6 +143,17 @@ class _PluggableEdgeBase(_BaseEdgeManager):
 
     def _advance_vehicles(self, tick, predictions):
         """Push predictions to vehicles and advance simulation."""
+        # T12: realized age at use = how stale the edge's freshest ingested
+        # frame is when it publishes (uplink staleness from the radio plane),
+        # in ms. Downlink is instantaneous, so this is the age the planner
+        # sees. Logged per publish for the load-to-age table from real runs.
+        _lst = getattr(self, '_latest_source_tick', None)
+        if _lst is not None and predictions:
+            _age_ms = (tick - _lst) * self.dt * 1000.0
+            logger.info("[AGEROW] tick=%d edge=%s realized_age_ms=%.1f "
+                        "bg_senders=%s", tick, getattr(self, 'edgeid', '?'),
+                        _age_ms, __import__('os').environ.get(
+                            'MAC_BG_SENDERS', '0'))
         for vm in self.vehicle_manager_list:
             if predictions and random.random() * 100 > self.downlink_pl:
                 vm.agent.edge_predictions = list(predictions)
@@ -157,6 +168,12 @@ class _PluggableEdgeBase(_BaseEdgeManager):
             if not self.run_distributed:
                 rsu.update_info()
                 rsu.run_step()
+
+    def evaluate(self):
+        """Return (figure, perform_txt, metrics) for EvaluationManager."""
+        if self.is_proxy:
+            return None, "", self._proxy_metrics
+        return self.profiler.get_evaluation_result()
 
     # ─── State-transfer overrides (backend-dispatched) ────────────────
     # self.tracker is a BaseTracker wrapper; the raw backend underneath is
@@ -194,10 +211,45 @@ class _PluggableEdgeBase(_BaseEdgeManager):
                 None,
             )
             if tracklet is not None:
+                _mb = getattr(tracklet, 'memo_bank', None)
+                if _mb is not None and len(_mb) >= 2:
+                    import numpy as _np
+                    _sp = max(len(_mb) - 1, 1)
+                    _vv = (_np.asarray(_mb[-1])[:2] - _np.asarray(_mb[0])[:2]) / _sp
+                    logger.info(
+                        "[EXPORT-DBG] cid=%d memo=%d endpoint_vel=(%.2f,%.2f) "
+                        "bbox=(%.1f,%.1f) tsu=%d", carla_id, len(_mb),
+                        float(_vv[0]), float(_vv[1]),
+                        float(tracklet._bbox_3d[0]), float(tracklet._bbox_3d[1]),
+                        int(getattr(tracklet, 'time_since_update', -1)))
                 from ecav.core.application.edge.migration.factories import (
                     latent_from_tracklet)
+                # MIGRATION_MODE=kf is the Reactive-Kalman baseline (Q2):
+                # migrate only the latest bbox+diff (depth 1), the state a
+                # KF carries. warm/default migrates the full memo history.
+                import os as _os
+                _hd = 1 if _os.environ.get(
+                    'MIGRATION_MODE', 'warm').lower() in (
+                        'kf', 'edgewarp', 'handover_snapshot') \
+                    else None
+                # Time-denominated ground velocity (m/s) from the source memo
+                # and the wrapper's measured frame cadence, so the destination
+                # dead-reckons correctly at its own cadence. The depth-1
+                # snapshot arm carries no history and hence no velocity.
+                _vel = None
+                if _hd is None:
+                    _mb = getattr(tracklet, 'memo_bank', None)
+                    if _mb is not None and len(_mb) >= 2:
+                        import numpy as _np
+                        _spf = (getattr(self.tracker, '_stride_ema', None) or 1.0) \
+                            * float(getattr(self.tracker, '_cfg', {}).get(
+                                'sim_tick_s', 0.05))
+                        _span_s = max(len(_mb) - 1, 1) * max(_spf, 1e-6)
+                        _vel = (_np.asarray(_mb[-1][:2], dtype=_np.float64)
+                                - _np.asarray(_mb[0][:2], dtype=_np.float64)) / _span_s
                 return latent_from_tracklet(
-                    tracklet, persistent_vehicle_id=carla_id)
+                    tracklet, persistent_vehicle_id=carla_id,
+                    history_depth=_hd, vel_mps=_vel)
             logger.warning(
                 "_export_track_latent: no Mamba tracklet for carla_id %d",
                 carla_id)
@@ -290,10 +342,60 @@ class _PluggableEdgeBase(_BaseEdgeManager):
             float(new_kf.kf.x[0, 0]), float(new_kf.kf.x[1, 0]),
         )
 
+    def _stamp_nearest_tracklet(self, carla_id: int, position,
+                                max_dist_m: float = 15.0) -> bool:
+        """Stamp carla_id on the nearest Mamba tracklet within max_dist_m.
+
+        Identity resolution at export time: beacon temp ids are often never
+        reconciled onto tracklets (all cid=-1 measured live), so exports
+        locate the track by a caller-known true position instead.
+        Tracklet state layout: [x, y, z, l, w, h, yaw].
+        """
+        raw = self._raw_tracker()
+        px, py = float(position[0]), float(position[1])
+
+        def _pos(t):
+            p = getattr(t, 'predicted_last_bbox', None)
+            s = p if p is not None else t.state
+            return float(s[0]), float(s[1])
+
+        best, best_d = None, max_dist_m
+        for t in raw.tracked_tracklets:
+            tx, ty = _pos(t)
+            d = ((tx - px) ** 2 + (ty - py) ** 2) ** 0.5
+            if d < best_d:
+                best, best_d = t, d
+        if best is None:
+            return False
+        # Exclusive assignment: clear this carla_id from any OTHER tracklet
+        # first, so a spurious or diverged track that was stamped with it
+        # earlier cannot keep the identity and get exported in place of the
+        # real object nearest the caller-known position.
+        for t in raw.tracked_tracklets:
+            if t is not best and self._resolved_carla_id(
+                    getattr(t, 'carla_id', None)) == carla_id:
+                t.carla_id = -1
+                self.track_to_carla.pop(int(t.track_id), None)
+        best.carla_id = carla_id
+        self.track_to_carla[int(best.track_id)] = carla_id
+        return True
+
     def export_vehicle_state(self, vehicle_id: int) -> Optional[MigrationPayload]:
         """Export tracker state for vehicle_id (Mamba latent or KF snapshot)."""
-        if self._vm_by_carla_id(vehicle_id) is None:
+        vm = self._vm_by_carla_id(vehicle_id)
+        if vm is None:
             return None
+        raw = self._raw_tracker()
+        if self._is_mamba(raw) and not any(
+                self._resolved_carla_id(getattr(t, 'carla_id', None)) == vehicle_id
+                for t in raw.tracked_tracklets):
+            # Managed vehicles beacon their pose, so the edge knows the
+            # true position — stamp the nearest tracklet (tight 5 m gate;
+            # the pose is exact and a generous gate risks a ghost track)
+            # so the latent ships warm instead of empty.
+            loc = vm.vehicle.get_location()
+            self._stamp_nearest_tracklet(vehicle_id, (loc.x, loc.y),
+                                         max_dist_m=5.0)
         tid = next(
             (t for t, c in self.track_to_carla.items() if c == vehicle_id),
             -1,
@@ -339,8 +441,23 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         """
         raw = self._raw_tracker()
         if self._is_mamba(raw):
-            if not any(self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id
-                       for t in raw.tracked_tracklets):
+            # Position-authoritative when the caller knows the true (x, y):
+            # (re)assign the carla_id to the nearest tracklet exclusively so a
+            # spurious/diverged track carrying the same id is never exported in
+            # place of the real object. Identity lookup is only the fallback
+            # when no position is supplied.
+            if position is not None:
+                has_identity = self._stamp_nearest_tracklet(
+                    carla_id, position, max_dist_m)
+                if not has_identity:
+                    has_identity = any(
+                        self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id
+                        for t in raw.tracked_tracklets)
+            else:
+                has_identity = any(
+                    self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id
+                    for t in raw.tracked_tracklets)
+            if not has_identity:
                 return None
             tid = next((t for t, c in self.track_to_carla.items() if c == carla_id), -1)
             track = self._export_track_latent(carla_id, tid)

@@ -1,0 +1,6 @@
+arm,handoffs,true_lead_min_s,true_lead_med_s,true_lead_p90_s,true_lead_max_s
+edgewarp,33,0.00,0.88,0.94,0.94
+handoversnap,27,0.78,0.79,0.79,0.79
+kf,30,0.88,0.88,0.94,0.94
+reactive,30,0.78,0.79,0.79,0.79
+warm,30,0.88,0.88,0.94,0.94

@@ -109,9 +109,15 @@ class Mamba3DTracker:
         # --- Round 2: match lost tracklets with remaining detections ---
 
         detections_remain = [detections[i] for i in u_detection]
-        dists_lost = iou_distance_3d(self.lost_tracklets, detections_remain)
+        # Lost-pool recapture uses CENTER DISTANCE, not IoU: after multi-
+        # frame detection dropouts the coasted prediction has drifted past
+        # box overlap (movers decelerate; CV overshoots), and IoU-only
+        # matching can never recapture them -> permanent fragmentation.
+        # Same principle as AB3DMOT's ground-plane distance gate.
+        lost_gate_m = float(self.cfgs.get('lost_match_dist_m', 5.0))
+        dists_lost = center_distance_3d(self.lost_tracklets, detections_remain)
         matches_lost, u_lost, u_det_remain = linear_assignment(
-            dists_lost, thresh=self.match_thresh)
+            dists_lost, thresh=min(lost_gate_m / 20.0, 0.999))
 
         for ilost, idet in matches_lost:
             track = self.lost_tracklets[ilost]
@@ -119,10 +125,44 @@ class Mamba3DTracker:
             track.re_activate(det, self.frame_id, new_id=False)
             refind_tracklets.append(track)
 
-        # Mark unmatched active tracklets as lost
+        # --- Round 1b: center-distance recovery for ACTIVE tracks IoU missed.
+        # BEV IoU (round 1) drops a fast track the moment a detection gap moves
+        # the object past its coasted box (an oncoming at speed clears the box
+        # overlap in a single missed frame -> IoU 0). The detection then spawns
+        # a duplicate while the real track coasts away, so one object fragments
+        # into many ids and its memo never accumulates real motion (which
+        # collapses the migrated velocity). Recover by matching the missed
+        # active tracks to the still-unmatched detections on distance from each
+        # track's DEAD-RECKONED position, the same gate the lost pool uses.
+        if len(u_track) and len(u_det_remain):
+            act_pool = [self.tracked_tracklets[i] for i in u_track]
+            rem_dets = [detections_remain[k] for k in u_det_remain]
+            dists_act = center_distance_3d(act_pool, rem_dets)
+            matches_act, _, _ = linear_assignment(
+                dists_act, thresh=min(lost_gate_m / 20.0, 0.999))
+            matched_it = set()
+            matched_k = set()
+            for ia, ir in matches_act:
+                track = act_pool[ia]
+                track.update(rem_dets[ir], self.frame_id)
+                activated_tracklets.append(track)
+                matched_it.add(u_track[ia])
+                matched_k.add(u_det_remain[ir])
+            u_track = [i for i in u_track if i not in matched_it]
+            u_det_remain = [k for k in u_det_remain if k not in matched_k]
+
+        # Unmatched active tracklets: coast in place for a short window
+        # (keep Tracked + output with the predicted, advancing box) before
+        # demoting to Lost. Real WF perception is intermittent (~50% recall
+        # on fast oncoming); dropping a track on a single miss fragments it
+        # into birth-stationary stubs that collapse the predicted speed.
+        coast_window = self.cfgs.get('coast_window', 8)
         for it in u_track:
             track = self.tracked_tracklets[it]
-            if not track.state_flag == TrackState.Lost:
+            if track.time_since_update <= coast_window:
+                activated_tracklets.append(track)  # stays Tracked, keeps coasting
+                continue
+            if track.state_flag != TrackState.Lost:
                 track.state_flag = TrackState.Lost
                 lost_tracklets.append(track)
 

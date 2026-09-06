@@ -159,6 +159,10 @@ class BehaviorAgent(object):
         # safety related
         self.safety_time = config_yaml['safety_time']
         self.emergency_param = config_yaml['emergency_param']
+        # How many prediction modes (by score) the collision check sweeps
+        # for multimodal predictors; 1 = argmax-only, 6 = full mode set.
+        self.prediction_mode_top_k = config_yaml.get(
+            'prediction_mode_top_k', 2)
         self.break_distance = 0
         self.ttc = 1000
         # collision checker
@@ -257,6 +261,7 @@ class BehaviorAgent(object):
         self._linear_predictor   = LinearPredictorManager(num_future_steps=self._num_future_steps)
         self.local_predictions   = []   # produced on-board each tick
         self.edge_predictions    = []   # filled when the edge sends predictions
+        self._edge_pred_cache    = {}   # identity -> (tick, pred) for hold-over
 
 
     def _maintain_tracks_and_predict(self, dt: float):
@@ -312,6 +317,7 @@ class BehaviorAgent(object):
         # update localization information
         self._ego_speed = ego_speed
         self._ego_pos = ego_pos
+        self._tick_counter = getattr(self, '_tick_counter', 0) + 1
         self.break_distance = self._ego_speed / 3.6 * self.emergency_param
         # update the localization info to trajectory planner
         self.get_local_planner().update_information(ego_pos, ego_speed)
@@ -321,19 +327,76 @@ class BehaviorAgent(object):
         # ─── 1. Cache any edge-supplied predictions (may be an empty list) ────────
         #self.edge_predictions = list(self.generated_predictions)     # shallow copy
 
-        # ─── 2. Decide which pipeline to use ──────────────────────────────────────
-        if self.edge_predictions:            # → edge is active; trust it exclusively
-            self.generated_predictions = self.edge_predictions.copy()
-
-        elif getattr(self, 'local_predictions', None):
-            # Edge silent or absent; fall back to the vehicle's local
-            # tracker + predictor output. This is always-on in real AV
-            # stacks and ensures the planner has predictions even when
-            # cooperative input is unavailable.
-            self.generated_predictions = list(self.local_predictions)
-
-        else:
-            self.generated_predictions = []
+        # ─── 2. Merge prediction pipelines ────────────────────────────────────────
+        # Edge and local predictions are a UNION, not either/or: the edge
+        # adds occluded actors the vehicle cannot see; the local tracker
+        # bridges edge misses and dropouts on directly visible obstacles.
+        # Edge wins per obstacle (richer, multi-modal) — a local
+        # prediction is added only when no edge prediction anchors within
+        # the dedup radius of it.
+        # Persist edge predictions across the edge's broadcast cadence. The
+        # edge emits predictions on its own cycle (~every 4 ego ticks), so a
+        # fast obstacle's prediction blips out between cycles; that cleared the
+        # oncoming from the overtake sight-distance gate for a tick and let the
+        # ego commit into it. Keep the most recent prediction per identity for
+        # a short hold window so an occluded, migration-only obstacle stays
+        # continuously visible to the planner.
+        _tick = self._tick_counter
+        # T12: inject a controlled forecast AGE at the planner. Buffer the
+        # consumed forecast and serve the snapshot from d ms ago, so the
+        # planner acts on a deliberately stale forecast with NO migration in
+        # play. Sweeping d finds tau(u), the safe-age limit per scenario.
+        import os as _osa
+        _aoi_ms = _osa.environ.get('AOI_INJECT_MS')
+        if _aoi_ms:
+            _delay_ticks = int(round(float(_aoi_ms) / 1000.0 / 0.05))
+            if not hasattr(self, '_aoi_buf'):
+                from collections import deque as _dq
+                self._aoi_buf = _dq(maxlen=max(1, _delay_ticks + 1))
+            _fresh_n = len(self.edge_predictions or [])
+            self._aoi_buf.append(list(self.edge_predictions or []))
+            if len(self._aoi_buf) > _delay_ticks:
+                self.edge_predictions = self._aoi_buf[0] \
+                    if _delay_ticks > 0 else self.edge_predictions
+            else:
+                self.edge_predictions = []  # not enough history yet: no forecast
+            # T12 evidence: prove the delay bites. Log the injected age, the
+            # buffer depth, the fresh-vs-served forecast counts, and whether
+            # the ego also has UNDELAYED local forecasts (bypass check).
+            logger.info(
+                "[AOIROW] tick=%d inject_ms=%s delay_ticks=%d bufdepth=%d "
+                "fresh=%d served=%d local_undelayed=%d",
+                self._tick_counter, _aoi_ms, _delay_ticks,
+                len(self._aoi_buf), _fresh_n,
+                len(self.edge_predictions or []),
+                len(getattr(self, 'local_predictions', []) or []))
+        _cache = self._edge_pred_cache
+        for _p in (self.edge_predictions or []):
+            _obs = _p.obstacle_trajectory.obstacle
+            _cid = getattr(_obs, 'carla_id', None)
+            _key = ('c', int(_cid)) if (_cid is not None and _cid >= 0) \
+                else ('t', getattr(_obs, 'track_id', id(_p)))
+            _cache[_key] = (_tick, _p)
+        _HOLD = 24  # ego ticks (~1.2 s): must cover the edge's worst-case
+        # broadcast gap for a risk-budgeted track, else a momentary absence
+        # reads as a clear road at the commit gate
+        for _k in [k for k, (tk, _) in _cache.items() if _tick - tk > _HOLD]:
+            _cache.pop(_k, None)
+        merged = [pr for (tk, pr) in _cache.values()]
+        if getattr(self, 'local_predictions', None):
+            def _anchor(p):
+                t = p.predicted_trajectory
+                return (t[0].location.x, t[0].location.y) if t else None
+            edge_anchors = [a for a in (_anchor(p) for p in merged) if a]
+            for lp in self.local_predictions:
+                a = _anchor(lp)
+                if a is None:
+                    continue
+                if any((a[0] - ex) ** 2 + (a[1] - ey) ** 2 < 16.0
+                       for ex, ey in edge_anchors):
+                    continue
+                merged.append(lp)
+        self.generated_predictions = merged
 
         # current version only consider about vehicles
         obstacle_vehicles = objects['vehicles']
@@ -495,7 +558,6 @@ class BehaviorAgent(object):
             # Trigger breakpoint if route goes significantly backwards in Y (potential U-turn)
             if last_wp.y < first_wp.y - 10:
                 print(f"[ROUTE DEBUG] Suspicious route: start=({first_wp.x:.1f}, {first_wp.y:.1f}), end=({last_wp.x:.1f}, {last_wp.y:.1f})")
-                breakpoint()  # Will pause here - use 'c' to continue, 'n' for next, 'p var' to print
 
         self._local_planner.set_global_plan(route_trace, clean)
 
@@ -660,7 +722,23 @@ class BehaviorAgent(object):
         #logger.debug(adjacent_check)
         #logger.debug("generated predictions: %s" %self.generated_predictions)
 
+        # While an overtake is committed, its subject is exempt from
+        # hazard checks: the maneuver IS the response to that vehicle,
+        # and the ego passes it deliberately close. Oncoming traffic
+        # (checked below via predictions) is what may still abort.
+        _subject_loc = getattr(self, '_overtake_subject_loc', None) \
+            if self.do_overtake else None
+        if _subject_loc is None and adjacent_check:
+            # Overtake pre-checks (quick adjacent path) also exempt the
+            # subject; refreshed at every overtake_management entry.
+            _subject_loc = getattr(self, '_precheck_subject_loc', None)
+
         for vehicle in self.obstacle_vehicles:
+            if _subject_loc is not None:
+                _vl = vehicle.get_location()
+                if ((_vl.x - _subject_loc[0]) ** 2 +
+                        (_vl.y - _subject_loc[1]) ** 2) < 16.0:
+                    continue
             logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
             logger.debug("Vehicle Id: %s" %vehicle.carla_id)
          
@@ -671,9 +749,25 @@ class BehaviorAgent(object):
             if not collision_free:
                 vehicle_state = True
 
-                # the vehicle length is typical 3 meters,
-                # so we need to consider that when calculating the distance
-                distance = positive(dist(vehicle) - 3)
+                # gap between bumpers, not centers: subtract both actors'
+                # half-lengths. The old hardcoded 3 m under-counted a
+                # truck+SUV pair by ~2.3 m, so the stop condition
+                # (distance < 3) fired with the ego already at the
+                # truck's bumper.
+                obs_half = 1.5
+                bb = getattr(vehicle, 'bounding_box', None)
+                if bb is not None and hasattr(bb, 'extent'):
+                    obs_half = float(bb.extent.x)
+                ego_half = float(self.vehicle.bounding_box.extent.x)
+                distance = positive(dist(vehicle) - (ego_half + obs_half))
+                if not adjacent_check:
+                    # Directly-observed hazards need a TTC too: the RSS
+                    # proper-response latch keys on self.ttc, which only
+                    # the prediction pass wrote, so a flickering local
+                    # detection released the brake between sightings
+                    # (measured: 40.9 -> 17.5 -> 31.7 km/h into the truck).
+                    self.ttc = min(self.ttc,
+                                   distance / max(self._ego_speed / 3.6, 0.1))
                 # if distance > 10:
                 #     vehicle_state = False
                 logger.debug("Vehicle non trajectory potential collision Distance: %s" %distance)
@@ -746,6 +840,13 @@ class BehaviorAgent(object):
                     pred.obstacle_trajectory.obstacle.track_id == _proximity_suppress_id:
                 continue
 
+            # Committed-overtake subject exemption (see pass 1)
+            if _subject_loc is not None and pred.predicted_trajectory:
+                _pl = pred.predicted_trajectory[0].location
+                if ((_pl.x - _subject_loc[0]) ** 2 +
+                        (_pl.y - _subject_loc[1]) ** 2) < 16.0:
+                    continue
+
             # Derive obstacle speed from predicted trajectory
             pred_traj = pred.predicted_trajectory
             if len(pred_traj) >= 2:
@@ -754,21 +855,55 @@ class BehaviorAgent(object):
             else:
                 obs_speed = 0.0
 
-            # First pass: check collision WITHOUT drawing (world=None)
-            collision, ttc = self._collision_check.trajectory_collision_check(
-                rx, ry, ego_speed_mps,
-                pred.predicted_trajectory, obs_speed,
-                time_step=time_step,
-                world=None)
+            # Candidate futures: multimodal predictors (MTR) attach all
+            # modes + scores; check the top-K by score and act on the
+            # earliest conflict (Apollo/Autoware pattern — the score head
+            # picks the truly best mode only ~63% of the time, so a
+            # single-mode check misses conflicts the model did predict).
+            # Predictors without modes fall back to the one trajectory.
+            all_modes = getattr(pred, 'predicted_trajectories_all', None)
+            scores = getattr(pred, 'mode_scores', None)
+            if all_modes and scores and len(all_modes) == len(scores):
+                order = sorted(range(len(all_modes)),
+                               key=lambda m: -scores[m])
+                candidates = [all_modes[m]
+                              for m in order[:self.prediction_mode_top_k]
+                              if all_modes[m]]
+            else:
+                candidates = [pred.predicted_trajectory]
+
+            # First pass: check collision WITHOUT drawing (world=None);
+            # keep the earliest-TTC conflict across candidate modes.
+            collision, ttc, conflict_traj = False, None, None
+            conflict_rank = -1
+            for rank, cand in enumerate(candidates):
+                c, t = self._collision_check.trajectory_collision_check(
+                    rx, ry, ego_speed_mps,
+                    cand, obs_speed,
+                    time_step=time_step,
+                    world=None)
+                if c and (ttc is None or t < ttc):
+                    collision, ttc, conflict_traj = True, t, cand
+                    conflict_rank = rank
+            if ttc is None:
+                ttc = 1e9
+            elif conflict_rank > 0:
+                # The argmax mode did NOT produce this conflict: the sweep
+                # caught something single-mode consumption would miss.
+                logger.info("[MODE SWEEP] earliest conflict from mode "
+                            "rank %d (of %d), ttc=%.2fs track=%s",
+                            conflict_rank, len(candidates), ttc,
+                            pred.obstacle_trajectory.obstacle.track_id)
 
             # Only act on time-synchronized collisions (valid TTC).
             # TTC=1000 means only the spatial-overlap fallback triggered
             # (e.g. parked cars near the path) — not a real collision course.
             if collision and ttc < time_ahead:
-                # Re-run WITH drawing for confirmed collisions only
+                # Re-run WITH drawing for confirmed collisions only,
+                # on the mode that actually conflicted
                 self._collision_check.trajectory_collision_check(
                     rx, ry, ego_speed_mps,
-                    pred.predicted_trajectory, obs_speed,
+                    conflict_traj, obs_speed,
                     time_step=time_step,
                     world=world)
 
@@ -862,6 +997,201 @@ class BehaviorAgent(object):
                         (obs_loc.y - ego_loc.y)**2)**0.5
         return None
 
+    def _find_blocking_lead(self, max_ahead=30.0):
+        """Stationary predicted obstacle in the ego's lane just ahead.
+
+        Used by the blocked-state overtake trigger (step 5b) and by the
+        overtake branch to resolve its subject (the same-lane blocking
+        lead) independently of the braking hazard target: scans the edge
+        predictions for an obstacle within max_ahead meters along the ego
+        heading, under 2.5 m lateral offset, moving slower than 1 m/s.
+        Returns the ObstacleVehicle or None.
+        """
+        import os as _os
+        _dbg = bool(_os.environ.get('BEHAVIOR_DEBUG'))
+        if self._ego_pos is None:
+            return None
+        ex, ey = self._ego_pos.location.x, self._ego_pos.location.y
+        eyaw = math.radians(self._ego_pos.rotation.yaw)
+        cos_y, sin_y = math.cos(eyaw), math.sin(eyaw)
+        # Onboard detections first: a blocking lead is directly visible,
+        # so the local layer is its freshest source. Edge predictions
+        # cover occluded actors and local dropouts.
+        for v in getattr(self, 'obstacle_vehicles', None) or []:
+            loc = v.get_location()
+            dx, dy = loc.x - ex, loc.y - ey
+            ahead = dx * cos_y + dy * sin_y
+            lateral = abs(-dx * sin_y + dy * cos_y)
+            if not (0.5 < ahead < max_ahead and lateral < 2.5):
+                continue
+            if get_speed(v) > 3.6:  # km/h; above parked-jitter floor
+                continue
+            if _dbg:
+                print(f"[LEAD] local id={getattr(v, 'carla_id', -1)} "
+                      f"ahead={ahead:.1f} lat={lateral:.1f}")
+            self._lead_cache = (v, getattr(self, '_tick_counter', 0))
+            return v
+        if not self.generated_predictions:
+            if _dbg:
+                print("[LEAD] no-preds=True")
+            return None
+        for pred in self.generated_predictions:
+            obs = pred.obstacle_trajectory.obstacle
+            if obs.carla_id == self.vehicle.id:
+                continue
+            traj = pred.predicted_trajectory
+            if not traj:
+                continue
+            loc = traj[0].location
+            dx, dy = loc.x - ex, loc.y - ey
+            ahead = dx * cos_y + dy * sin_y
+            lateral = abs(-dx * sin_y + dy * cos_y)
+            if not (0.5 < ahead < max_ahead and lateral < 2.5):
+                if _dbg and abs(ahead) < 25 and lateral < 6:
+                    print(f"[LEAD] reject-geom id={obs.carla_id} ahead={ahead:.1f} lat={lateral:.1f}")
+                continue
+            # Stationary judged by TRACK displacement over ~1 s, the only
+            # signal that separates detection jitter from motion at this
+            # noise level: single-frame velocities (raw or EMA) sit at the
+            # jitter floor (~0.4 m/frame -> 1-2 m/s apparent for parked
+            # vehicles), and MTR's hedged modes wander meters. A parked
+            # vehicle moves ~0.4 m of jitter per second; a real mover many
+            # meters.
+            tdq = pred.obstacle_trajectory.trajectory
+            # motion is not judgeable from <0.6 s of a fresh fragment
+            # (re-acquisition jumps read as speed); treat as stationary
+            # candidate and let the blocked-state integrator absorb errors
+            if len(tdq) >= 4:
+                j = min(5, len(tdq) - 1)  # ~1 s at the 0.2 s replay step
+                d = ((tdq[0].location.x - tdq[j].location.x) ** 2 +
+                     (tdq[0].location.y - tdq[j].location.y) ** 2) ** 0.5
+                if d > 1.5:
+                    if _dbg:
+                        print(f"[LEAD] reject-moving id={obs.carla_id} d1s={d:.1f}")
+                    continue
+            self._lead_cache = (obs, getattr(self, '_tick_counter', 0))
+            return obs
+        # Both pipelines blinked: serve the cached lead briefly. A
+        # stationary blocker resolved 3 ticks ago has not vanished; without
+        # memory the acted-upon obstacle flip-flops to oncoming traffic on
+        # gap ticks and car-following re-accelerates the ego into the lead
+        # (measured sawtooth 33->17->25->9->30 km/h into contact). The
+        # cached subject is stationary, so its stored location stays valid;
+        # re-check geometry against the current pose before serving.
+        cached = getattr(self, '_lead_cache', None)
+        if cached is not None:
+            obs, t0 = cached
+            if getattr(self, '_tick_counter', 0) - t0 <= 15:  # ~3 s
+                loc = obs.get_location()
+                dx, dy = loc.x - ex, loc.y - ey
+                ahead = dx * cos_y + dy * sin_y
+                lateral = abs(-dx * sin_y + dy * cos_y)
+                if 0.5 < ahead < max_ahead and lateral < 2.5:
+                    if _dbg:
+                        print(f"[LEAD] cache id={getattr(obs, 'carla_id', -1)} "
+                              f"ahead={ahead:.1f}")
+                    return obs
+            else:
+                self._lead_cache = None
+        return None
+
+    # Spacing (s) between consecutive predicted-trajectory points. MTR and
+    # the linear predictor both emit at this step; used to turn a per-step
+    # displacement into a closing speed for the overtake ETA.
+    _PRED_STEP_S = 0.2
+
+    def _subject_passed(self, margin_m: float = 3.0) -> bool:
+        """True when the committed overtake subject is behind the ego by
+        margin_m along the ego heading. The return-to-lane phase must key on
+        this, never on a timer: a mid-maneuver stall (RSS hold) used to
+        exhaust the timer and steer the return path into the subject."""
+        loc = getattr(self, '_overtake_subject_loc', None)
+        if loc is None or self._ego_pos is None:
+            return True  # no subject recorded; do not deadlock the return
+        ex, ey = self._ego_pos.location.x, self._ego_pos.location.y
+        eyaw = math.radians(self._ego_pos.rotation.yaw)
+        ahead = ((loc[0] - ex) * math.cos(eyaw)
+                 + (loc[1] - ey) * math.sin(eyaw))
+        return ahead < -margin_m
+
+    def _nearest_oncoming_ahead(self):
+        """(distance_m, closing_speed_mps) of the nearest oncoming vehicle in
+        the opposing (adjacent) lane ahead of the ego; (+inf, 0.0) if none.
+
+        The overtake go/no-go criterion: an overtake into opposing traffic
+        must not start unless this clearance exceeds the overtaking sight
+        distance (maneuver time x closing speed). Evaluating it requires
+        seeing well down the oncoming lane — farther than one roadside RSU
+        covers — so a correct decision needs the neighbour locale's tracks
+        (cooperative perception / migration). Scans generated_predictions
+        (edge + local + migrated).
+
+        The closing speed is read from the migrated/edge PREDICTION, not a
+        constant: a full-latent migration recovers the true (accelerating)
+        speed, a snapshot under-predicts it, so the go/no-go depends on the
+        migrated content.
+        """
+        if self._ego_pos is None or not self.generated_predictions:
+            return float('inf'), 0.0
+        ex, ey = self._ego_pos.location.x, self._ego_pos.location.y
+        eyaw = math.radians(self._ego_pos.rotation.yaw)
+        cos_y, sin_y = math.cos(eyaw), math.sin(eyaw)
+        best = float('inf')
+        best_speed = 0.0
+        for pred in self.generated_predictions:
+            obs = pred.obstacle_trajectory.obstacle
+            if obs.carla_id == self.vehicle.id:
+                continue
+            traj = pred.predicted_trajectory
+            if not traj:
+                continue
+            loc = traj[0].location
+            dx, dy = loc.x - ex, loc.y - ey
+            ahead = dx * cos_y + dy * sin_y
+            lateral = -dx * sin_y + dy * cos_y
+            # opposing/adjacent lane ~2-5 m off-centre, ahead of the ego.
+            # abs(): the overtake side is +/- lateral depending on heading.
+            # Upper bound 9 m (not 6): WorldFusion localizes the oncoming ~3 m
+            # off in y, so a real oncoming in the adjacent lane sits at ~6-7 m
+            # lateral and a 6 m band intermittently drops it, making the gate
+            # flip to "clear" and the ego commit into it.
+            if not (0.5 < ahead and 1.0 < abs(lateral) < 9.0):
+                continue
+            # Closing speed from the tracker's own velocity estimate, not a
+            # per-step finite difference of the predicted trajectory: that
+            # trajectory is finely sampled (~0.02 s steps, ~100 pts), so
+            # traj[1]-traj[0] underestimates the speed ~10x and floored the
+            # sight-distance need. kf_speed_mps is the track's ground speed.
+            speed = float(getattr(obs, 'kf_speed_mps', 0.0) or 0.0)
+            # Only MOVING oncoming traffic gates the overtake sight distance.
+            # A stationary detection (parked car, or a WorldFusion false
+            # positive that jitters around a point) has ~0 speed and is
+            # handled by the normal path collision check, not the closing-
+            # speed criterion; without this the gate latches onto stationary
+            # clutter near the conflict instead of the real oncoming.
+            if speed < 3.0:
+                continue
+            # oncoming = moving toward the ego (advance along ego heading
+            # is negative); a same-direction lead is not an overtake threat.
+            if len(traj) >= 2:
+                sdx = traj[1].location.x - loc.x
+                sdy = traj[1].location.y - loc.y
+                adv = sdx * cos_y + sdy * sin_y
+                if adv > 0:
+                    continue
+            if ahead < best:
+                best = ahead
+                best_speed = speed
+                self._nearest_onc_dbg = (
+                    len(traj),
+                    (round(traj[0].location.x, 1), round(traj[0].location.y, 1)),
+                    ((round(traj[1].location.x, 1), round(traj[1].location.y, 1))
+                     if len(traj) >= 2 else None),
+                    round(getattr(obs, 'kf_speed_mps', float('nan')), 2),
+                    int(getattr(obs, 'carla_id', -1)),
+                )
+        return best, best_speed
+
     def overtake_management(self, obstacle_vehicle, set_destination=True):
         """
         Overtake behavior.
@@ -878,12 +1208,23 @@ class BehaviorAgent(object):
         """
         # obstacle vehicle's location
         obstacle_vehicle_loc = obstacle_vehicle.get_location()
+        # Record the subject for the adjacent-lane quick checks below:
+        # they evaluate a maneuver AROUND this vehicle, so it must not
+        # flag its own bypass path (it did on ~200 wait ticks per run,
+        # driving num_overtake_collisions>1 and eternal commit restarts).
+        self._precheck_subject_loc = (obstacle_vehicle_loc.x,
+                                      obstacle_vehicle_loc.y)
         logger.debug("obstacle vehicle loc: %.1f, %.1f", obstacle_vehicle_loc.x, obstacle_vehicle_loc.y)
         obstacle_vehicle_wpt = self._map.get_waypoint(obstacle_vehicle_loc)
 
         # whether a lane change is allowed
         left_turn = obstacle_vehicle_wpt.left_lane_marking.lane_change
         right_turn = obstacle_vehicle_wpt.right_lane_marking.lane_change
+        import os
+        if os.environ.get('BEHAVIOR_DEBUG'):
+            print(f"[OVERTAKE DEBUG] lane perms: left={left_turn} right={right_turn} "
+                  f"left_marking={obstacle_vehicle_wpt.left_lane_marking.type} "
+                  f"left_wpt={obstacle_vehicle_wpt.get_left_lane() is not None}")
         #logger.debug("Left Lane Change: %s" %left_turn)
         #logger.debug("Right lane change: %s" %right_turn)
 
@@ -917,9 +1258,14 @@ class BehaviorAgent(object):
                 ego_loc=self._ego_pos.location, target_wpt=left_wpt,
                 carla_map=self._map,
                 overtake=True, world=self.vehicle.get_world(), oncoming_lane=True)
-            vehicle_state, _, _ = self.collision_manager(
+            vehicle_state, _qv, _qd = self.collision_manager(
                 rx, ry, ryaw, self._map.get_waypoint(
                     self._ego_pos.location), True)
+            if os.environ.get('BEHAVIOR_DEBUG') and vehicle_state:
+                _ql = _qv.get_location() if _qv is not None else None
+                print(f"[QUICKCHECK VETO] d={_qd:.1f} "
+                      f"at=({_ql.x:.1f},{_ql.y:.1f})" if _ql else
+                      "[QUICKCHECK VETO] no-vehicle")
             logger.debug("VehicleState: %s" %vehicle_state)
             #logger.debug("Checked for overtake but possibly saw collision")
             if not vehicle_state:
@@ -932,7 +1278,6 @@ class BehaviorAgent(object):
                     import os
                     if os.environ.get('BEHAVIOR_DEBUG'):
                         print(f"[OVERTAKE DEBUG] !!! OPPOSING TRAFFIC OVERTAKE !!! ego=({self._ego_pos.location.x:.1f}, {self._ego_pos.location.y:.1f})")
-                        breakpoint()  # This is the U-turn code path - inspect left_wpt, obstacle_vehicle
                     # self.overtake_counter = 200
                     if set_destination:
                         self.overtake_counter = 50  # just enough to be able to change lanes
@@ -1006,7 +1351,6 @@ class BehaviorAgent(object):
                     import os
                     if os.environ.get('BEHAVIOR_DEBUG'):
                         print(f"[OVERTAKE DEBUG] Setting overtake path with {len(next_wpt_list)} waypoints")
-                        breakpoint()  # Inspect: next_wpt_list, self._ego_pos, obstacle_vehicle
 
                     self._local_planner.set_global_plan(next_wpt_list, clean=True)
                     rx, ry, rk, ryaw = self._local_planner.generate_path()
@@ -1023,6 +1367,18 @@ class BehaviorAgent(object):
                         if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
                             continue
 
+                        # The overtake SUBJECT cannot veto its own
+                        # overtake: the candidate path passes deliberately
+                        # close beside it (measured: 51/51 commit attempts
+                        # rejected by the subject's own prediction).
+                        # Oncoming and other traffic still decide.
+                        _pt = pred.predicted_trajectory
+                        if _pt:
+                            _p0 = _pt[0].location
+                            if ((_p0.x - obstacle_vehicle_loc.x) ** 2 +
+                                    (_p0.y - obstacle_vehicle_loc.y) ** 2) < 16.0:
+                                continue
+
                         # Derive obstacle speed from predicted trajectory
                         pred_traj = pred.predicted_trajectory
                         if len(pred_traj) >= 2:
@@ -1036,7 +1392,21 @@ class BehaviorAgent(object):
                                 pred.predicted_trajectory, obstacle_speed,
                                 world=self.vehicle.get_world())
 
-                        if collision:
+                        # Time-synchronized conflicts inside the maneuver
+                        # window only: ttc=1000 is the spatial-overlap
+                        # fallback (same convention as the main collision
+                        # pass) — stationary ghosts and the WF duplicate
+                        # of the subject vetoed 80/84 commit attempts.
+                        if collision and ttc < 20.0:
+                            import os as _os2
+                            if _os2.environ.get('BEHAVIOR_DEBUG'):
+                                _o = pred.obstacle_trajectory.obstacle
+                                _a = pred.predicted_trajectory[0].location \
+                                    if pred.predicted_trajectory else None
+                                print(f"[PRECHECK VETO] cid={_o.carla_id} "
+                                      f"tid={_o.track_id} ttc={ttc} "
+                                      f"anchor=({_a.x:.1f},{_a.y:.1f})"
+                                      if _a else "[PRECHECK VETO] no-anchor")
                             self.planning_metrics.update(self._ego_speed / 3.6, ttc)
                             return True
 
@@ -1144,6 +1514,21 @@ class BehaviorAgent(object):
 
         vehicle_speed = get_speed(vehicle)
 
+        # Deterministic standoff behind a STOPPED lead: stop the approach at
+        # ~15 m center distance (~8 m bumper gap) instead of letting RSS
+        # emergency braking pick the stop point. RSS braking from full speed
+        # halts anywhere from 8 m down to <1 m bumper gap run-to-run, and an
+        # overtake launched from a sub-2 m gap clips the subject's corner
+        # while steering out (measured). Not applied during the launch
+        # itself, where distance shrinks as the ego pulls alongside.
+        if not self.do_overtake and vehicle_speed < 2.0:
+            if distance < 25.0:
+                return 0
+            if distance < 50.0:
+                # approach a stopped lead slowly so the 25 m standoff stop is
+                # reachable within braking distance (from 40 km/h it is not)
+                return min(15.0, target_speed)
+
         delta_v = max(1, (self._ego_speed - vehicle_speed) / 3.6)
         ttc = distance / delta_v if delta_v != 0 else distance / \
                                                       np.nextafter(0., 1.)
@@ -1158,9 +1543,24 @@ class BehaviorAgent(object):
         # Actual safety distance area, try to follow the speed of the vehicle
         # in front.
         else:
-            target_speed = 0 if vehicle_speed == 0 else \
-                min(vehicle_speed + 1,
-                    target_speed)
+            # A stopped lead is never PERCEIVED at exactly 0 (tracking jitter
+            # ~0.5-2 km/h), so an == 0 test hands the PID vehicle_speed+1 and
+            # the ego creeps into the lead's bumper (measured: 883 contact
+            # ticks grinding a stopped truck). Treat near-stopped as stopped —
+            # except while an overtake is executing: the launch phase still
+            # sees the stopped subject on the early curved path, and a 0
+            # target deadlocks the maneuver into a corner-grind at the truck.
+            if self.do_overtake and vehicle_speed < 2.0:
+                # Committed overtake of a stationary subject: the subject is
+                # constantly predicted (edge/GT), so this branch re-triggers
+                # every tick; following it at vehicle_speed+1 pins the launch
+                # to a 1-2 km/h creep into its corner. Proceed at the reduced
+                # overtake speed; the <3 m emergency stop still guards.
+                target_speed = min(25.0, target_speed)
+            elif vehicle_speed < 2.0:
+                target_speed = 0
+            else:
+                target_speed = min(vehicle_speed + 1, target_speed)
         return target_speed
 
     def left_turn_at_intersection(self, waypoint_buffer):
@@ -1364,7 +1764,12 @@ class BehaviorAgent(object):
         # ttc reset to 1000 at the beginning
         self.ttc = 1000
         # when overtake_counter > 0, another overtake/lane change is forbidden
-        if self.overtake_counter > 0 and not self.overtake_other_direction:
+        if self.overtake_counter > 0 and not self.overtake_other_direction \
+                and self._committed_brake_ttl <= 0:
+            # Do not burn maneuver time while RSS proper response has the ego
+            # stopped: the timer expiring mid-stall advanced the state machine
+            # to return-to-lane while still behind the subject (measured:
+            # return path rejoined into the truck at 11 m/s).
             self.overtake_counter -= 1
 
         # we reset destination push flag for every n rounds
@@ -1466,6 +1871,65 @@ class BehaviorAgent(object):
             is_hazard, obstacle_vehicle, distance = self.collision_manager(
                 rx, ry, ryaw, ego_vehicle_wp, is_left_turn_at_intersection=left_turn)
 
+        # 5b. Blocked-state detection for overtake arming. TTC-based hazard
+        # clears once the ego has stopped behind a stationary lead (no
+        # time-synchronized conflict), so branch 9 (overtake) can never arm
+        # from predictions alone and the ego holds forever. A stationary
+        # predicted obstacle in-lane just ahead of a crawling ego IS the
+        # overtake trigger state.
+        if (not is_hazard and self.overtake_allowed
+                and not self.do_overtake
+                and self._ego_speed < 4.0 and self._ego_pos is not None):
+            # (once the overtake is committed, the maneuver IS the response
+            # to the blockage: keeping the hazard latched routed the ladder
+            # into car-following behind the very truck being overtaken)
+            lead = self._find_blocking_lead()
+            if lead is not None:
+                self._blocked_ticks = getattr(self, '_blocked_ticks', 0) + 1
+                self._blocked_absent = 0
+                self._blocked_subject = lead
+            else:
+                # LATCH, don't decay: a stopped ego occludes its own blocker
+                # from the RSU (measured: truck track culled ~12 s after the
+                # ego parks behind it, arming permanently lost). At 2 m
+                # range, absence of new evidence is not evidence of absence.
+                # Release only on sustained POSITIVE absence.
+                self._blocked_absent = getattr(self, '_blocked_absent', 0) + 1
+                if self._blocked_absent > 25:  # ~5 s of affirmative clear
+                    self._blocked_ticks = 0
+                    self._blocked_subject = None
+            subject = lead if lead is not None                 else getattr(self, '_blocked_subject', None)
+            if getattr(self, '_blocked_ticks', 0) > 15 and subject is not None:
+                is_hazard = True
+                obstacle_vehicle = subject
+                lloc = subject.get_location()
+                distance = ((lloc.x - self._ego_pos.location.x) ** 2 +
+                            (lloc.y - self._ego_pos.location.y) ** 2) ** 0.5
+        elif self._ego_speed >= 4.0:
+            # moving again: the latch releases
+            self._blocked_subject = None
+            self._blocked_ticks = 0
+            self._blocked_absent = 0
+
+        # 5c. In-path stationary lead during APPROACH. The TTC hazard check
+        # classifies a stopped vehicle ON the ego's path as a parked car
+        # (spatial fallback, ttc=1000, no collision course), so car-following
+        # never engages on approach; the only stop then comes from an RSS
+        # emergency latch whose full-brake stop point scatters 2-8 m from the
+        # lead's bumper, and an overtake launched from that gap understeers
+        # into the lead's corner (measured). A stationary vehicle on the path
+        # IS a lead: engage car-following early so the approach decelerates
+        # to the standoff deterministically.
+        if (not is_hazard and not self.do_overtake
+                and self._ego_speed >= 4.0 and self._ego_pos is not None):
+            _lead = self._find_blocking_lead(max_ahead=60.0)
+            if _lead is not None:
+                _ll = _lead.get_location()
+                is_hazard = True
+                obstacle_vehicle = _lead
+                distance = ((_ll.x - self._ego_pos.location.x) ** 2 +
+                            (_ll.y - self._ego_pos.location.y) ** 2) ** 0.5
+
         # RSS-inspired proper response: once a prediction collision is
         # detected, the ego must execute a "proper response" (braking) until
         # a provably safe state is reached.  Without this, decelerating
@@ -1480,7 +1944,22 @@ class BehaviorAgent(object):
         #                   (c) safety TTL expires (fallback upper bound)
         ego_loc = self._ego_pos.location if self._ego_pos else None
 
-        if is_hazard and self.ttc < self._collision_check.time_ahead:
+        # The committed overtake SUBJECT is exempt from proper response:
+        # passing it closely is the maneuver, and with edge/GT perception the
+        # stationary subject is predicted every tick, so RSS re-latched on it
+        # each time the ego moved to pass (measured: ego pinned at the truck
+        # tail for the whole run, 32 latches on cid=198). Every other threat,
+        # in particular the oncoming, still triggers proper response.
+        _rss_subject_exempt = False
+        if is_hazard and self.do_overtake and obstacle_vehicle is not None \
+                and getattr(self, '_overtake_subject_loc', None) is not None:
+            _ol = obstacle_vehicle.get_location()
+            _sx, _sy = self._overtake_subject_loc
+            if ((_ol.x - _sx)**2 + (_ol.y - _sy)**2) ** 0.5 < 4.0:
+                _rss_subject_exempt = True
+
+        if is_hazard and not _rss_subject_exempt \
+                and self.ttc < self._collision_check.time_ahead:
             # Enter proper response — record the threatening obstacle
             # and force emergency stop immediately (distance=0 bypasses
             # car_following → local_planner → PID, which only gives
@@ -1501,9 +1980,14 @@ class BehaviorAgent(object):
                           "ego_speed=%.1f km/h, threat_cid=%s",
                           self.ttc, self._ego_speed, self._rss_threat_carla_id)
 
-        elif not is_hazard and self._committed_brake_ttl > 0:
-            # Collision check says safe, but we are in proper response.
-            # Check formal exit conditions before releasing.
+        elif self._committed_brake_ttl > 0:
+            # In proper response. Evaluate ONLY the formal exit conditions,
+            # regardless of the instantaneous hazard flag: as braking
+            # succeeds, TTC = gap/speed balloons past time_ahead, which
+            # used to satisfy neither the enter branch (needs TTC small)
+            # nor this hold (needed is_hazard False) — the forced stop
+            # evaporated mid-brake and car-following re-accelerated into
+            # the blocker (measured oscillation 40->17->25->9->34 km/h).
             safe = False
 
             # (a) Ego has stopped
@@ -1547,12 +2031,34 @@ class BehaviorAgent(object):
                 self._rss_lateral_growing_ticks = 0
 
         car_following_flag = False
+
+        import os as _os
+        if _os.environ.get('BEHAVIOR_DEBUG'):
+            print(f"[BRANCH] hz={int(is_hazard)} v={self._ego_speed:.1f} "
+                  f"oc={self.overtake_counter} wc={self.overtake_wait_counter} "
+                  f"do={int(self.do_overtake)} "
+                  f"bt={getattr(self, '_blocked_ticks', 0)} "
+                  f"lca={int(self.lane_change_allowed)} "
+                  f"oa={int(self.overtake_allowed)} "
+                  f"ii={int(bool(is_intersection))} "
+                  f"pcr={int(bool(self.get_local_planner().potential_curved_road))} "
+                  f"d={distance if is_hazard else -1:.1f}")
         end_time = time.time()
         self.planning_metrics.update_agent_step_list(5, end_time-start_time)
         logger.debug("step 5 complete")
 
+        if is_hazard and obstacle_vehicle is None:
+            # Hazard with no actionable obstacle (detection-gap tick while
+            # the RSS hold keeps the hazard raised): every branch below is
+            # obstacle-centric, so this state used to fall through to
+            # NORMAL BEHAVIOR at max speed (measured: acceleration bursts
+            # between braking clusters, straight into the blocker). The
+            # only safe response is to keep braking.
+            return 0, None
+
         if not is_hazard:
-            if self.overtake_counter > 0 and self.overtake_other_direction:
+            if self.overtake_counter > 0 and self.overtake_other_direction \
+                    and self._committed_brake_ttl <= 0:
                 self.overtake_counter -= 1
             self.hazard_flag = False
 
@@ -1581,7 +2087,6 @@ class BehaviorAgent(object):
             import os
             if os.environ.get('BEHAVIOR_DEBUG'):
                 print(f"[PUSH DEBUG] Push destination: ego=({ego_vehicle_loc.x:.1f}, {ego_vehicle_loc.y:.1f}), target=({reset_target.transform.location.x:.1f}, {reset_target.transform.location.y:.1f})")
-                breakpoint()
             self.set_destination(
                 ego_vehicle_loc,
                 reset_target.transform.location,
@@ -1617,13 +2122,41 @@ class BehaviorAgent(object):
                 self.overtake_counter <= 0  and obstacle_vehicle != None:
             logger.debug("Overtake Allowed and overtake counter is 0")
             import os
+            # The braking hazard target (earliest conflicting trajectory —
+            # any lane, any prediction mode) is NOT the overtake subject.
+            # The overtake subject is by definition the same-lane blocking
+            # lead; resolve it independently. Conflating the two handed
+            # cross-road prediction modes to the lane gate, which then
+            # (correctly) rejected every overtake.
+            overtake_subject = self._find_blocking_lead(max_ahead=30.0) \
+                or getattr(self, '_blocked_subject', None)
+            if overtake_subject is not None:
+                obstacle_vehicle = overtake_subject
+                # Keep distance consistent with the resolved subject:
+                # min-distance selection may have priced a DIFFERENT
+                # vehicle (a far oncoming conflict's TTC-distance), and a
+                # subject/distance mismatch lets car-following chase the
+                # far target straight into the near one.
+                _sl = overtake_subject.get_location()
+                distance = positive(
+                    ((_sl.x - self._ego_pos.location.x) ** 2 +
+                     (_sl.y - self._ego_pos.location.y) ** 2) ** 0.5
+                    - float(self.vehicle.bounding_box.extent.x) - 2.6)
             if os.environ.get('BEHAVIOR_DEBUG'):
-                print(f"[OVERTAKE DEBUG] Hazard detected! obstacle_vehicle={obstacle_vehicle}, ego_pos=({self._ego_pos.location.x:.1f}, {self._ego_pos.location.y:.1f})")
+                print(f"[OVERTAKE DEBUG] Hazard detected! subject="
+                      f"{'resolved' if overtake_subject is not None else 'FALLBACK ttc target'}, "
+                      f"ego_pos=({self._ego_pos.location.x:.1f}, {self._ego_pos.location.y:.1f})")
+            obstacle_speed = 0.0
             if isinstance(obstacle_vehicle, ObstacleVehicle):
                 obstacle_speed = get_speed(obstacle_vehicle)
             obstacle_lane_id = self._map.get_waypoint(obstacle_vehicle.get_location()).lane_id
             ego_lane_id = self._map.get_waypoint(
                 self._ego_pos.location).lane_id
+            if os.environ.get('BEHAVIOR_DEBUG'):
+                _ol = obstacle_vehicle.get_location()
+                print(f"[OVERTAKE DEBUG] gates: ego_lane={ego_lane_id} "
+                      f"obs_lane={obstacle_lane_id} ego_v={self._ego_speed:.1f} "
+                      f"obs_v={obstacle_speed:.1f} obs_loc=({_ol.x:.1f},{_ol.y:.1f})")
             #logger.debug("Ego Lane Id: %s" %ego_lane_id)
             #logger.debug("Obstacle Lane ID: %s" %obstacle_lane_id)
             # overtake the obstacle vehicle only when speed is bigger and the
@@ -1642,18 +2175,100 @@ class BehaviorAgent(object):
                         collision = self.overtake_management(obstacle_vehicle, set_destination=False)
                         if collision:
                             self.num_overtake_collisions += 1
+                            if os.environ.get('BEHAVIOR_DEBUG'):
+                                print(f"[WAIT VETO] num={self.num_overtake_collisions}")
                             logger.debug("num collisions in overtake: %s", self.num_overtake_collisions)
-                        car_following_flag = True  
+                        car_following_flag = True
+                        # Hold position while waiting to overtake a
+                        # STATIONARY subject: car-following against a
+                        # stopped lead creeps to its standstill gap (<3 m)
+                        # and forfeits the steer-out room the commit needs
+                        # (measured: stop/lurch cycles walked the ego from
+                        # a clean RSS stop onto the truck's bumper).
+                        if obstacle_speed < 1.0:
+                            return 0, None
                     elif self.overtake_wait_counter <= 0 and not self.do_overtake:
                         car_following_flag = self.overtake_management(obstacle_vehicle, set_destination=False)
+                        if os.environ.get('BEHAVIOR_DEBUG'):
+                            print(f"[COMMIT ATTEMPT] pre={car_following_flag} "
+                                  f"num={self.num_overtake_collisions}")
                         if self.num_overtake_collisions > 1 or car_following_flag:
                             # we saw too many potential collisions, wait a little bit
                             logger.debug("Saw too many collisions, restarting overtake timer")
                             self.overtake_wait_counter = self.overtake_wait_time / 2
+                            # Fresh count for the next wait window: the
+                            # hold below returns before the shared reset
+                            # at line "num_overtake_collisions = 0", which
+                            # froze the counter at its first Leon-pass
+                            # value and blocked every later commit
+                            # (measured num 44-139 vs threshold 1 with the
+                            # pre-check passing).
+                            self.num_overtake_collisions = 0
+                            # same stationary-subject hold as the wait
+                            # branch: without it this tick car-follows the
+                            # stopped lead at midrange gap (one chase tick
+                            # per wait cycle = slow creep to the bumper)
+                            if obstacle_speed < 1.0:
+                                return 0, None
                         else:
-                            self.do_overtake = True
-                            car_following_flag = self.overtake_management(obstacle_vehicle, set_destination=True)
-                            logger.debug("vehicle state in overtake %s", car_following_flag)
+                            # Overtaking sight-distance criterion: do not
+                            # commit unless the oncoming lane is clear for the
+                            # time the maneuver takes. need = t_man x closing
+                            # speed (ego overtake speed + oncoming speed).
+                            # This is the standard overtake-assist go/no-go
+                            # the planner lacked; it is what a short-horizon
+                            # path collision check misses on a far but closing
+                            # oncoming vehicle (root cause of the head-ons).
+                            _t_man = 4.0      # s in the opposing lane
+                            _ov = 7.0         # m/s, reduced overtake speed
+                            _clear, _onc = self._nearest_oncoming_ahead()
+                            # Closing speed comes from the migrated/edge
+                            # prediction (small floor only guards numerical
+                            # zero). A full-latent migration recovers the true
+                            # (accelerating) speed and widens the need; a
+                            # snapshot under-predicts it, shrinks the need, and
+                            # the ego commits into the closing gap. _ov already
+                            # sets a ~28 m maneuver-footprint minimum.
+                            _onc = max(_onc, 2.0)
+                            _need = _t_man * (_ov + _onc)
+                            if os.environ.get('BEHAVIOR_DEBUG'):
+                                print(f"[OT SIGHT] oncoming_ahead={_clear:.0f}m "
+                                      f"onc_spd={_onc:.1f} need={_need:.0f}m -> "
+                                      f"{'GO' if _clear >= _need else 'WAIT'} "
+                                      f"dbg={getattr(self, '_nearest_onc_dbg', None)} "
+                                      f"npreds={len(self.generated_predictions)}")
+                                for _p in self.generated_predictions:
+                                    _o = _p.obstacle_trajectory.obstacle
+                                    _t = _p.predicted_trajectory
+                                    if _t:
+                                        print(f"[OT PREDS] cid="
+                                              f"{getattr(_o, 'carla_id', '?')} "
+                                              f"pos=({_t[0].location.x:.1f},"
+                                              f"{_t[0].location.y:.1f}) "
+                                              f"spd={getattr(_o, 'kf_speed_mps', 0.0):.1f}")
+                            if _clear >= _need:
+                                self._ot_go_streak = getattr(
+                                    self, '_ot_go_streak', 0) + 1
+                            else:
+                                self._ot_go_streak = 0
+                            if _clear < _need or self._ot_go_streak < 2:
+                                # Two consecutive clear evaluations required:
+                                # a single instantaneous "clear" can be a
+                                # broadcast gap, and committing on it put the
+                                # ego into the closing oncoming (measured).
+                                self.overtake_wait_counter = \
+                                    self.overtake_wait_time / 2 \
+                                    if _clear < _need else 6
+                                self.num_overtake_collisions = 0
+                                if obstacle_speed < 1.0:
+                                    return 0, None
+                                car_following_flag = True
+                            else:
+                                self.do_overtake = True
+                                _sl = obstacle_vehicle.get_location()
+                                self._overtake_subject_loc = (_sl.x, _sl.y)
+                                car_following_flag = self.overtake_management(obstacle_vehicle, set_destination=True)
+                                logger.debug("vehicle state in overtake %s", car_following_flag)
                         self.num_overtake_collisions = 0
 
                     rx, ry, rk, ryaw = self._local_planner.generate_path()
@@ -1661,14 +2276,14 @@ class BehaviorAgent(object):
                     car_following_flag = True
                 end_time_9 = time.time()
         # return to other lane if overtaking
-        elif self.overtake_counter <= 0 and self.overtake_other_direction and len(self.overtake_end_wpts) > 0:
+        elif self.overtake_counter <= 0 and self.overtake_other_direction and len(self.overtake_end_wpts) > 0 \
+                and self._subject_passed():
             self.overtake_counter = 100 # perform another lane change
 
             # DEBUG: Breakpoint when returning from overtake
             import os
             if os.environ.get('BEHAVIOR_DEBUG'):
                 print(f"[OVERTAKE DEBUG] Returning from overtake with {len(self.overtake_end_wpts)} waypoints")
-                breakpoint()
 
             self._local_planner.set_global_plan(self.overtake_end_wpts)
             self.overtake_end_wpts.clear()
@@ -1685,6 +2300,7 @@ class BehaviorAgent(object):
         
         if self.overtake_counter <= 0 and not self.overtake_other_direction and self.do_overtake:
             self.do_overtake = False
+            self._overtake_subject_loc = None
             self.num_overtake_collisions = 0
             self.overtake_wait_counter = self.overtake_wait_time
 
@@ -1709,8 +2325,13 @@ class BehaviorAgent(object):
                 return 0, None
 
             target_speed = self.car_following_manager(obstacle_vehicle, distance, target_speed)
+            _ts_in = target_speed
             target_speed, target_loc = self._local_planner.run_step(
                 rx, ry, rk, target_speed=target_speed)
+            import os as _osd
+            if _osd.environ.get('BEHAVIOR_DEBUG'):
+                print(f"[SPD-DBG] br=follow do_ov={self.do_overtake} "
+                      f"ts_in={_ts_in} ts_out={target_speed:.1f}")
             end_time = time.time()
             self.planning_metrics.update_agent_step_list(10, end_time-start_time)
             logger.debug("step 10 complete - following and exiting")
@@ -1721,6 +2342,9 @@ class BehaviorAgent(object):
         
         # 11. Normal behavior
         start_time = time.time()
+        import os as _osd2
+        if _osd2.environ.get('BEHAVIOR_DEBUG') and self.do_overtake:
+            print(f"[SPD-DBG] br=normal do_ov=True entering planner")
         target_speed, target_loc = self._local_planner.run_step(
             rx, ry, rk, target_speed=self.max_speed - self.speed_lim_dist
             if not target_speed else target_speed)
