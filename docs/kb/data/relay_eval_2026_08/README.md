@@ -114,3 +114,22 @@ staleness x lead interaction: longer true lead = more stale record WITHOUT the
 final update; the final-update fix removes it. True-lead per arm:
 frozen1c_truelead_summary.csv. Metric fix for freeze-2: log source_exit_tick
 in HANDOFFROW.
+
+## "Launch tail" reframed: it is the safety signal, not noise (2026-09-05)
+Every frozen1c collision is ego-vs-STOPPED-TRUCK (x=278) during the overtake
+launch (first-contact ego_x 278-293, speed 0-6 m/s). But the RATE is strongly
+ARM-DEPENDENT, not an arm-independent artifact:
+  warm 1/10, reactive 1/10  (full latent -> good oncoming forecast -> safe gap
+                             found -> clean overtake)
+  handover_snapshot 7/10, cold 9/10, kf 10/10, edgewarp 10/10  (snapshot/none
+                             -> poor forecast -> no safe gap -> ego grinds the
+                             truck it is trying to pass)
+So the truck contact is the DOWNSTREAM safety consequence of migration
+quality; it IS the paper's result (Table 5), not a scenario defect to fix.
+The only arm-independent piece is the ~10% residual on the GOOD arms
+(warm 1/10) = a genuine launch-imperfection floor capping them at 9/10; small,
+Tyler's call whether to reduce it (release stream / delay ego). Prior
+"residual launch tail as noise floor for all arms" framing was WRONG and is
+corrected here. Headline Table 5 (frozen1c, success = completed & no contact):
+warm 9/10, reactive 9/10, handover_snapshot 2/10, cold 1/10, kf 0/10,
+edgewarp 0/10.
