@@ -133,3 +133,28 @@ Tyler's call whether to reduce it (release stream / delay ego). Prior
 corrected here. Headline Table 5 (frozen1c, success = completed & no contact):
 warm 9/10, reactive 9/10, handover_snapshot 2/10, cold 1/10, kf 0/10,
 edgewarp 0/10.
+
+## look-4 collapse diagnosed: ownership shadow not enforced in publish (2026-09-06)
+Block B: look 1 9/10, 2 8/10, 3 9/10, 4 4/10 clean (final update in place).
+(a) CONFIRMED protocol gap: the T7 ownership shadow (ownership.py:
+publishable/epoch) is NOT wired into any edge publish path (no
+OwnershipManager import in edge_manager_*). The destination publishes the
+imported (prepared) track immediately, so a consumer receives it BEFORE
+commit. Evidence: look4 npc200 prepare=91, first_use=105, crossing/commit=156
+-> ego consumes the migrated track 51 ticks (2.5s) BEFORE the final
+update/commit. First oncoming (199) is used after commit (57>55), so the leak
+bites the longer-lead / second-crossing cases. This violates the paper's
+"IMPORT does not publish until final update + commit."
+(d) Collapse is between 3s (9/10) and 4s (4/10). computed/mtr/oracle leads
+~1s (< the 2.5s cap), so their shadow-leak window is short -> safe regime,
+rows likely unaffected. The 2.5s computed cap already guards this.
+MECHANISM: at 4s lead the ego acts on the migrated forecast 2.5s early (sees
+the oncoming far), its overtake gate mis-times, and it commits into a closing
+gap -> truck grind. Gating publish on ownership.publishable (commit) would
+deliver the migrated forecast at commit (oncoming near) -> WAIT -> safe.
+DECISION FOR TYLER: (i) wire the shadow gate into the publish path (the T7
+protocol enforced end-to-end; freeze-2; rerun the look arms; touches the core
+publish path for ALL arms - side-effect risk) OR (ii) report look4 as the
+demonstration that leads beyond the 2.5s cap are unsafe without the shadow
+gate (motivates both the cap and the gate; no rerun). Headline (warm=look1)
+and trigger arms (~1s) are unaffected either way.
