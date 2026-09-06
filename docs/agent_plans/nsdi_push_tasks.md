@@ -148,6 +148,11 @@ Arms: sensing overlap only (both locales observe the band, state still migrates 
 
 ## Rerun rule (Tyler, 2026-09-04): if an issue is found at any point during an experiment (harness, scenario, logging, environment), fix it and rerun the whole experiment on the fixed code so that every figure is drawn from one clean run set. Do not assemble a figure from partial or mixed-version rows, do not caveat a figure around a known defect, and do not carry a defective arm forward with a footnote. The v1/v2 provenance failure and the s5 pinned-worktree failures are the precedent: the fix each time was a rerun, not a caveat.
 
+## T23. Factorial continuity arms (reviewer, 2026-09-06 evening): de-confound WHAT moves from WHEN it moves
+Experiment A (timing fixed = Khonsu trigger + final update; state varied): cold (none), one_frame (latest detection), kf (Kalman state), hist2, hist5 (2- and 5-frame observation history), warm (full record). Experiment B (state fixed = full record; timing varied): reactive (at boundary), edgewarp_full (EdgeWarp predicted-attachment pre-copy + final sync carrying the full record), band20, band40, fixed leads 1-4 s, computed, mtr, oracle. Per handoff for timing arms: warm_before_first_use, wrong_destination, wasted bytes. Ten seeds tonight on freeze-1i, added to the Atlas chain after A/B seeds 1-10. Paper §5.2 = Experiment A, §5.5 = Experiment B.
+
+## T24. Traffic-generated conflicts near boundaries (reviewer): measure how often queue tails, stopped vehicles, overtakes, and lane changes occur within the boundary band in the corridor traffic (and Multi-V2X traces if a boundary layout is drawn on them); one number per conflict type per km of boundary. Supports §2.3; CPU analysis after T13.
+
 ## Metric rule (Tyler): report collided-or-not per run (fraction of runs with any ego contact) and completed-without-collision. Do not report mean collision episodes per run.
 
 ## T15. Predictor-mode trigger (must-fix for the headline claim; reviewer 2026-09-04)
