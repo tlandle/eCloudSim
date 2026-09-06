@@ -158,3 +158,17 @@ publish path for ALL arms - side-effect risk) OR (ii) report look4 as the
 demonstration that leads beyond the 2.5s cap are unsafe without the shadow
 gate (motivates both the cap and the gate; no rerun). Headline (warm=look1)
 and trigger arms (~1s) are unaffected either way.
+
+## freeze-1g: publish gate live, smoke PASSED (2026-09-06)
+Gate: imported track is a SHADOW, not published until COMMIT (physical
+crossing; arm-independent). freeze-1g = 515136be. Smoke (warm look1/look4,
+reactive) assertion PASSED - first_use_tick > commit(crossing) for EVERY
+migrated track: look4 npc199 61>55, npc200 161>156 (was 105 pre-gate -> leak
+fixed), npc201 263>257; zero pre-commit consumption. PUBGATE suppressed 21x
+each on the long look4 leads. warm_look1 clean, reactive clean (PUBGATE=0,
+at-crossing has no pre-commit window). (b) no age-out/re-association: single
+first_dst_track_tick right after prepare, warm_before_first_use=YES, track
+persists prepare->use. look4 improved 4->2 episodes at n=1 (residual launch
+tail remains; 5 seeds will confirm if look4 now ~9/10). Batch restarted from
+block A on 1g; tail (faults->netem->T19b) + block-lander re-armed on 1g.
+T12 stays on 1f (no migration); 5.3+visible re-tag to 1g.
