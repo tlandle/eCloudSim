@@ -377,6 +377,14 @@ def run_scenario(opt, scenario_params):
                             (_a3.get_transform().location.x,
                              _a3.get_transform().location.y)):
                         t19_crossing[_nid3] = step
+                        # COMMIT (paper 3.5): the actor entered the dest
+                        # locale -> authority transfers, the imported track
+                        # becomes publishable. Arm-independent (every arm
+                        # commits at the crossing; the content final-update is
+                        # separate and only warm/edgewarp do it).
+                        _de3 = edge_by_locale.get(_dlid3)
+                        if _de3 is not None and hasattr(_de3, '_shadow_obstacles'):
+                            _de3._shadow_obstacles[int(_nid3)] = False
                 if _nid3 not in t19_first_use:
                     for _e3 in edge_list:
                         for _vm3 in _e3.vehicle_manager_list:
@@ -489,7 +497,8 @@ def run_scenario(opt, scenario_params):
                                 and _crossed \
                                 and _se is not None and _de is not None:
                             _c = daemon.transfer_obstacle_state(
-                                nid, _se, _de, link, step, position=nxy)
+                                nid, _se, _de, link, step, position=nxy,
+                                committed=True)
                             npc_refresh_done[nid] = step
                             if _c is not None:
                                 scenario_manager.record_handoff_cost(_c)
@@ -578,7 +587,7 @@ def run_scenario(opt, scenario_params):
                     # EMA + fold-in + margin, capped). Without this, mtr fires
                     # whenever the predictor is confident (several s early on a
                     # 6-8 s horizon), measuring confidence not the design.
-                    _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.040)
+                    _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.003)
                     _fold_s = 3 * 0.2
                     _lead_m = min(2.5, max(_fold_s + 0.35,
                                            _xfer_s + _fold_s + 0.35))
@@ -627,7 +636,7 @@ def run_scenario(opt, scenario_params):
                         # transfer time (40 ms) rather than a guess, so the
                         # FIRST crossing (before any handoff has been measured)
                         # computes its lead from data, not 0.05 s.
-                        _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.040)
+                        _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.003)
                         _fold_s = 3 * 0.2   # 3 edge cycles at edge_dt
                         # First-fire floor: never lead the decisive first
                         # crossing by less than fold-in + margin.
