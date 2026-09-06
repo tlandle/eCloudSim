@@ -81,7 +81,11 @@ def main():
         row["eval_tag"] = args.tag
         _mode = row.get("mode", "")
         # final_update: builtin for warm/edgewarp on freeze-1b; none otherwise
-        if "1b" in args.tag and _mode in ("warm", "edgewarp"):
+        # final_update is builtin for warm/edgewarp on every tag from 1b on
+        # (the final-update fix). Only the original freeze-1/1a lacked it.
+        if _mode in ("warm", "edgewarp") and args.tag not in (
+                "freeze-1", "freeze-1a", "khonsu-eval-freeze-1",
+                "khonsu-eval-freeze-1a"):
             row["final_update"] = "builtin"
         elif row.get("refresh") == "full":
             row["final_update"] = "commit_full"
