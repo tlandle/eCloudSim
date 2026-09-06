@@ -168,7 +168,8 @@ def check_envelope(rows):
             continue
         bins = sorted(agg)
         fr = [agg[b][1] / agg[b][0] for b in bins]
-        rises = [bins[i + 1] for i in range(len(fr) - 1) if fr[i + 1] > fr[i] + 1e-9 and fr[i] < 1]
+        rises = [bins[i + 1] for i in range(len(fr) - 1)
+                 if fr[i + 1] > fr[i] + 1e-9 and fr[i] < 1 and agg[bins[i]][0] >= 3 and agg[bins[i + 1]][0] >= 3]
         tau = None  # monotone rule: the largest bin below which no run fails
         for b in bins:
             if agg[b][1] == agg[b][0]:
