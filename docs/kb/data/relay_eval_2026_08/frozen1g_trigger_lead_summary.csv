@@ -1,8 +1,0 @@
-arm,handoffs,warm_before_first_use_frac,true_lead_med_s,true_lead_p90_s
-hl_warm,31,0.968,0.88,0.94
-tr_computed,31,0.968,0.84,0.89
-tr_look2,30,1.000,1.88,1.97
-tr_look3,30,1.000,2.83,2.92
-tr_look4,31,0.968,3.91,4.00
-tr_mtr,30,1.000,0.74,0.89
-tr_oracle,30,1.000,0.84,0.89
