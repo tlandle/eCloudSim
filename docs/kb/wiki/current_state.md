@@ -87,6 +87,7 @@ Primary context-switching artifact. Read this first after a gap.
 - Tyler: report FDE. T9 lead column = minFDE@5 s (then minADE@3 s, miss@2 m), per arm with CIs; the replay microbench gets FDE@5 s / ADE@3 s columns for cold, one-frame, history over the four maneuvers (microbench_fde.csv) so §5.2's two tables share the unit. Decision tie: the overtake gate needs ~76 m clearance at 12 m/s, so metres of FDE at 5 s flip wait into go.
 - T9 BLOCKER: the [EVAL] future-prediction logging samples only +0.25/+0.50/+1.25 s (edge_manager line 2221, horizons=[5,10,25] steps), so FDE@5 s / ADE@3 s cannot be computed from any existing log (1h included); extrapolating from +1.25 s would re-measure the input. Fix bundled into freeze-1i: horizons=[5,10,25,60,100] (+3 s, +5 s; the predicted trajectory is 100 points = 5 s), GT position logged alongside, arm and eval_tag in the line; the replay microbench emits the same horizons. T9 and microbench_fde land from 1i. Answer to Tyler's 'why isn't FDE in the paper': the horizon was never logged.
 - freeze-1i candidate = ab5bab5a (branch fix-oncoming-gate off 71c9f37e): behavior_agent.py (opposing lateral bound lifted; recheck-while-latched with hold + subj_ahead) and edge_manager [EVAL] horizons [5,10,25,60,100] with tick/arm/tag stamped; FDE@5 s joins predicted@T with the actor's Actual line at T+100 (GT not loggable at prediction time). Microbench replay emits the same horizons. Smoke on cetus (~40 min); on pass: tag + push 1i, config rows, stop block A on 1h, restart both chains.
+- Planner-fix smoke (partial): DETECTION works ([OT RECHECK] fires every latched tick; HOLD with clear 40 < need 91, onc_spd 15.7; the gate now sees the head-on oncoming) but the RESPONSE fails: at the first HOLD subj_ahead=18.8 m (not cleared) and the brake ttl I set is overridden by the overtake-continuation path (brake_ttl=0, 10.9-11.1 m/s), so the ego drives through; accel warm r1/r2 still collide (episodes 1). NOT tagged (the collision moved failure modes). Ordered: abort-to-lane when clear < need and subj_ahead > 0 (do_overtake False, return-to-lane path, [OT RECHECK] ABORT), COMPLETE when subj_ahead < 0, 10-tick hysteresis before re-commit; re-smoke; tag only on accel warm 3/3 zero-contact with completion reported, cold colliding, flow/burst at pattern.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3824,3 +3825,21 @@ faults->netem and cetus (accel T12 ONCOMING_ACCEL=1, N=28 flow, 5.3, Table8, T19
 on 1i. cid=-1 sibling recorded as T10 (unidentified native detections near a
 migrated track; leave the 8m gate). CPU queue: T9 -> microbench_fde -> corridor
 regen -> T22.
+
+FREEZE-1i SMOKE RESULT (2026-09-06): NOT TAGGED. accel warm still collides with the
+fix (fix_accel_warm_r1/r2 episodes=1). Split: DETECTION (fix 1, lateral bound) WORKS
+- [OT RECHECK] HOLD=93/277 with clear=40m need=91m onc_spd=15.7, the gate now sees
+the head-on oncoming. RESPONSE (fix 2) FAILS - at first HOLD subj_ahead=18.8m (ego
+NOT cleared the subject) and the ego does not brake (EGO-DBG brake_ttl=0, spd ~11
+m/s through ticks 390-405, do_ov=True): the recheck's self._committed_brake_ttl=20
+is overridden by the overtake-continuation path, so the hold produces no brake and
+the ego drives through -> collision. Two response fixes needed (detection stays):
+(a) subj_ahead>0 => ABORT to the ego's lane (per peer rule), not brake in the
+oncoming lane; (b) _committed_brake_ttl is ineffective mid-overtake, so the abort
+must set do_overtake=False + trigger return-to-lane, completing the pass only when
+subj_ahead<0 (cleared). fix_wt commit ab5bab5a (branch fix-oncoming-gate) is the
+DETECTION-correct but RESPONSE-incomplete candidate; do NOT tag until accel warm is
+actually clean. Smoke still finishing flow/burst cells (confirm fix 1 does not break
+the working arms). Awaiting peer direction on the abort-to-lane response before
+re-implementing + re-smoking. Block A still on 1h; nothing tagged; no campaign code
+changed.
