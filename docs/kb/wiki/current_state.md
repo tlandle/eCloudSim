@@ -58,6 +58,7 @@ Primary context-switching artifact. Read this first after a gap.
 - Smoke live at 15:06 (idfix_wt/evaluation_outputs/idfix_smoke/, cells warm_look1, warm_look4, reactive, accel_warm, burst_warm, burst_cold; progress.txt, status.txt). Idle root cause: blockC_then_smoke.sh gated on frozen1g/_blockC_done, which the batch (killed at 14:43) never wrote; replaced by idfix_smoke_now.sh (flock, no gate). All four idfix fixes present in the worktree; three runners pass the currency diff (0 non-SCENARIO_NAME lines vs flow). t12_lut_decisions.csv run_collided corrected (N=31 s1/s4). Eval session asked to align its README to the monotone tau rule (1.0 s).
 - Freshness statistic SETTLED (after the eval session showed no N=31 run has p95 1.0 s and that failed runs' whole-run p95 includes post-contact samples): per run, the MAX realized age consumed before the first contact (whole run if none), realized_age_max_precontact_ms; tau(u) = largest 100 ms bin of it below which no run fails. Data: all runs with max <= 1000 ms complete (N<=24; N=31 s2/s3), at 1200 ms s5 completes and s1/s4 fail (contact at edge tick 236; window p50 600-800, max 1200) -> tau(overtake) = 1.0 s, onset 1.2 s. Ordered: the column in t12_lut_rows.csv, README aligned, NS3_LUT_N=28 x5 after the accel T12 to sample the 800-1150 ms band. Paper definition, figure axis, and checker switched to this statistic.
 - Freshness statistic FINAL: the literal 'max age before first contact' is non-monotone (clean N=31 runs spike to 1400-2000 ms early in the approach, t=447-538, while failures are at 1200-1250), so the statistic is age_at_maneuver = max realized age over the W = 2 s window ending at the conflict tick (contact tick if any). On that: all runs with window-max <= 1000 ms complete (N<=24, N=31 s2/s3), at 1200 ms s5 completes and s1/s4 fail -> tau(overtake) = 1.0 s, onset 1.2 s. W must be grounded in the planner (overtake commit gate / stage-hold-commit-pass timing); W = 1 and 3 s sensitivity requested; the same window definition needed for the accel scenario. Columns realized_age_maneuver_ms / network_age_maneuver_ms to be landed. Paper, figure axis, checker switched. Smoke: worktree lacked the three pb2 stubs (gitignored; --build compiles only ecloud); copied; re-running. N=28 x5 queued after accel T12.
+- Maneuver-window columns landed (realized_age_maneuver_ms, network_age_maneuver_ms; window ends at the first-contact tick or the conflict tick 236). W = 2 s is the planner's collision look-ahead (collision_time_ahead=2 -> CollisionChecker(time_ahead=2), behavior_agent.py:169; lookahead_interp projects the consumed forecast 2 s ahead, collision_check.py:245,643-644). tau(overtake) = 1.0 s, onset 1.2 s, invariant for W = 1/2/3 s (only the onset bin purity changes). Accel uses the same planner horizon; its conflict tick and window land with its T12 half. Paper §5.4 states the grounding and the sensitivity. Smoke: the idfix worktree lacked four untracked assets (pb2 stubs, WorldFusion+MTR model dirs, the sort submodule, plus a flock/CARLA fd-inheritance bug); fixed, import-tested, re-running; tag only after a cell reaches full runtime. Worktree provisioning checklist recorded by the eval session.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3544,3 +3545,42 @@ delay). SEE-V2X trace p50/p95 per regime: L 11.8/22.3, M 12.3/23.3,
 H 18.7/23.8 ms - real levels are 12-24ms, far below the 50-800ms target,
 so reaching 800ms needs SbSpsMac contention load or base_ms, or the ns-3
 co-sim (freeze-1c+ wiring). Adjudication owed to writing session.
+
+## 2026-09-06: T12 collided-flag fix, tau statistic, worktree provisioning
+
+T12 blindovertake collided-flag correction: t12_lut_rows.csv + decisions.csv
+were landed by an inline extractor whose collision regex `- WARNING - Collision`
+(literal-adjacent) matched nothing (the sensor line separates WARNING and
+Collision), so every row got collided=0. Authoritative RUNROW: only N=31 s1
+(episodes=1, contact_ticks=30, 1408 raw) and s4 (1396) collided; all other 33
+runs clean. Corrected both CSVs. General extractor (khonsu_design_extract.py:53,
+collided=eps>0) is unaffected; inline extractor retired from all landers.
+
+tau(blind overtake) FINAL statistic (peer-agreed): age_at_maneuver_ms(W) = max
+realized age over the W-s AGEROW window ending at the maneuver tick (first-contact
+tick if it contacts, else conflict tick=236). tau = largest 100ms bin below which
+no run fails. W=2s is the planner's collision look-ahead: collision_time_ahead=2
+-> CollisionChecker(time_ahead=2), lookahead_interp projects the consumed forecast
+2s ahead (collision_check.py:245,643-644). Result: age_at_maneuver<=1000 all
+complete; at 1200 s5 completes, s1/s4 fail. tau=1.0s, onset 1.2s, STABLE across
+W=1/2/3s. Landed realized_age_maneuver_ms + network_age_maneuver_ms for all 35
+runs. Whole-run/full-pre-contact max is non-monotone (clean N=31 spike to
+1400-2000 early in approach, above the failures) so it must be the maneuver
+window. 800-1150ms band unsampled; NS3_LUT_N=28 x5 queued on cetus post-tag.
+
+WORKTREE PROVISIONING CHECKLIST (idfix_wt smoke failed 4x on missing untracked
+assets; a git worktree does NOT carry gitignored files or submodule contents).
+Before running the full stack in any worktree, from repo root:
+1. pb2 stubs (gitignored): cp perception_pb2.py perception_pb2_grpc.py <wt>/ ;
+   cp ecav/protos/{ecloud,migration}_pb2*.py <wt>/ecav/protos/  (--build only
+   compiles ecloud, and *_pb2.py are gitignored, so the wt never gets them).
+2. model dirs (untracked): symlink the missing ecav/ml_manager/models/* into the
+   wt (worldfusion_multiv2x_caronly_aug_thresh02 is the live WF checkpoint;
+   mtr_wf_mamba the MTR checkpoint).
+3. submodules (empty in wt): populate sort (symlink sort.py/utils.py/data),
+   scenario_runner, ecav/worldfusion. `git submodule update` or symlink from main.
+4. flock + CARLA fd: launch CARLA with `9>&-` so it does not inherit and hold the
+   smoke's flock fd after the script exits (stray-lock gotcha; killing the parent
+   does not release a lock a CARLA child still holds).
+Verify with an import test (pb2 + sort.sort + TrackingManager + RSUManager +
+WorldFusionEdge) BEFORE launching, not by burning smoke cells one failure at a time.
