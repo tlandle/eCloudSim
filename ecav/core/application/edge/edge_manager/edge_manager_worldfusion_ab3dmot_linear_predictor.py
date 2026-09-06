@@ -2207,7 +2207,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
             # Print evaluation
             status = "GOOD" if pos_error < 2.0 else ("OK" if pos_error < 5.0 else "POOR")
-            print(f"\n[EVAL] Track {track_id} -> {matched_vehicle['type']} (CARLA ID {matched_id})")
+            _os_e = __import__('os').environ
+            print(f"\n[EVAL] tick={tick} arm={_os_e.get('MIGRATION_MODE','?')} "
+                  f"tag={_os_e.get('EVAL_TAG','freeze-1i')} Track {track_id} -> "
+                  f"{matched_vehicle['type']} (CARLA ID {matched_id})")
             print(f"  Predicted:  x={pred_x:7.2f}, y={pred_y:7.2f}, yaw={pred_yaw:6.1f}°")
             print(f"  Actual:     x={matched_vehicle['x']:7.2f}, y={matched_vehicle['y']:7.2f}, yaw={matched_vehicle['yaw']:6.1f}°")
             print(f"  Position Error: {pos_error:.2f}m [{status}]")
@@ -2218,15 +2221,21 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             future_traj = pred.predicted_trajectory
             if future_traj and len(future_traj) > 0:
                 # Get predicted positions at different horizons
-                horizons = [5, 10, 25]  # steps into future (at 0.05s/step = 0.25s, 0.5s, 1.25s)
+                # steps into future at 0.05 s/step: 0.25, 0.5, 1.25, 3.0, 5.0 s.
+                # +3 s (60) and +5 s (100) added for the post-handoff FDE@5s /
+                # ADE@3s metric (T9 / microbench_fde); the index is clamped to
+                # the last point when the trajectory is exactly 100 long
+                # (indices 0..99 -> ~4.95 s, labeled +5.00 s).
+                horizons = [5, 10, 25, 60, 100]
                 pred_positions = []
                 for h in horizons:
-                    if h < len(future_traj):
-                        fp = future_traj[h]
-                        if hasattr(fp, 'location'):
-                            pred_positions.append((h, fp.location.x, fp.location.y))
-                        elif isinstance(fp, (list, tuple, np.ndarray)) and len(fp) >= 2:
-                            pred_positions.append((h, fp[0], fp[1]))
+                    if len(future_traj) == 0:
+                        continue
+                    fp = future_traj[min(h, len(future_traj) - 1)]
+                    if hasattr(fp, 'location'):
+                        pred_positions.append((h, fp.location.x, fp.location.y))
+                    elif isinstance(fp, (list, tuple, np.ndarray)) and len(fp) >= 2:
+                        pred_positions.append((h, fp[0], fp[1]))
 
                 if pred_positions:
                     print(f"  Future predictions (from current pos):")

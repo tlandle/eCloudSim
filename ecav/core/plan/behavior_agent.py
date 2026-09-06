@@ -217,6 +217,10 @@ class BehaviorAgent(object):
         self.overtake_wait_time = 18    # TODO: make this a parameter
         self.overtake_wait_counter = self.overtake_wait_time
         self.do_overtake = False
+        # Recheck-while-latched abort state: when the sight recheck aborts an
+        # overtake, block re-commit until the gap is clear for 10 straight ticks.
+        self._ot_aborted = False
+        self._ot_abort_hold_ticks = 0
         self.num_overtake_collisions = 0
 
         # white list of vehicle managers that the cav does not consider as
@@ -1124,13 +1128,30 @@ class BehaviorAgent(object):
             dx, dy = loc.x - ex, loc.y - ey
             ahead = dx * cos_y + dy * sin_y
             lateral = -dx * sin_y + dy * cos_y
-            # opposing/adjacent lane ~2-5 m off-centre, ahead of the ego.
-            # abs(): the overtake side is +/- lateral depending on heading.
-            # Upper bound 9 m (not 6): WorldFusion localizes the oncoming ~3 m
-            # off in y, so a real oncoming in the adjacent lane sits at ~6-7 m
-            # lateral and a 6 m band intermittently drops it, making the gate
-            # flip to "clear" and the ego commit into it.
-            if not (0.5 < ahead and 1.0 < abs(lateral) < 9.0):
+            # Advance of the predicted path along the ego heading: < 0 means the
+            # track moves toward the ego (opposing / head-on), > 0 a same-
+            # direction lead. Computed before the lateral gate so an opposing
+            # track can lift the lateral lower bound below.
+            adv = None
+            if len(traj) >= 2:
+                adv = ((traj[1].location.x - loc.x) * cos_y
+                       + (traj[1].location.y - loc.y) * sin_y)
+            is_opposing = adv is not None and adv < 0
+            # Lateral gate. Upper bound 9 m: WorldFusion localizes the oncoming
+            # ~3 m off in y, so a real oncoming in the adjacent lane sits at
+            # ~6-7 m lateral. Lower bound 1 m excludes the ego's own lane / self
+            # and same-lane leads -- BUT an OPPOSING (head-on) track aligns
+            # toward lateral 0 as it closes, and dropping it there is exactly
+            # the head-on threat the gate exists for (measured: a migrated
+            # occluded oncoming at lateral 0.6 m was rejected on the lower bound
+            # while the ego committed). So lift the lower bound for opposing
+            # tracks; the speed and adv gates still exclude the stationary
+            # subject and same-direction leads.
+            if is_opposing:
+                _lat_ok = abs(lateral) < 9.0
+            else:
+                _lat_ok = 1.0 < abs(lateral) < 9.0
+            if not (0.5 < ahead and _lat_ok):
                 continue
             # Closing speed from the tracker's own velocity estimate, not a
             # per-step finite difference of the predicted trajectory: that
@@ -1146,14 +1167,9 @@ class BehaviorAgent(object):
             # clutter near the conflict instead of the real oncoming.
             if speed < 3.0:
                 continue
-            # oncoming = moving toward the ego (advance along ego heading
-            # is negative); a same-direction lead is not an overtake threat.
-            if len(traj) >= 2:
-                sdx = traj[1].location.x - loc.x
-                sdy = traj[1].location.y - loc.y
-                adv = sdx * cos_y + sdy * sin_y
-                if adv > 0:
-                    continue
+            # a same-direction lead (adv > 0) is not an overtake threat
+            if adv is not None and adv > 0:
+                continue
             if ahead < best:
                 best = ahead
                 best_speed = speed
@@ -1747,6 +1763,66 @@ class BehaviorAgent(object):
             # return path rejoined into the truck at 11 m/s).
             self.overtake_counter -= 1
 
+        # (2) Re-evaluate the overtake sight distance EVERY tick while the
+        # maneuver is latched. The start-time check in overtake_management fires
+        # once; a long latch (measured 255 ticks with two evaluations) let an
+        # opposing track that entered the ego's predictions AFTER commit go
+        # unseen. If an opposing track is now inside the required clearance,
+        # hold via the proper-response brake instead of continuing into it. One
+        # [OT RECHECK] line per latched tick records the decision.
+        if self.do_overtake:
+            _rc_clear, _rc_onc = self._nearest_oncoming_ahead()
+            _rc_need = 4.0 * (7.0 + max(_rc_onc, 2.0))
+            # Ego position relative to the overtake subject (truck) along the ego
+            # heading: > 0 the subject is still ahead (ego has NOT cleared it, so
+            # a HOLD here brakes in the oncoming lane = a stall, not an escape);
+            # < 0 the ego is past it (a HOLD/complete is safe). Logged on every
+            # recheck so the smoke can tell a stall from an escape without a rerun.
+            _subj = getattr(self, '_overtake_subject_loc', None)
+            if _subj is not None and self._ego_pos is not None:
+                _yaw = math.radians(self._ego_pos.rotation.yaw)
+                _subj_ahead = ((_subj[0] - self._ego_pos.location.x) * math.cos(_yaw)
+                               + (_subj[1] - self._ego_pos.location.y) * math.sin(_yaw))
+            else:
+                _subj_ahead = float('nan')
+            if _rc_clear < _rc_need:
+                if not (_subj_ahead < 0):
+                    # Not yet past the subject (or subject unknown): braking in
+                    # the oncoming lane is a stall, so ABORT the overtake and
+                    # hand control to the return-to-lane path (do_overtake=False
+                    # + cancel the counter). Block re-commit until the gap is
+                    # clear for 10 consecutive ticks.
+                    self.do_overtake = False
+                    self.overtake_counter = 0
+                    self._ot_aborted = True
+                    self._ot_abort_hold_ticks = 0
+                    logger.warning("[OT RECHECK] ABORT subj_ahead=%.1fm "
+                                   "clear=%.0fm need=%.0fm onc_spd=%.1f",
+                                   _subj_ahead, _rc_clear, _rc_need, _rc_onc)
+                else:
+                    # Already past the subject: completing the pass is safer than
+                    # stalling in the oncoming lane.
+                    logger.warning("[OT RECHECK] COMPLETE subj_ahead=%.1fm "
+                                   "clear=%.0fm need=%.0fm", _subj_ahead,
+                                   _rc_clear, _rc_need)
+            else:
+                logger.info("[OT RECHECK] CLEAR need=%.0fm subj_ahead=%.1fm",
+                            _rc_need, _subj_ahead)
+        elif getattr(self, '_ot_aborted', False):
+            # After an abort, require the sight check to pass for 10 consecutive
+            # ticks before another overtake may commit, so the ego does not
+            # oscillate at the boundary of the gap.
+            _rc_clear, _rc_onc = self._nearest_oncoming_ahead()
+            _rc_need = 4.0 * (7.0 + max(_rc_onc, 2.0))
+            if _rc_clear >= _rc_need:
+                self._ot_abort_hold_ticks += 1
+                if self._ot_abort_hold_ticks >= 10:
+                    self._ot_aborted = False
+                    logger.warning("[OT RECHECK] RECOMMIT-OK after %d clear ticks",
+                                   self._ot_abort_hold_ticks)
+            else:
+                self._ot_abort_hold_ticks = 0
+
         # we reset destination push flag for every n rounds
         if self.destination_push_flag > 0:
             self.destination_push_flag -= 1
@@ -2216,8 +2292,12 @@ class BehaviorAgent(object):
                                     self, '_ot_go_streak', 0) + 1
                             else:
                                 self._ot_go_streak = 0
-                            if _clear < _need or self._ot_go_streak < 2:
+                            if _clear < _need or self._ot_go_streak < 2 \
+                                    or getattr(self, '_ot_aborted', False):
                                 # Two consecutive clear evaluations required:
+                                # (and, after a recheck ABORT, the re-commit gate
+                                # holds do_overtake off until 10 straight clear
+                                # ticks have cleared self._ot_aborted).
                                 # a single instantaneous "clear" can be a
                                 # broadcast gap, and committing on it put the
                                 # ego into the closing oncoming (measured).
