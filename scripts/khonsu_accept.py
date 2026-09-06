@@ -144,6 +144,9 @@ def main():
     for a in args:
         files += glob.glob(os.path.join(a, '*.log')) if os.path.isdir(a) else [a]
     files = [f for f in sorted(files) if os.path.basename(f).startswith(('m_', 'fix_'))]
+    if not files:
+        print("GATE: FAIL (no smoke-cell logs found)")
+        return 1
     cells = [parse(f) for f in files]
     rows, out = check(cells)
     inv = ['1.sig', '2.geom', '3.own', '4.pubgate', '5.final', '6.assoc',
