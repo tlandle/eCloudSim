@@ -277,3 +277,19 @@ openscenario_1_corridor_gt.py (regenerate), openscenario_1_corridor_gt.yaml
 shared edge/tracker code so a current-code run emits them; RUNROW+HANDOFFROW
 are runner-side, so the runner must be current. Cetus 1h order: T12 accel
 (7x5 ~3h) FIRST, then 5.3 matrix, then T19b.
+
+## flow_visible ALSO stale; strong currency test (2026-09-06)
+Burst 0/5 root: STALE burst runner (813 PUBGATE suppressions, 0 shadow-clears
+-> platoon suppressed forever -> ego never sees it), NOT the source/dest
+forwarding gap. Same class as accel/corridor. Both burst ego and flow ego are
+in locale_0 (destination); flow works only because its runner is current.
+flow_visible was ALSO stale re: the gate - it HAD HANDOFFROW but shadow_clear=0
+(regenerated after 1f, before the 1g gate). So the 5-MARKER SIGN-OFF IS
+INSUFFICIENT: a runner can have all markers yet lack the gate wiring. STRONG
+currency test adopted: a scenario runner must be a PURE SCENARIO_NAME diff from
+the flow runner at the tag (diff modulo the SCENARIO_NAME line = 0 lines).
+Regenerated + verified CURRENT (0 diff lines vs flow): flow_visible, accel,
+accel_visible, burst (idfix-assoc 71c9f37e). corridor still to regenerate at
+freeze-2. Forwarding fix HELD pending the burst-warm smoke on the fixed runner
+(>=4/5 -> at-commit delivery suffices, no forwarding; <4/5 -> forwarding).
+Burst smoke adds per-platoon (first_use - crossing) tick + ego min-TTC.
