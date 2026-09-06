@@ -369,3 +369,6 @@ and setsid doubles the process line - count ecav/CARLA (the contention risk),
 not the bash waiters. Landed: frozen1g_trigger_lead_summary.csv (true lead +
 warm-before-use per trigger arm: look2/3/4 = 1.88/2.83/3.91s, computed/mtr/
 oracle ~0.8s). Smoke running flock-guarded; T9/T22/corridor-regen queued CPU-side.
+
+## Acceptance gate
+`scripts/khonsu_accept.py <logdir>` parses each smoke-cell log and prints PASS/FAIL per invariant (runner signature, geometry env, ownership, publish gate, final update, association, coast, planner gate, velocity source, outcome); the freeze tag requires ALL PASS on ALL 11 cells (exit 0). Invariants 7/9 are proxy-checked from COASTROW; 4/5 from HANDOFFROW vs COMMIT REFRESH.
