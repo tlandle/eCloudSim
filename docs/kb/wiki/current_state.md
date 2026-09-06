@@ -102,6 +102,7 @@ Primary context-switching artifact. Read this first after a gap.
 - HARD DEADLINE: Tyler presents Mon Sep 7 11:00; data needed tonight. Reorder: Atlas 1i A seeds 1-10 (land) -> B seeds 1-10 (land) -> E -> A 11-20 -> B 11-20 -> faults -> netem. Cetus 1i: accel T12 -> Table 8 -> N=28 -> bo T12 rerun -> matrix seeds 1-5 -> T19b seeds 1-3 -> second passes. bo freshness from 1f stays in the paper until its rerun lands. Writing session rebuilds the deck and paper from landings overnight; deck to gtvault by ~07:00.
 - Abort-only smoke: accel warm 0/3 (ABORT 1, RECOMMIT 1 each: the ego aborts, waits 10 clear ticks during the oncoming's 5 m/s cruise phase, re-commits, and the actor floors to 16 m/s into it); accel cold collides (baseline); flow warm look1 2/2 clean with one abort-recommit. Abort alone is defeated by the slow-then-fast profile. Merged smoke (with Jordan's lane-safety TTC) is the real test. Block A on 1h stopped at 47/120 and landed. DECISION: if accel still fails on the merge but everything else passes, tag 1i and launch the constant-velocity blocks tonight (Atlas A/B/E/faults/netem; cetus Table 8, N=28, bo rerun, flow_visible); accel T12 and the maneuvering cells wait for freeze-1j with a forecast-based re-commit (predicted arrival of the opposing track at the pass zone vs time to complete the pass).
 - Deck rebuilt for the Mon 11:00 presentation (khonsu_story v6 builder): measured figures substitute the expected-shape toys when the paper pipeline has produced them (real_envelope from fig_envelope, real_trigger from fig_lead_cdf, real_density from fig_density; pdftoppm; 'MEASURED, tag' banner; pill Done); RQ2 slide rewritten on the freeze-1g constant-velocity flow result (pre-freeze 4-seed accel result withdrawn); mechanism slide adds shadow gate, final update replaces, identity merge; 'RQ3 evidence so far' rewritten (six defects fixed; 1g trigger ladder; bo freshness limit 1.0 s; density); status table rows updated; envelope slide experiment text now ns-3 load. Committed to scale_out_nsdi slides/; gtvault push refused 423 Locked (Tyler has the file open); retry on his word.
+- Deck review (Tyler-forwarded, Sep 6 evening) applied: talk-spine slide (Conductor one locale -> many locales -> state discontinuity -> Khonsu -> corridor); slide 5 architecture only, slide 6 failure mode only ('Partitioning creates a state discontinuity'); RQ2 title 'A snapshot is insufficient for the overtake scenario'; freshness slide wording 'Current measurement: load-induced age sweep. Needed: controlled age-injection sweep per scenario'; 'We compare seven ways to maintain continuity' grouped (none / reactive / brute-force / Khonsu / oracle); closing footer 'The missing evidence is not whether the idea is plausible...'. 22 slides; pushed to gtvault (verified) and committed to slides/.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3895,3 +3896,25 @@ correct -> residual ~0.2-0.4m, no record/coast bug; confirm on look4 when block 
 runs. NEXT: abort-only smoke table -> merged 11-arm smoke on 8f736384's planner ->
 tag+push khonsu-eval-freeze-1i on 8f736384 (Jordan hashes in msg) only on pass ->
 stop block A -> restart both chains on 1i. Tag HELD until merged smoke passes.
+
+DEADLINE PUSH (2026-09-06 eve, Tyler presents 11:00 tomorrow): tag is critical path.
+Block A stopped 47/120, landed frozen1h_rows.csv. ABORT-ONLY smoke: accel warm 0/3
+(abort fires + recommit but the ONCOMING_ACCEL slow-cruise-then-floor profile
+defeats the gap-based re-commit -> collide); flow warm look1 clean. So abort alone
+does NOT fix accel. MERGED code 8f736384 (my gate + Jordan's separate
+overtake_lane_safety_time_ahead + curved-road removal) is the real test. Merged
+11-arm smoke RUNNING: cetus accel (m_accel_warm x3 + cold x2, ONCOMING_ACCEL=1) +
+Atlas flow/burst (idfix_wt overlay, m_flow_warm_look1 x2/reactive/cold, burst
+warm/cold), each cell [LAUNCHENV]-stamped + EVAL_TAG=freeze-1i. Gate:
+scripts/khonsu_accept.py (committed c9573b0b, 10 invariants, PASS/FAIL per cell,
+exit0 on all-PASS) + README one-liner. Gate watcher bpd80mv55 runs it on all 11
+cells when both smokes land. DECISION (peer): (a) accel warm passes -> tag 1i +
+launch all; (b) accel warm collides but every other invariant + flow/burst pass ->
+tag 1i ANYWAY, launch CONSTANT-VELOCITY only tonight (Atlas A1-10->B1-10->E->A11-20
+->B11-20->faults->netem; cetus Table8->N28->bo-T12-rerun->flow_visible), DEFER
+accel/maneuvering cells to freeze-1j. 1j accel fix direction: re-commit uses the
+oncoming FORECAST over pass duration (predicted arrival at pass zone vs ego pass
+time) not current gap; read Jordan's lane-safety check first. Atlas 1i batch
+prepped (frozen_batch_1i.sh, A1-10-first order, lands frozen1i_rows.csv per block).
+NEXT: gate table -> tag 8f736384 as khonsu-eval-freeze-1i (Jordan hashes in msg) ->
+launch -> message peer. Data commit 2c327fdd on develop; freeze policy = code-only.
