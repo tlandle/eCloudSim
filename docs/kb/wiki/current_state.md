@@ -80,6 +80,7 @@ Primary context-switching artifact. Read this first after a gap.
 - ACCEL ROOT CAUSE NAMED (eval session, code + logs): behavior_agent.py:1140 the overtake gate reads obs.kf_speed_mps (track_utils.py:107-119, the tracker KF velocity estimate), and line 1147 skips tracks with speed < 3.0 (moving-only filter). For the occluded single oncoming the destination never gets a native detection (occlusion_check), so the KF estimate ramps from 0 (0.00 -> 0.71 -> 1.93 -> 3.49 -> 6.49 over ~30 ticks) while the migrated velocity is a correct 11.91; the gate treats the oncoming as stationary clutter, returns inf, GO, collision. Flow masks it (unoccluded oncoming within 50 m converge the KF). Control 4 inconclusive (old runner crashes on the new stack, API drift); the filter is stack-side; old tree clean 2/2. FIX APPROVED (design, §3.3/§4.2 velocity in the record): imported/coasting tracks publish the migrated velocity until k native updates; [VELSRC] log; speed<3 filter kept. Block A finishes on 1h (pre-fix reference, superseded); smoke (accel warm x2 clean, accel cold collide, flow look1/look4, burst warm/cold; gate onc_spd == migrated velocity); tag freeze-1i; restart Atlas A -> B -> E -> faults -> netem and the cetus chain on 1i (~14 h for A+B). Tyler notified.
 - DEBUG evidence locks the cause: [OT PREDS] shows cid 199 IN the ego's generated_predictions (delivery fine; my cache-absence inference was wrong), [OT SIGHT] oncoming_ahead=inf onc_spd=2.0 need=36 m -> GO: _nearest_oncoming_ahead rejects the Tesla because obs.kf_speed_mps < 3.0 (un-converged KF estimate for the occluded migrated track). Fix being implemented with diff-before-run: imported/coasting tracks publish the migrated velocity until >= k native updates (k from the tracker's convergence count, read not guessed) or the KF speed exceeds it; speed<3 filter unchanged; [VELSRC] log. Block A finishes and lands on 1h first.
 - CORRECTION (eval session DEBUG): the kf_speed-from-migrated fix ALREADY EXISTS at 1h (wrapper.py:183-189, commit cb9888f4); [OT PREDS] cid 199 carries spd 11.9. The real defect: the overtake sight check ran only TWICE at maneuver start (npreds 2-3), returned inf both times (onc_spd floored to 2.0, need 36 m -> GO), and do_ov LATCHED for 49 ticks with no re-check as the oncoming appeared. Candidates: (a) cid 199 not yet in generated_predictions at the two evals + latch; (b) empty predicted_trajectory skipping the pred (line 1121); (c) a geometry filter at those ticks. A cid=-1 sibling track at (260.8,198.8) spd 12.2 exists beside cid 199 (native detection without id; position-gate fallback did not merge at 7.4 m). Diagnostic ordered (skip reasons per pred per sight-eval, latch re-check, first-appearance tick, sibling source). Fix will be planner-side (re-evaluate while latched) or timing, applies to all arms, smoke on flow/burst before any tag. Block A is 28/120 (~5 h), not minutes.
+- ACCEL ROOT CAUSE PINNED ([ONCDBG], behavior-preserving diagnostic on cetus, reverted): cid 199 traj_len 100, ahead 55 m, speed 11.91, adv -0.16 (opposing) but |lateral| = 0.6 < 1.0 -> REJECT=geom by the band 1.0 < |lateral| < 9.0 (behavior_agent.py:1133), which drops a head-on oncoming that has aligned with the ego. Timing: the first [OT SIGHT] eval precedes cid 199's first appearance in generated_predictions (ego-side delivery lag after the edge commit at tick 86) -> GO; the second eval rejects it on lateral; do_ov latched 255 ticks with 2 evals. cid=-1 sibling = native fusion detection without id at 7.4 m (merge keys on id; 8 m gate borderline) -> T10 item. FIX APPROVED: (1) for opposing tracks drop the lateral lower bound (keep it for non-opposing); (2) re-evaluate the sight check every tick while latched, hold/abort on an opposing track inside the required clearance, [OT RECHECK] log. Planner defects applying to all arms. Smoke on cetus while block A runs on Atlas (accel warm x3 clean, accel cold x2 collide, flow warm look1 x2, reactive, cold, burst warm/cold), then freeze-1i, stop A on 1h, restart both chains on 1i.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3768,3 +3769,26 @@ generated_predictions (npreds=2,3) OR its predicted_trajectory was empty
 condition, NOT kf_speed. Next: per-pred skip-reason logging in the 2 sight-evals to
 pin (a) timing/latch vs (b) empty-traj vs (c) geometry. Block A 28/120 (~5h, NOT
 minutes - peer estimate off). NO code changed. Awaiting peer direction on the trace.
+
+ACCEL ROOT CAUSE PINNED (2026-09-06, ONCDBG per-pred trace): the overtake gate's
+LATERAL band drops the head-on-aligning oncoming.
+  [ONCDBG] cid=199 traj_len=100 ahead=55.0 lateral=-0.6 speed=11.91 adv=-0.16 REJECT=geom
+cid 199 passes all filters EXCEPT lateral: abs(lateral)=0.6 < 1.0 lower bound of the
+band `1.0<abs(lateral)<9.0` (behavior_agent.py:1133). The 1.0 bound excludes the
+ego's own lane/self but also drops a head-on oncoming that has laterally aligned
+(the most dangerous case). Timing/latch: 1st [OT SIGHT] (log line 5337) is BEFORE
+cid 199 enters generated_predictions (line 6436); 2nd (6438) after but rejected on
+lateral; do_ov latched 255 ticks with only 2 sight-evals. So (a) at the pre-commit
+eval the oncoming was not yet in the ego's generated_predictions (ego-side delivery
+lag after the edge migration-commit at tick 86), ego GO'd; (b) by the 2nd eval the
+ego was pulling out, lateral shrank <1.0, filter dropped it; latch never re-caught.
+cid=-1 sibling: native fusion detection (no carla_id; GT injection stamps ids) at
+(260.8,198.8) ~7.4m from tid1 (253.4); not merged (merge keys on carla_id, -1 has
+none; 7.4m at the 8m gate). Secondary. FIX CANDIDATES (peer's call): (1) for
+opposing tracks (adv<0) drop/lower the lateral lower bound; (2) re-evaluate the
+sight check while latched, abort/hold on an opposing track; (3) ego-side delivery
+lag. (1)+(2) robust; re-eval alone insufficient (lateral band still drops it).
+Planner change -> must smoke flow warm/cold + burst before freeze-1i. kf_speed fix
+already present+working (cid199 spd=11.9 at gate) - NOT re-implemented. cetus
+behavior_agent.py restored to freeze-1h (0 ONCDBG, HEAD 71c9f37e); NO campaign code
+changed. Block A continues on 1h (pre-fix reference).
