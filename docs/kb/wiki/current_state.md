@@ -62,6 +62,7 @@ Primary context-switching artifact. Read this first after a gap.
 - FREEZE-1h = commit 71c9f37e (branch idfix-assoc; tag to be pushed). Smoke passed: warm_look4 CLEAN (single tid for cid 200, first_use > crossing 61>55/165>156/265>257, PUBGATE 28); warm_look1 collided (episodes 2; within the 9/10 baseline; mechanics correct); reactive clean; accel_warm clean with HANDOFFROW 1, AGEROW 598, COASTROW 32 (regenerated runner current); burst_warm CLEAN with all 6 platoon members warm_before_first_use (forwarding NOT needed); burst_cold collided (negative control). Runners flow/accel/burst at 71c9f37e, 0-diff, five markers. Campaign signed off and launched: Atlas A 6x20 -> B 6x20 (look2/3/4, computed, mtr, oracle; 1 s row = A's warm) -> E theta x5 -> faults x fencing -> netem; cetus accel T12 x5 -> N=28 x5 -> 5.3 matrix 6x10 x3 cells -> Table 8 -> T19b. Paper §4.2 states the identity merge, projected gate, and replace-on-final-update.
 - 1h campaign live: Atlas frozen_batch_1h.sh (flock) in idfix_wt @ 71c9f37e: A 6x20 -> B 6x20 -> E theta x5, landing frozen1h_rows.csv per block; faults x fencing + netem chained after E. Cetus cetus_t12_accel_1h.sh (flock, HEAD guard): accel T12 7x5 (t12_lut_1h_accel) -> flow N=28 x5 -> 5.3 matrix -> Table 8 -> T19b. Tag khonsu-eval-freeze-1h pushed to origin (origin moved to git@github.com:tlandle/eCAV.git; sandbox remote URL updated). Block ETAs after hl_warm_r1.
 - 1h ETAs (measured 3.4 min/run on Atlas incl. CARLA restart; ~4 min on cetus): Atlas A 120 runs -> ~22:50 Sep 6; B 120 -> ~05:40 Sep 7; E 25 -> ~07:00 Sep 7; faults+netem after (config being finalized). Cetus: accel T12 35 -> ~18:30 Sep 6; N=28 flow x5 ~0.3 h; 5.3 matrix 180 ~12 h; Table 8 60 ~4 h; T19b 100 ~7 h (estimates firm up after the first accel run). hl_warm_r1 clean.
+- Sep 6 16:23 status: Atlas 1h block A running (5 of 120 done; first rep: warm/reactive/handover_snapshot clean, kf/edgewarp collided). Cetus accel T12 chain BROKEN: all 20 logs are one line, 'cetus_t12_accel_1h.sh: line 26: NS3_LUT_N=16: command not found' (env assignment executed as a command); no run started, no ecav process, no tmux session; ~30 min lost. Ordered: fix, run one accel cell by hand with its config row and marker counts before relaunching (the first-run sign-off was skipped here), then relaunch from accel T12.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3608,6 +3609,22 @@ accel_warm clean (regenerated runner: HANDOFFROW+AGEROW+COASTROW, wbfu=YES),
 burst_warm CLEAN with 6/6 platoon handoffs wbfu=YES -> FORWARDING NOT NEEDED
 (held question resolved: at-commit delivery suffices), burst_cold collided/0
 handoffs (negative control). All three runners 0-diff vs flow (strong currency).
-1h campaign launch pending peer per-arm sign-off (arm-list confirm). Plan:
-Atlas A(6 flow arms x20)->B(trigger arms x20)->E theta->faults; cetus accel-T12
-x35 FIRST -> NS3_LUT_N=28 x5 (samples 800-1150ms band) -> 5.3 -> Table8 -> T19b.
+1h campaign LAUNCHED 2026-09-06 16:00 (peer signed off, GO). Tag pushed to origin
+(khonsu-eval-freeze-1h -> 71c9f37e; origin URL corrected to tlandle/eCAV.git).
+Measured cadence 3.4 min/run (Atlas).
+Atlas frozen_batch_1h.sh (flock /tmp/frozen1h_atlas.lock, runs in idfix_wt):
+A(6 arms warm/reactive/kf/edgewarp/handover_snapshot/cold x20, ~6.8h)->B(look2/3/4,
+computed,mtr0.5,oracle x20, ~6.8h)->E(theta 0.3/0.4/0.6/0.7/0.9 x5, ~1.4h). warm
+arm = the 1s trigger-table row. Per-block land to frozen1h_rows.csv. hl_warm_r1
+clean. faults x fencing + netem tail NOT YET BUILT (15h runway; FAULT_MODE/FENCING
+env confirmed in runner; build before E ends).
+Cetus: cetus_t12_accel_1h.sh (flock /tmp/cetus_1h.lock, checkout-guarded on
+71c9f37e) accel T12 N{4,8,12,16,20,24,31}x5 -> t12_lut_1h_accel; then
+cetus_1h_tail.sh QUEUED on the same flock (blocking) so it runs unattended:
+N=28 x5 flow (bo tau band) -> 5.3 matrix (accel+flow_visible+accel_visible, both
+visible runners 0-diff current, 6 arms x10 -> frozen1h_53) -> Table8 (burst 3x5 +
+q5 density 3x3x5 -> frozen1h_t8). T19b (platoon {1,2,4,8,16} x 5 arms x5, spec in
+nsdi_push_tasks.md:179) NOT YET BUILT (needs PLATOON_N knob check; ~18h runway).
+Cetus tail logs need extraction to CSV when blocks land (tail runs but does not
+self-extract). Both chains: one CARLA per GPU, fd 9>&- so CARLA cannot hold the
+flock, HEAD-verified before running.
