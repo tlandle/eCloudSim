@@ -95,6 +95,7 @@ Primary context-switching artifact. Read this first after a gap.
 - Jordan's big open item (via Tyler): one-time handoff too early -> the migrated track drifts -> the destination's first native detection cannot associate (his 2 m tolerance) -> the handed-off track is discarded. Same mechanism as our 4 s lead collapse (18 m drift, 8 m gate, duplicate track). Framework answer since 1b/1h: final update at commit (replaces the prepared record), projected coast (record pose + velocity x elapsed, re-anchored), identity merge with projected-pose position gate fallback, 2.5 s lead cap. STILL OPEN: the drift magnitude (18 m / 4 s on a 12 m/s actor = 4.5 m/s velocity error) is unexplained; COASTROW now logs vel_mps/spf/steps; asked for per-handoff migrated velocity vs true speed and residual drift at commit on the 1h look2/3/4 runs; if the velocity or scaling is wrong it goes into 1i before the tag (defeats the no-ID position gate otherwise).
 - Merge done: a823e541 on fix-oncoming-gate (Jordan's three commits intact, zero conflicts; collision_time_ahead=2 == Jordan's overtake_lane_safety default 2.0, both recorded in the config row). The merge pulled older KB data files (pre-correction t12 CSVs etc.) into the branch; corrected CSVs were uncommitted on develop. POLICY set: freeze tags are code-only from 1i on (follow-up commit reverts data files on the merge before tagging); corrected data committed on develop as its own commit; paper data = docs/kb/data on develop, code = tags, eval_tag per row.
 - DRIFT RESOLVED (1h COASTROW): migrated vel_mps=(11.91,0.01), |v| 11.91 vs true 12 (0.09 m/s error); spf 0.199 (0.2 s stride), steps 1,2,3...; projection advances 2.37 m/step = 11.9 m/s; residual drift ~0.18 m over 2 s, ~0.36 m over 4 s. The 18 m was pre-cb9888f4: the coast's frame-to-frame EMA restarted at zero on import, so a migrated occluded track read as ~stationary and fell behind the actor; cb9888f4 (migrated velocity in the coast) fixed it. No record/coast bug in the 1i candidate; proj-vs-GT at the crossing to be confirmed on look4 when block B runs. Eval session executing: code-only 1i candidate (revert data files on the merge), commit corrected data on develop, README note.
+- freeze-1i CODE-ONLY candidate = 8f736384 on fix-oncoming-gate (merge a823e541 + revert of data files; diff vs 1h is code only: behavior_agent, WorldFusion edge_manager EVAL horizons, late-fusion RSU loop, shape check). Data committed on develop 2c327fdd (corrected T12 collided flags, maneuver-age columns, README provenance note). Config rows will record collision_time_ahead=2 and overtake_lane_safety_time_ahead=2.0. Sequence: abort-only smoke table (data) -> merged 11-arm smoke -> on pass tag+push 1i with Jordan's hashes -> stop block A on 1h -> restart both chains.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3869,3 +3870,22 @@ script cetus_fixsmoke_relaunch.sh. TAG CRITERIA (peer): accel warm 3/3 zero cont
 <=1 ABORT-recommit cycle/run, accel cold colliding, flow warm look1/reactive at 1h
 pattern, burst warm clean; report the completion field (abort-and-never-pass = clean
 -but-did-not-complete, a different result, not a pass). No tag until met.
+
+FREEZE-1i MERGE + POLICY (2026-09-06, Tyler via peer): folded Jordan's
+origin/jordan-behavior-fixes (f012239c separate overtake_lane_safety_time_ahead;
+4f7b5150 curved-road-suppression removal in step-8; 7adcdd81 late-fusion RSU-loop
+restore) into fix-oncoming-gate. Merge a823e541 (zero conflicts) carried both my
+gate changes and Jordan's + also dragged Aug-22 data CSVs; per the CODE-ONLY-tag
+policy I made a follow-up commit that reverts docs/kb/data + current_state.md and
+git-rm's the merge-added CSVs. freeze-1i CODE-ONLY candidate = 8f736384 (verified:
+behavior_agent + both edge_managers + khonsu_shape_check, zero docs/kb/data). collision
+_time_ahead=2 == Jordan's overtake_lane_safety_time_ahead default 2.0 (record both
+in per-arm config). DATA committed separately on develop: 2c327fdd ("data: corrected
+T12 collided flags + maneuver-age columns; freeze-policy note") - t12_lut_rows N=31
+s1/s4 collided=1, maneuver cols, README provenance (data on develop, code in tags,
+eval_tag per row). DRIFT (peer q): 18m was PRE-FIX (coast EMA restarted at 0 on
+import); on freeze-1h COASTROW vel=11.91 vs true 12 (err 0.09 m/s), spf=0.199, proj
+correct -> residual ~0.2-0.4m, no record/coast bug; confirm on look4 when block B
+runs. NEXT: abort-only smoke table -> merged 11-arm smoke on 8f736384's planner ->
+tag+push khonsu-eval-freeze-1i on 8f736384 (Jordan hashes in msg) only on pass ->
+stop block A -> restart both chains on 1i. Tag HELD until merged smoke passes.
