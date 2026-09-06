@@ -147,8 +147,8 @@ def check_density(rows):
 
 
 def check_envelope(rows):
-    agecol = 'realized_age_ms' if 'realized_age_ms' in rows[0] else next(
-        (c for c in rows[0] if 'realized_age' in c.lower() and 'p50' in c.lower()), None)
+    agecol = 'realized_age_p95_ms' if 'realized_age_p95_ms' in rows[0] else next(
+        (c for c in rows[0] if 'realized_age' in c.lower()), None)
     if agecol is None:
         agecol = next((c for c in rows[0] if 'age' in c.lower()), None)
     collcol = 'run_collided' if 'run_collided' in rows[0] else 'collided'
@@ -217,7 +217,7 @@ def main():
         ('lead', lambda: check_lead(run) if run else 'NO DATA'),
         ('burst', lambda: check_burst(run) if run else 'NO DATA'),
         ('density', lambda: check_density(run) if run else 'NO DATA'),
-        ('envelope', lambda: check_envelope(kinds['envelope_decisions'] or kinds['envelope_runs']) if (kinds.get('envelope_decisions') or kinds.get('envelope_runs')) else 'NO DATA'),
+        ('envelope', lambda: check_envelope(kinds['envelope_runs']) if kinds.get('envelope_runs') else 'NO DATA'),
         ('faults', lambda: check_faults_unit(kinds['faults_unit']) if kinds.get('faults_unit') else 'NO DATA'),
         ('faults_live', lambda: check_faults_live(kinds['faults_live']) if kinds.get('faults_live') else 'NO DATA'),
         ('load', lambda: check_load(kinds['load']) if kinds.get('load') else 'NO DATA'),
