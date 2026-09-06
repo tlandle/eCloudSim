@@ -142,6 +142,13 @@ def inject_latent_into_tracker(
         np.asarray(latent.vel_mps, dtype=np.float64).copy()
         if getattr(latent, 'vel_mps', None) is not None else None)
 
+    # REPLACE on the same track_id (idfix): drop any existing tracklet with
+    # this id before inserting, so the final update overwrites the coasted
+    # shadow rather than appending a same-id duplicate.
+    if preserve_track_id:
+        tracker.tracked_tracklets = [
+            _tk for _tk in tracker.tracked_tracklets
+            if int(getattr(_tk, 'track_id', -1)) != int(t.track_id)]
     tracker.tracked_tracklets.append(t)
     if tracker.frame_id < latent.frame_id:
         tracker.frame_id = int(latent.frame_id)

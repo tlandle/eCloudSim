@@ -713,6 +713,13 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 self._latest_source_tick = latest_source_tick
                 self._ab3d_history_to_trajs(self._tracker_output_history, horizon=30)
 
+                # 7.4 IDENTITY-AWARE MERGE (idfix, paper 3.5 step 4): a native
+                # detection that gets the same stable carla_id as an existing
+                # migrated track (position association failed because the
+                # coasted track drifted) is merged by ID - keep the longer
+                # history, adopt the freshest observed position, drop the dup.
+                self._merge_duplicate_carla_ids()
+
                 # 7.5 Filter out ghost/static tracks
                 self._filter_ghost_tracks()
 
@@ -1759,6 +1766,53 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     self.tracked_trajectories[best_tid].obstacle.carla_id = \
                         vm.vehicle.id
                     self.track_to_carla[best_tid] = vm.vehicle.id
+
+    def _merge_duplicate_carla_ids(self):
+        """Merge tracklets that share a carla_id (idfix). When migration and
+        native detection both track the same actor (id known, positions
+        diverged after a long coast), keep the track with the longer history
+        and adopt the freshest observed position; drop the duplicate from the
+        trajectories, the id map, and the tracker."""
+        try:
+            from collections import defaultdict as _dd
+            by_cid = _dd(list)
+            for tid, cid in list(self.track_to_carla.items()):
+                if cid is not None and cid >= 0:
+                    by_cid[int(cid)].append(tid)
+            for cid, tids in by_cid.items():
+                if len(tids) < 2:
+                    continue
+                # rank by trajectory history length (proxy for memo depth)
+                def _hist(t):
+                    tr = self.tracked_trajectories.get(t)
+                    return len(tr.trajectory) if tr and tr.trajectory else 0
+                tids_sorted = sorted(tids, key=_hist, reverse=True)
+                keep = tids_sorted[0]
+                # freshest observed position = the most recently updated dup
+                def _tsu(t):
+                    for _tk in getattr(self.tracker, 'tracked_tracklets', []):
+                        if int(getattr(_tk, 'track_id', -1)) == t:
+                            return int(getattr(_tk, 'time_since_update', 999))
+                    return 999
+                fresh = min(tids, key=_tsu)
+                keep_tr = self.tracked_trajectories.get(keep)
+                fresh_tr = self.tracked_trajectories.get(fresh)
+                if keep_tr and fresh_tr and fresh != keep and fresh_tr.trajectory:
+                    # adopt the fresh observed current location on the kept track
+                    try:
+                        keep_tr.obstacle.location = fresh_tr.obstacle.location
+                    except Exception:  # noqa: BLE001
+                        pass
+                for t in tids_sorted[1:]:
+                    self.tracked_trajectories.pop(t, None)
+                    self.track_to_carla.pop(t, None)
+                    self.tracker.tracked_tracklets = [
+                        _tk for _tk in getattr(self.tracker, 'tracked_tracklets', [])
+                        if int(getattr(_tk, 'track_id', -1)) != t]
+                    logger.info("[IDMERGE] cid=%d kept tid=%d dropped tid=%d",
+                                cid, keep, t)
+        except Exception:  # noqa: BLE001
+            logger.exception("_merge_duplicate_carla_ids failed")
 
     def _filter_ghost_tracks(self, min_speed_mps: float = 0.5, static_frames_to_remove: int = 4):
         """
