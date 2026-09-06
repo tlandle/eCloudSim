@@ -79,6 +79,7 @@ Primary context-switching artifact. Read this first after a gap.
 - Gate trace (behavior_agent.py): the overtake gate calls _nearest_oncoming_ahead (line 2189 -> def 1092) over generated_predictions (merged edge cache + local; lines 357-383), not local objects; filters (1133-1157: ahead>0.5, 1<|lateral|<9, speed>=3, opposing) pass the Tesla at commit (ahead 51.7, lateral 4.0, 11.91 m/s). Since need = 4*(7+onc) ~ 75.6 > clear 51.7 would WAIT, the GO means cid 199 was ABSENT from generated_predictions at commit: a delivery gap edge broadcast -> ego cache. 'Broadcasting 0 predictions' on 531/704 cycles points at the EDGE-side broadcast filter (risk-budget gating, ROI, publishable check, k_cav) rather than the ego cache. Ordered: DEBUG run with [OT SIGHT]/[OT PREDS] plus edge-side per-track broadcast/exclusion logging; confirm no AOI_INJECT_MS in the batch env. Control 4 still running.
 - ACCEL ROOT CAUSE NAMED (eval session, code + logs): behavior_agent.py:1140 the overtake gate reads obs.kf_speed_mps (track_utils.py:107-119, the tracker KF velocity estimate), and line 1147 skips tracks with speed < 3.0 (moving-only filter). For the occluded single oncoming the destination never gets a native detection (occlusion_check), so the KF estimate ramps from 0 (0.00 -> 0.71 -> 1.93 -> 3.49 -> 6.49 over ~30 ticks) while the migrated velocity is a correct 11.91; the gate treats the oncoming as stationary clutter, returns inf, GO, collision. Flow masks it (unoccluded oncoming within 50 m converge the KF). Control 4 inconclusive (old runner crashes on the new stack, API drift); the filter is stack-side; old tree clean 2/2. FIX APPROVED (design, §3.3/§4.2 velocity in the record): imported/coasting tracks publish the migrated velocity until k native updates; [VELSRC] log; speed<3 filter kept. Block A finishes on 1h (pre-fix reference, superseded); smoke (accel warm x2 clean, accel cold collide, flow look1/look4, burst warm/cold; gate onc_spd == migrated velocity); tag freeze-1i; restart Atlas A -> B -> E -> faults -> netem and the cetus chain on 1i (~14 h for A+B). Tyler notified.
 - DEBUG evidence locks the cause: [OT PREDS] shows cid 199 IN the ego's generated_predictions (delivery fine; my cache-absence inference was wrong), [OT SIGHT] oncoming_ahead=inf onc_spd=2.0 need=36 m -> GO: _nearest_oncoming_ahead rejects the Tesla because obs.kf_speed_mps < 3.0 (un-converged KF estimate for the occluded migrated track). Fix being implemented with diff-before-run: imported/coasting tracks publish the migrated velocity until >= k native updates (k from the tracker's convergence count, read not guessed) or the KF speed exceeds it; speed<3 filter unchanged; [VELSRC] log. Block A finishes and lands on 1h first.
+- CORRECTION (eval session DEBUG): the kf_speed-from-migrated fix ALREADY EXISTS at 1h (wrapper.py:183-189, commit cb9888f4); [OT PREDS] cid 199 carries spd 11.9. The real defect: the overtake sight check ran only TWICE at maneuver start (npreds 2-3), returned inf both times (onc_spd floored to 2.0, need 36 m -> GO), and do_ov LATCHED for 49 ticks with no re-check as the oncoming appeared. Candidates: (a) cid 199 not yet in generated_predictions at the two evals + latch; (b) empty predicted_trajectory skipping the pred (line 1121); (c) a geometry filter at those ticks. A cid=-1 sibling track at (260.8,198.8) spd 12.2 exists beside cid 199 (native detection without id; position-gate fallback did not merge at 7.4 m). Diagnostic ordered (skip reasons per pred per sight-eval, latch re-check, first-appearance tick, sibling source). Fix will be planner-side (re-evaluate while latched) or timing, applies to all arms, smoke on flow/burst before any tag. Block A is 28/120 (~5 h), not minutes.
 - Field formats: v3 collided is YES/no, completed is YES/no (mixed case); aggregate case-insensitively.
 
 ## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
@@ -3750,3 +3751,20 @@ tracks from the migrated latent velocity (available, correct 11.91), or have the
 gate use the coast/migrated velocity; stationary-clutter intent preserved. Block A
 (flow) unaffected. DEBUG [OT SIGHT] run confirms onc_spd-at-commit (pending). Accel
 sweep + cetus tail PAUSED; block A continues.
+
+CORRECTION (2026-09-06, DEBUG evidence): the kf_speed fix is ALREADY present AND
+WORKING - do NOT re-implement it. [OT PREDS] cid=199 spd=11.9 (sibling cid=-1
+spd=12.2): the gate's obstacle for the occluded oncoming carries the correct
+migrated speed 11.9, not 0. wrapper.py:183-189 (commit cb9888f4) sets a coasting
+migrated track's output velocity from _migrated_vel_mps -> obs.kf_speed_mps=11.9,
+which the gate reads. So kf_speed sourcing is NOT the defect. REAL defect: only 2
+[OT SIGHT] sight-distance evals occurred (both inf/dbg=None -> onc_spd floored 2.0
+-> _need 36 -> GO), then do_ov LATCHED True for 49 ticks with no re-check. So the
+overtake sight distance is checked only at maneuver START and latches; the oncoming
+(spd 11.9) is skipped because at those 2 early evals it was likely not yet in
+generated_predictions (npreds=2,3) OR its predicted_trajectory was empty
+(_nearest_oncoming_ahead line 1121 `if not traj: continue`) OR geometry. Fix target
+= the sight-eval TIMING/LATCH (re-evaluate while committed) or the traj/skip
+condition, NOT kf_speed. Next: per-pred skip-reason logging in the 2 sight-evals to
+pin (a) timing/latch vs (b) empty-traj vs (c) geometry. Block A 28/120 (~5h, NOT
+minutes - peer estimate off). NO code changed. Awaiting peer direction on the trace.
