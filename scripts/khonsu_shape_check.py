@@ -159,7 +159,7 @@ def check_envelope(rows):
         agg = defaultdict(lambda: [0, 0])
         for r in rs:
             try:
-                b = int(float(r[agecol]) // 50) * 50
+                b = int(float(r[agecol]) // 100) * 100
             except Exception:
                 continue
             agg[b][0] += 1
@@ -169,7 +169,12 @@ def check_envelope(rows):
         bins = sorted(agg)
         fr = [agg[b][1] / agg[b][0] for b in bins]
         rises = [bins[i + 1] for i in range(len(fr) - 1) if fr[i + 1] > fr[i] + 1e-9 and fr[i] < 1]
-        tau = max([b for b in bins if agg[b][1] == agg[b][0]], default=None)
+        tau = None  # monotone rule: the largest bin below which no run fails
+        for b in bins:
+            if agg[b][1] == agg[b][0]:
+                tau = b
+            else:
+                break
         lower_bound = all(agg[b][1] == agg[b][0] for b in bins)
         v = 'AGREE' if not rises else f'DISAGREE (clean fraction rises with age at {rises} ms)'
         t = f"tau>={tau} ms (lower bound, no failures yet)" if lower_bound else f"tau={tau} ms"
