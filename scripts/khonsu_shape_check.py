@@ -147,7 +147,7 @@ def check_density(rows):
 
 
 def check_envelope(rows):
-    agecol = 'realized_age_p95_ms' if 'realized_age_p95_ms' in rows[0] else next(
+    agecol = next((c for c in ('realized_age_max_precontact_ms', 'realized_age_p95_ms') if c in rows[0]), None) or next(
         (c for c in rows[0] if 'realized_age' in c.lower()), None)
     if agecol is None:
         agecol = next((c for c in rows[0] if 'age' in c.lower()), None)
