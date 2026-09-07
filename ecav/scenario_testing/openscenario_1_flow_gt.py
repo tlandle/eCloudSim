@@ -482,7 +482,11 @@ def run_scenario(opt, scenario_params):
                     # with lead (measured: 9/10 -> 2/10 as lead grows). The
                     # ablation arm warm_nofinal keeps the no-final behavior to
                     # show early prep is only safe with the final update.
-                    _final_sync = MIGRATION_MODE in ('warm', 'edgewarp')
+                    # edgewarp_full (Exp B): EdgeWarp timing (predictive pre-copy
+                    # + this final sync) carrying the FULL record rather than the
+                    # depth-1 snapshot. A new mode value; adding it here changes
+                    # no existing arm's membership result.
+                    _final_sync = MIGRATION_MODE in ('warm', 'edgewarp', 'edgewarp_full')
                     if (COMMIT_REFRESH == 'full' or MIRROR_PERIOD_S > 0.0
                             or _final_sync) \
                             and nid not in npc_refresh_done \

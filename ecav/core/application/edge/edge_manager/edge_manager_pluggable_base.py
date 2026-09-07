@@ -236,6 +236,15 @@ class _PluggableEdgeBase(_BaseEdgeManager):
                         _span_s = max(len(_mb) - 1, 1) * max(_spf, 1e-6)
                         _vel = (_np.asarray(_mb[-1][:2], dtype=_np.float64)
                                 - _np.asarray(_mb[0][:2], dtype=_np.float64)) / _span_s
+                # Exp A state-depth factorial (MIGRATION_HIST): keep the warm
+                # timing and the full-span velocity computed above, but truncate
+                # the migrated memo/diff banks to the last N frames. Unset ->
+                # full record (the unchanged warm path). Applies only on the
+                # warm/full branch (_hd is None); the snapshot arms
+                # (kf/edgewarp/handover) already carry depth 1 and are untouched.
+                _mh = _os.environ.get('MIGRATION_HIST')
+                if _hd is None and _mh:
+                    _hd = max(1, int(_mh))
                 return latent_from_tracklet(
                     tracklet, persistent_vehicle_id=carla_id,
                     history_depth=_hd, vel_mps=_vel)
