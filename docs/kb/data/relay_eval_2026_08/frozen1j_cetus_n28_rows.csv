@@ -1,0 +1,6 @@
+tag,mode,trigger,band,refresh,mirror,look,rep,eps,ct,collided,dist_m,time_s,completed,tx,by,eps_raw,contact_raw,machine,oncoming_speed,trigger_dist,eval_tag,final_update
+t12_bo_n28_s1,warm,predictive,20.0,none,0.00,1.00,,0,0,no,94.7,23.7,YES,7,4816,0,0,cetus,12,300,khonsu-eval-freeze-1j,builtin
+t12_bo_n28_s2,warm,predictive,20.0,none,0.00,1.00,,1,30,YES,54.2,50.4,no,6,4656,8,754,cetus,12,300,khonsu-eval-freeze-1j,builtin
+t12_bo_n28_s3,warm,predictive,20.0,none,0.00,1.00,,0,0,no,94.2,22.6,YES,7,4816,0,0,cetus,12,300,khonsu-eval-freeze-1j,builtin
+t12_bo_n28_s4,warm,predictive,20.0,none,0.00,1.00,,0,0,no,94.1,23.6,YES,7,4816,0,0,cetus,12,300,khonsu-eval-freeze-1j,builtin
+t12_bo_n28_s5,warm,predictive,20.0,none,0.00,1.00,,0,0,no,93.5,21.3,YES,7,4816,0,0,cetus,12,300,khonsu-eval-freeze-1j,builtin
