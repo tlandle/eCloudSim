@@ -371,4 +371,7 @@ warm-before-use per trigger arm: look2/3/4 = 1.88/2.83/3.91s, computed/mtr/
 oracle ~0.8s). Smoke running flock-guarded; T9/T22/corridor-regen queued CPU-side.
 
 ## Acceptance gate
-`scripts/khonsu_accept.py <logdir>` parses each smoke-cell log and prints PASS/FAIL per invariant (runner signature, geometry env, ownership, publish gate, final update, association, coast, planner gate, velocity source, outcome); the freeze tag requires ALL PASS on ALL 11 cells (exit 0). Invariants 7/9 are proxy-checked from COASTROW; 4/5 from HANDOFFROW vs COMMIT REFRESH.
+`scripts/khonsu_accept.py <logdir>` parses each smoke-cell log and prints PASS/FAIL per invariant (runner signature, geometry env, ownership, publish gate, final update, association, coast, planner gate, velocity source, outcome); the freeze tag requires ALL PASS on ALL cells (exit 0). Invariants 7/9 are proxy-checked from COASTROW; 4/5 from HANDOFFROW vs COMMIT REFRESH. Invariant 6 is gated to the migrated cid and SKIPs on cold arms (no migration window); tracker tid churn over an episode is not a protocol property. Invariant 7 is a 15% physical band on coast speed. accel maneuvering (warm) is deferred to freeze-1j and reported non-blocking.
+
+## Known limitation (freeze-1i)
+Coast velocity is the mean over the exported record's frames, lagging under acceleration; fix in 1j. The final update at commit replaces the prepared record, so this bias only affects the shadow track between prepare and commit.
