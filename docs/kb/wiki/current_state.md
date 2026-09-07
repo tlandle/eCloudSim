@@ -1,9 +1,19 @@
 ---
-updated: 2026-09-06
+updated: 2026-09-07
 ---
 # Current State
 
 Primary context-switching artifact. Read this first after a gap.
+
+## 2026-09-07 (code session, later): fair-KF smoke passes fix, gate exposes inv8 planner-provenance mismatch; freeze-1k BLOCKED
+
+- freeze-1k fair-KF fix CONFIRMED by smoke (idfix_wt/evaluation_outputs/smoke_1k, 18/18 cells, dbl_ticks=0 everywhere): snapshot exports now carry velocity via the last-3-frames estimator. kf coast |v|=10.92 constant (was 8.39 pre-fix; 12 truth). Snapshot arms now largely COMPLETE at flow-default (kf 2/3, handover 3/3, edgewarp 2/3, one_frame 3/3, warm 3/3, hist5 2/3). The easy operating point no longer separates warm from the fair KF; separation must come from the T_obs ladder (T25 speed, band, density). CVMIGRATED dormant (cvmig=0) at 12 m/s as designed.
+- ACCEPTANCE GATE FAILS on the 1k smoke, two invariants:
+  - inv7 (coast band) FAIL on edgewarp_s1 ONLY: coast |v|=6.86 CONSTANT whole run (43% low), s2/s3=11.60. Fair-KF estimator instability that seed: last-3-frames span divides by _stride_ema, which inflates on a laggy publish cadence (edgewarp does the most per-tick work). Caused edgewarp_s1's collision.
+  - inv8 (planner recheck) FAIL on ALL 18 cells (recheck=0, do_ov=True>0). ROOT CAUSE: [OT RECHECK] exists in NO idfix_wt file and NO 1k overlay file. The gate was validated on merged_smoke_flowburst, which used behavior_agent_MERGED.py (the 1i planner with the per-tick recheck block, merged lines 1797-1846, recheck=175-204). The freeze-1j AND 1k campaigns use behavior_agent_1H.py, which LACKS that block (no `if self.do_overtake:` recheck; _nearest_oncoming_ahead called only once at commit). So the gate never validated the 1h planner; inv8 is unsatisfiable for any 1h-based smoke. freeze-1j was gated against a different planner (merged/1i) than the data it shipped (1h).
+- This ties to the earlier 1i-quarantine narrative below: the per-tick recheck's ABORT-to-lane branch was the 1i bug (drives ego off road / reverses). 1j reverted the WHOLE block, dropping both the abort bug AND the safety HOLD (recheck -> proper-response brake when an opposing track enters clearance after commit). So merged = recheck + abort bug; 1h = no abort bug + no recheck. The 1k smoke collisions concentrate in the marginal-velocity arms (kf 2/3, edgewarp 2/3, hist5 2/3) with warm 3/3 clean, consistent with the missing recheck: kf_s2 collided (episodes=3) with a GOOD velocity (10.92, passes inv7) and hazard_flag=True.
+- BLOCKED on peer decision (reported): A) port recheck-as-HOLD-only into 1h (no abort branch) + re-smoke + re-run whole; B) keep 1h, make inv8 planner-aware (NA when recheck absent), accept the gap; C) fix the abort bug inside merged, keep its recheck, re-run whole. Recommended A or C, not B. NOT tagged. Gate 'k_' prefix + fair-KF pluggable_base fix staged, uncommitted pending the decision.
+- Also this session (develop, pushed): khonsu_shape_check tag-to-tag regression rule (flags q5_n8_warm freeze-1g:5/5->1j:2/5); skip untagged design_sweep_v3 in load_rows; README marks cetus hln20 block INVALID (forced-N override, freshness-cliff-near-300ms observation recorded) and Table 8 HELD (not identity-merge: dbl_ticks=0, multi-tid uncorrelated with outcome -> planner/seed noise at n=5; 10-seed rerun protocol recorded). burst 5/5 premise corrected: no tagged 1g 5/5 (freeze-1g burst_warm is 0/5; the 5/5 was untagged design_sweep_v3).
 
 ## 2026-09-07 (writing session, 00:00-01:00): freeze-1i QUARANTINED, planner regression, freeze-1j ordered
 
