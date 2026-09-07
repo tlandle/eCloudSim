@@ -92,8 +92,11 @@ def prefer_tag(rows):
 
 
 def check_headline(rows):
-    flow = [r for r in rows if not r['tag'].startswith(('burst', 'q5', 'tr_', 'th_', 'c_'))
-            and float(r.get('look', 1) or 1) == 1.0]
+    # Headline tally is block A only (run-id prefix hl_): warm/reactive/kf/edgewarp/
+    # handover_snapshot/cold at the scene load. The lead ladder (tr_), theta sweep
+    # (th_), factorial (fa_/fb_), loaded-headline (hln20_) and burst/q5/c_ never
+    # enter this check; pooling them was the "warm N/50 DISAGREE" artifact.
+    flow = [r for r in rows if r['tag'].startswith('hl_')]
     agg = clean_by(flow, lambda r: r['mode'])
     if not agg:
         return 'NO DATA'
@@ -110,8 +113,11 @@ def check_headline(rows):
 
 
 def check_lead(rows):
-    warm = [r for r in rows if r['mode'] == 'warm' and r.get('trigger') == 'predictive'
-            and not r['tag'].startswith(('burst', 'q5', 'c_'))]
+    # Lead ladder is the warm-predictive lead arms only: hl_warm (look 1, the
+    # at-crossing baseline) + tr_look* (look 2/3/4). Excludes computed/mtr/oracle
+    # triggers, the theta sweep (th_), the factorial (fa_/fb_) and loaded rows.
+    warm = [r for r in rows
+            if r['tag'].startswith('hl_warm') or r['tag'].startswith('tr_look')]
     agg = clean_by(warm, lambda r: float(r.get('look', 0) or 0))
     if len(agg) < 2:
         return 'NO DATA (need two or more leads)'
