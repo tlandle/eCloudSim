@@ -129,6 +129,47 @@ def check_lead(rows):
     return f"{verdict}: " + ', '.join(f"{l:g}s {agg[l][1]}/{agg[l][0]}" for l in leads)
 
 
+def _cell_key(r):
+    """Run tag with the seed suffix stripped -> the cell (arm/config). Keeps
+    speed/width params (t25_warm_v8, fb_band20) but drops _r<seed>/_s<seed>."""
+    return re.sub(r'_(r|s)\d+$', '', r.get('tag', '') or '')
+
+
+def check_regression(rows):
+    """Tag-to-tag regression: for every cell in the newest eval_tag, compare its
+    clean-run count against the SAME cell in the most recent PRIOR tag that has it
+    (tags are named inconsistently and no single prior tag holds every cell, e.g.
+    the hl-only 1h sits between 1g and 1j but carries no burst cell). Flag a drop
+    of >=2 (when prior N==5) or >=3 (when prior N>=10) as REGRESSED, both values
+    printed. Ordering-only checks call burst 5/5->2/5 AGREE; this does not."""
+    tags = sorted({r.get('eval_tag', '') for r in rows if r.get('eval_tag')})
+    if len(tags) < 2:
+        return 'NO DATA (need two tags)'
+    new = tags[-1]
+    agg = defaultdict(lambda: [0, 0])  # (tag, cell) -> [total, clean]
+    for r in rows:
+        et = r.get('eval_tag', '')
+        if not et:
+            continue
+        c = _cell_key(r)
+        agg[(et, c)][0] += 1
+        agg[(et, c)][1] += 0 if yes(r.get('collided', '')) else 1
+    regressed = []
+    for cell in sorted({c for (t, c) in agg if t == new}):
+        nt, nc = agg[(new, cell)]
+        prior = [t for t in tags[:-1] if (t, cell) in agg]
+        if not prior:
+            continue  # new cell, no baseline to regress against
+        pv = prior[-1]
+        pt, pc = agg[(pv, cell)]
+        thr = 3 if pt >= 10 else 2
+        if pc - nc >= thr:
+            regressed.append(f"{cell} {pv}:{pc}/{pt}->{new}:{nc}/{nt}")
+    if not regressed:
+        return f"AGREE (newest {new}: no cell regressed vs its prior tag)"
+    return f"REGRESSED (newest {new}): " + '; '.join(regressed)
+
+
 def check_burst(rows):
     b = [r for r in rows if r['tag'].startswith('burst')]
     agg = clean_by(b, lambda r: r['mode'])
@@ -225,6 +266,7 @@ def main():
         run, tag = prefer_tag(run)
         print(f"# run rows: {len(run)} from {tag}")
     checks = [
+        ('regression', lambda: check_regression(kinds['runrows']) if kinds.get('runrows') else 'NO DATA'),
         ('headline', lambda: check_headline(run) if run else 'NO DATA'),
         ('lead', lambda: check_lead(run) if run else 'NO DATA'),
         ('burst', lambda: check_burst(run) if run else 'NO DATA'),
