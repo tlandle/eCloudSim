@@ -40,6 +40,10 @@ Gating / mechanism columns:
                                 by no-migration; clear-gap launch: 0)
     collision_partner_resolved  CARLA id of the obstacle contacted, resolved as the
                                 non-ego actor nearest the ego at collision onset
+    own_first_forecast_tick     first destination-locale (Actual x>=240) EVAL tick
+                                where the gating id carries a real Future block
+    own_fde3_at_launch          +3 s FDE of that destination forecast nearest launch
+                                (only if own_first_forecast_tick <= launch_tick)
 The headline runs (--regex '^hl_') additionally emit arm and collision_partner
 (the raw carla_id of the last [PRED COLLISION] line; usually the ego, kept only
 for continuity - use collision_partner_resolved for the obstacle identity).
@@ -65,6 +69,7 @@ ONCOMING_BAND = 3.0      # |Actual_y - 199| < 3 selects the oncoming lane
 GATING_WINDOW = 8        # EVAL ticks around launch to sample gating candidate pose
 SUSTAIN_SAMPLES = 4      # do_ov must hold this many consecutive EGO-DBG samples
 COLL_TOL_TICKS = 10      # actor-position tolerance around the collision onset tick
+DEST_X_MIN = 240.0       # destination locale_0 lower x bound (source is x<240)
 HORIZONS = [0.25, 0.50, 1.25, 3.00, 5.00]
 ACTUAL_TOL_TICKS = 4     # nearest-actual tolerance for the FDE lookup
 
@@ -499,6 +504,60 @@ def gating_first_use_tick(d, cid):
         return ""
 
 
+def gating_commit_tick(d, cid):
+    """HANDOFFROW first_dst_track_tick (destination commit) for the migrated cid;
+    blank if not migrated (cold: 201 is never committed at the destination)."""
+    hf = d["handoff"].get(cid)
+    if not hf or "first_dst_track_tick" not in hf:
+        return ""
+    try:
+        return int(hf["first_dst_track_tick"])
+    except (TypeError, ValueError):
+        return ""
+
+
+def own_forecast(d, gid, lt):
+    """Destination locale's OWN re-acquired forecast for the gating oncoming id.
+
+    The source edge tracks the gating id from x~166 (locale_1); the destination
+    locale is x >= DEST_X_MIN (locale_0). This looks only at destination-side
+    EVAL blocks (Actual x >= DEST_X_MIN) that carry a non-degenerate Future
+    block (a real forecast: max future-vs-Actual displacement > 1 m, not a bare
+    Actual line or a frozen point). Returns:
+      own_first_forecast_tick  first such destination forecast tick ("" if none)
+      own_fde3_at_launch       +3 s FDE of the destination forecast nearest the
+                               launch, computed only if the first destination
+                               forecast is at/before launch ("" otherwise). The
+                               +3.00s predicted (x,y) is compared to the id's
+                               Actual at tick+60 (fde_3s cross-tick lookup).
+    """
+    if gid == "" or gid is None:
+        return "", ""
+    dest = []
+    for r in d["eval"].get(gid, []):
+        if r["ax"] < DEST_X_MIN or not r["futs"]:
+            continue
+        spread = max(math.hypot(x - r["ax"], y - r["ay"])
+                     for (x, y) in r["futs"].values())
+        if spread > 1.0:
+            dest.append((r, spread))
+    if not dest:
+        return "", ""
+    first = min(r["tick"] for r, _ in dest)
+    if lt is None or first > lt:
+        return first, ""
+    # Destination forecast block nearest the launch (tie -> larger spread).
+    best = min(dest, key=lambda rs: (abs(rs[0]["tick"] - lt), -rs[1]))[0]
+    f3 = best["futs"].get(3.0)
+    if f3 is None:
+        return first, ""
+    ev, gt = actual_timeline(d, gid)
+    apos = lookup_actual(ev, gt, best["tick"] + horizon_ticks(3.0))
+    if apos is None:
+        return first, ""
+    return first, round(math.hypot(f3[0] - apos[0], f3[1] - apos[1]), 3)
+
+
 def derive_arm(cell):
     """Headline arm from the cell stem hl_<arm>_r<N>."""
     m = re.match(r"hl_(.+)_r\d+$", cell)
@@ -628,6 +687,9 @@ def build_row(path, tag_override):
     gating_track_id = gid if gid != "" else ""
     gfu = gating_first_use_tick(d, gid) if gid != "" else ""
     gfd = first_detection_tick(d, gid) if gid != "" else ""
+    gct = gating_commit_tick(d, gid) if gid != "" else ""
+
+    own_ff, own_fde3 = own_forecast(d, gid, lt)
 
     arm = derive_arm(cell)
     blind = blind_flag(arm, lt, gating_track_id, gfu)
@@ -659,9 +721,12 @@ def build_row(path, tag_override):
         "collided": collided,
         "gating_track_id": gating_track_id,
         "gating_first_use_tick": gfu,
+        "gating_commit_tick": gct,
         "gating_first_detection_tick": gfd,
         "blind": blind,
         "collision_partner_resolved": partner_resolved,
+        "own_first_forecast_tick": own_ff,
+        "own_fde3_at_launch": own_fde3,
         # Headline-only extras (dropped from the ablation CSV via fieldnames).
         "arm": arm,
         "collision_partner": d["pred_coll_ids"][-1] if d["pred_coll_ids"] else "",
@@ -677,8 +742,10 @@ COLUMNS = [
     "oncoming_cids", "oncoming_ambiguous",
     "pred_arrival_tick_at_conflict", "launch_tick",
     "true_gap_at_launch", "min_ttc", "episodes", "collided",
-    "gating_track_id", "gating_first_use_tick", "gating_first_detection_tick",
+    "gating_track_id", "gating_first_use_tick", "gating_commit_tick",
+    "gating_first_detection_tick",
     "blind", "collision_partner_resolved",
+    "own_first_forecast_tick", "own_fde3_at_launch",
 ]
 
 # Extra columns emitted only for the headline arms (all-hl_ selections).
