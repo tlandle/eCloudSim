@@ -22,6 +22,15 @@ Marker formats consumed (see task spec / idfix_wt/evaluation_outputs/cand2_1k):
     [GT INJECT DBG] frame=F aid=C type=... world=(x,y) yaw_anchor_rad=...
     [COASTROW] tid=T vel_mps=(vx,vy) |v|=V spf=.. steps=.. proj=(x,y)
     [EGO-DBG] tick=T pos=(x,y) spd=.. ttc=.. ... do_ov=True|False ...
+    [HANDOFFROW] npc=C prepare_tick=.. first_dst_track_tick=.. first_use_tick=U ...
+    [PRED COLLISION] carla_id=C track_id=T TTC=.. dist=.. obs_pos=(x,y) ego_pos=(x,y)
+
+Three gating columns (added for the RELAY blind-launch mechanism claim):
+    gating_track_id             oncoming track that gates the overtake at launch
+    gating_first_use_tick       HANDOFFROW first_use_tick for that track (blank if
+                                the arm does not migrate, e.g. cold)
+    gating_first_detection_tick first EVAL tick that track is seen at destination
+The headline runs (--regex '^hl_') additionally emit arm and collision_partner.
 """
 
 import argparse
@@ -39,6 +48,9 @@ SIM_DT = 0.05
 TRUCK_X = 278.0          # conflict x, the stopped firetruck (CID carlacola)
 ONCOMING_Y_LO = 196.5    # oncoming lane band (y ~ 199); ego/truck lane is y ~ 195
 ONCOMING_Y_HI = 202.5
+ONCOMING_Y = 199.0       # oncoming lane centre
+ONCOMING_BAND = 3.0      # |Actual_y - 199| < 3 selects the oncoming lane
+GATING_WINDOW = 8        # EVAL ticks around launch to sample gating candidate pose
 HORIZONS = [0.25, 0.50, 1.25, 3.00, 5.00]
 ACTUAL_TOL_TICKS = 4     # nearest-actual tolerance for the FDE lookup
 
@@ -65,6 +77,8 @@ def parse_log(path):
         "gt": {},          # aid -> {frame: (x, y)}
         "coast": [],       # list of (ctx_tick, tid, v)
         "ego": {},         # tick -> (x, y, spd, ttc, do_ov)
+        "handoff": {},     # migrated npc cid -> HANDOFFROW field dict
+        "pred_coll_ids": [],  # carla_id of each [PRED COLLISION] line, in order
         "eval_tag": "",
         "eval_arm": "",
     }
@@ -83,6 +97,23 @@ def parse_log(path):
         for kv in re.findall(r"(\w+)=(\S+)", m.group(1)):
             row[kv[0]] = kv[1]
         d["runrow"] = row
+
+    # HANDOFFROW: one per migrated npc. first_use_tick is the tick the
+    # destination edge first USED the migrated track for planning.
+    for m in re.finditer(r"\[HANDOFFROW\]([^\n]*)", text):
+        fields = dict(re.findall(r"(\w+)=(\S+)", m.group(1)))
+        npc = fields.get("npc")
+        if npc is not None:
+            try:
+                d["handoff"][int(npc)] = fields
+            except ValueError:
+                pass
+
+    # PRED COLLISION: carla_id of the predicted-collision events, in order.
+    # NOTE: carla_id here is the vehicle running the check (the ego, usually
+    # 197), not the obstacle; obstacle identity lives in track_id / obs_pos.
+    for m in re.finditer(r"\[PRED COLLISION\][^\n]*?carla_id=(-?\d+)", text):
+        d["pred_coll_ids"].append(m.group(1))
 
     # GT INJECT DBG
     for m in re.finditer(
@@ -362,6 +393,80 @@ def pred_arrival_tick(d, oncoming):
     return min(arrivals) if arrivals else ""
 
 
+def gating_track(d, oncoming, lt):
+    """Oncoming track that gates the overtake sight-distance check at launch.
+
+    At launch_tick (+/- GATING_WINDOW EVAL ticks), among oncoming-lane tracks
+    (|Actual_y - 199| < ONCOMING_BAND), prefer the one AHEAD of the ego
+    (Actual_x <= ego_x, since the ego heads -x) nearest to the ego (largest
+    Actual_x <= ego_x). If none is ahead (all have passed to higher x), pick
+    the nearest one at higher x (smallest Actual_x > ego_x) and mark it
+    'approaching'. If no oncoming track is in the window, blank.
+
+    The candidate set is the oncoming set (identify_oncoming), which excludes
+    the ego and the stationary truck by lane+motion, so no CARLA id is
+    hard-coded here. Returns (gating_cid_or_blank, note).
+    note in {"ahead", "approaching", "no_oncoming", ""}.
+    """
+    if lt is None:
+        return "", ""
+    if lt in d["ego"]:
+        ego_x = d["ego"][lt][0]
+    elif d["ego"]:
+        t = min(d["ego"], key=lambda k: abs(k - lt))
+        ego_x = d["ego"][t][0]
+    else:
+        return "", ""
+
+    cand = {}
+    for cid in oncoming:
+        recs = d["eval"].get(cid, [])
+        if not recs:
+            continue
+        best = min(recs, key=lambda r: abs(r["tick"] - lt))
+        if abs(best["tick"] - lt) > GATING_WINDOW:
+            continue
+        if abs(best["ay"] - ONCOMING_Y) >= ONCOMING_BAND:
+            continue
+        cand[cid] = (best["ax"], best["ay"])
+
+    if not cand:
+        return "", "no_oncoming"
+
+    ahead = {c: v for c, v in cand.items() if v[0] <= ego_x}
+    if ahead:
+        gid = max(ahead, key=lambda c: ahead[c][0])
+        return gid, "ahead"
+    gid = min(cand, key=lambda c: cand[c][0])
+    return gid, "approaching"
+
+
+def first_detection_tick(d, cid):
+    """First EVAL tick at which cid appears (earliest tracked observation)."""
+    recs = d["eval"].get(cid, [])
+    return min((r["tick"] for r in recs), default="")
+
+
+def gating_first_use_tick(d, cid):
+    """HANDOFFROW first_use_tick for the migrated cid; blank if not migrated."""
+    hf = d["handoff"].get(cid)
+    if not hf or "first_use_tick" not in hf:
+        return ""
+    try:
+        return int(hf["first_use_tick"])
+    except (TypeError, ValueError):
+        return ""
+
+
+def derive_arm(cell):
+    """Headline arm from the cell stem hl_<arm>_r<N>."""
+    m = re.match(r"hl_(.+)_r\d+$", cell)
+    if not m:
+        return ""
+    tok = m.group(1)
+    return {"handoversnap": "handover_snapshot"}.get(tok, tok)
+
+
 # ---------------------------------------------------------------------------
 # Per-cell row
 # ---------------------------------------------------------------------------
@@ -388,6 +493,11 @@ def build_row(path, tag_override):
 
     lt = launch_tick(d)
 
+    gid, _gnote = gating_track(d, oncoming, lt)
+    gating_track_id = gid if gid != "" else ""
+    gfu = gating_first_use_tick(d, gid) if gid != "" else ""
+    gfd = first_detection_tick(d, gid) if gid != "" else ""
+
     row = {
         "cell": cell,
         "mode": mode,
@@ -412,6 +522,12 @@ def build_row(path, tag_override):
         "min_ttc": min_ttc(d),
         "episodes": episodes,
         "collided": collided,
+        "gating_track_id": gating_track_id,
+        "gating_first_use_tick": gfu,
+        "gating_first_detection_tick": gfd,
+        # Headline-only extras (dropped from the ablation CSV via fieldnames).
+        "arm": derive_arm(cell),
+        "collision_partner": d["pred_coll_ids"][-1] if d["pred_coll_ids"] else "",
     }
     return row
 
@@ -424,7 +540,11 @@ COLUMNS = [
     "oncoming_cids", "oncoming_ambiguous",
     "pred_arrival_tick_at_conflict", "launch_tick",
     "true_gap_at_launch", "min_ttc", "episodes", "collided",
+    "gating_track_id", "gating_first_use_tick", "gating_first_detection_tick",
 ]
+
+# Extra columns emitted only for the headline arms (all-hl_ selections).
+HEADLINE_EXTRA = ["arm", "collision_partner"]
 
 DEFAULT_REGEX = r"^(fa_|fb_edgewarp|hl_)"
 DEFAULT_OUT = "docs/kb/data/relay_eval_2026_08/frozen1k_ablation_diag.csv"
@@ -464,11 +584,18 @@ def main():
                 "mode": f"PARSE_ERROR:{type(e).__name__}",
             })
 
+    # Headline arms get the extra arm + collision_partner columns. Triggered
+    # when every selected cell is an hl_ arm (e.g. --regex '^hl_'); the mixed
+    # default selection keeps the ablation column set unchanged.
+    stems = [os.path.splitext(os.path.basename(p))[0] for p in logs]
+    headline = bool(stems) and all(s.startswith("hl_") for s in stems)
+    fieldnames = COLUMNS + HEADLINE_EXTRA if headline else COLUMNS
+
     outdir = os.path.dirname(os.path.abspath(args.out))
     if outdir:
         os.makedirs(outdir, exist_ok=True)
     with open(args.out, "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=COLUMNS, extrasaction="ignore")
+        w = csv.DictWriter(fh, fieldnames=fieldnames, extrasaction="ignore")
         w.writeheader()
         for r in rows:
             w.writerow(r)
