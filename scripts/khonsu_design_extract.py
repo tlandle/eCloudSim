@@ -35,6 +35,15 @@ def parse_log(path):
     m = RUNROW.search(text)
     if not m:
         return None
+    # Degenerate run: a CARLA startup transient (map not loaded -> ScenarioManager
+    # has no 'world') writes a RUNROW but never spawns actors or steps the ego.
+    # Flag INVALID so it is EXCLUDED, not miscounted as a not-completed failure.
+    # Signatures: the startup error, or zero GT-inject actors, or no EGO-DBG.
+    if ("is not found in your CARLA repo" in text
+            or "has no attribute 'world'" in text
+            or "[GT INJECT DBG]" not in text
+            or "[EGO-DBG]" not in text):
+        return "INVALID"
     row = {k: m.group(k) for k in (
         "mode", "trigger", "band", "refresh", "mirror", "look",
         "eps", "ct", "tx", "by")}
@@ -71,6 +80,10 @@ def main():
         row = parse_log(os.path.join(args.logdir, name))
         if row is None:
             print(f"no RUNROW: {name}", file=sys.stderr)
+            continue
+        if row == "INVALID":
+            print(f"INVALID degenerate run EXCLUDED (startup transient / no actors): {name}",
+                  file=sys.stderr)
             continue
         tag = name[:-4]
         row["tag"] = tag
