@@ -388,3 +388,6 @@ Estimator: the migrated velocity spans the last three memo frames over the EXACT
 Acceptance smoke (cand2_1k, 19 cells): all 9 protocol invariants PASS. warm/kf/edgewarp/handover/one_frame 3/3 clean, t12bo_n4 1/1.
 
 accel note (non-blocking, measured in the campaign at 10 seeds): accel warm is 2/3 in the smoke. The one collision (accel_warm_s3) is a SAFE abort (subj_ahead=20 m) followed by a stop behind the truck, not a truck-rejoin. Cause: the accelerating oncoming outpaces the three-frame velocity estimate, so the ego holds one beat too long before the safe abort. This is the maneuvering-target limitation the paper's maneuvering panel projects (Khonsu ~8/10, not 10/10), not a protocol defect. Gated by inv8, not by an accel outcome threshold.
+
+### 1j data superseded by 1k
+All freeze-1j rows (frozen1j_rows.csv and every frozen1j_cetus_*.csv) are SUPERSEDED by the freeze-1k campaign: the planner safety fix (recheck safe response) and the exact-per-frame-tick migrated velocity change every arm's inputs, so 1j numbers are not comparable. Do not read any 1j table into a figure. The stale cetus_1j_tail.sh run (loaded-headline, 5.3 matrix, netem, bisect) was stopped mid-run when cetus was brought onto 1k; its partial 1j logs are superseded and not landed. 1k data lands in frozen1k_rows.csv (Atlas) and frozen1k_cetus_rows.csv (cetus).
