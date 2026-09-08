@@ -44,6 +44,12 @@ Gating / mechanism columns:
                                 where the gating id carries a real Future block
     own_fde3_at_launch          +3 s FDE of that destination forecast nearest launch
                                 (only if own_first_forecast_tick <= launch_tick)
+    own_fde1p25_at_launch       +1.25 s FDE of that forecast (largest horizon <=1.5 s
+                                with 201 ground truth at launch for all six head-ons)
+    own_speed_at_launch         destination's estimated speed (m/s) of its own gating
+                                track at launch = |pred(+0.25s) - Actual| / 0.25
+    actual_speed_at_launch      gating id's true speed (m/s) at launch (EVAL Actual
+                                Speed primary, finite-difference fallback)
 The headline runs (--regex '^hl_') additionally emit arm and collision_partner
 (the raw carla_id of the last [PRED COLLISION] line; usually the ego, kept only
 for continuity - use collision_partner_resolved for the obstacle identity).
@@ -70,6 +76,12 @@ GATING_WINDOW = 8        # EVAL ticks around launch to sample gating candidate p
 SUSTAIN_SAMPLES = 4      # do_ov must hold this many consecutive EGO-DBG samples
 COLL_TOL_TICKS = 10      # actor-position tolerance around the collision onset tick
 DEST_X_MIN = 240.0       # destination locale_0 lower x bound (source is x<240)
+# Launch-horizon FDE: largest available forecast horizon <= 1.5 s for which all
+# six cold head-on runs have 201 ground truth at launch+H. 1.5 s is not a
+# forecast horizon (available: 0.25/0.50/1.25/3.0/5.0), so 1.25 s is used and
+# covers all six. Column is named from the horizon (own_fde1p25_at_launch).
+FDE_LAUNCH_H = 1.25
+FDE_LAUNCH_COL = "own_fde{}_at_launch".format(str(FDE_LAUNCH_H).replace(".", "p"))
 HORIZONS = [0.25, 0.50, 1.25, 3.00, 5.00]
 ACTUAL_TOL_TICKS = 4     # nearest-actual tolerance for the FDE lookup
 
@@ -516,46 +528,98 @@ def gating_commit_tick(d, cid):
         return ""
 
 
-def own_forecast(d, gid, lt):
-    """Destination locale's OWN re-acquired forecast for the gating oncoming id.
-
-    The source edge tracks the gating id from x~166 (locale_1); the destination
-    locale is x >= DEST_X_MIN (locale_0). This looks only at destination-side
-    EVAL blocks (Actual x >= DEST_X_MIN) that carry a non-degenerate Future
-    block (a real forecast: max future-vs-Actual displacement > 1 m, not a bare
-    Actual line or a frozen point). Returns:
-      own_first_forecast_tick  first such destination forecast tick ("" if none)
-      own_fde3_at_launch       +3 s FDE of the destination forecast nearest the
-                               launch, computed only if the first destination
-                               forecast is at/before launch ("" otherwise). The
-                               +3.00s predicted (x,y) is compared to the id's
-                               Actual at tick+60 (fde_3s cross-tick lookup).
-    """
+def dest_forecasts(d, gid):
+    """Destination-locale (Actual x >= DEST_X_MIN, i.e. locale_0) non-degenerate
+    forecast recs for gid, as (rec, spread) pairs. The source edge tracks the
+    gating id from x~166 (locale_1); this keeps only the destination's OWN
+    re-acquired forecasts. Non-degenerate = a real Future block whose farthest
+    future point is > 1 m from Actual (not a bare Actual line or frozen point)."""
     if gid == "" or gid is None:
-        return "", ""
-    dest = []
+        return []
+    out = []
     for r in d["eval"].get(gid, []):
         if r["ax"] < DEST_X_MIN or not r["futs"]:
             continue
         spread = max(math.hypot(x - r["ax"], y - r["ay"])
                      for (x, y) in r["futs"].values())
         if spread > 1.0:
-            dest.append((r, spread))
-    if not dest:
-        return "", ""
-    first = min(r["tick"] for r, _ in dest)
-    if lt is None or first > lt:
-        return first, ""
-    # Destination forecast block nearest the launch (tie -> larger spread).
-    best = min(dest, key=lambda rs: (abs(rs[0]["tick"] - lt), -rs[1]))[0]
-    f3 = best["futs"].get(3.0)
-    if f3 is None:
-        return first, ""
+            out.append((r, spread))
+    return out
+
+
+def forecast_block_near_launch(dest, lt):
+    """Destination forecast rec nearest the launch tick (tie -> larger spread),
+    or None if there is no forecast at/before launch."""
+    if not dest or lt is None:
+        return None
+    if min(r["tick"] for r, _ in dest) > lt:
+        return None
+    return min(dest, key=lambda rs: (abs(rs[0]["tick"] - lt), -rs[1]))[0]
+
+
+def own_first_forecast_tick(dest):
+    """First destination forecast tick for the gating id ("" if none)."""
+    return min((r["tick"] for r, _ in dest), default="")
+
+
+def own_fde_at_launch(d, gid, dest, lt, horizon):
+    """+horizon s FDE of the destination forecast nearest launch: the block's
+    +horizon predicted (x,y) vs the id's Actual at block_tick + horizon/dt (the
+    fde_3s cross-tick lookup: EVAL Actual primary, GT fallback, 4-tick tol).
+    "" if there is no forecast at/before launch or no ground truth at +horizon."""
+    best = forecast_block_near_launch(dest, lt)
+    if best is None:
+        return ""
+    fh = best["futs"].get(horizon)
+    if fh is None:
+        return ""
     ev, gt = actual_timeline(d, gid)
-    apos = lookup_actual(ev, gt, best["tick"] + horizon_ticks(3.0))
+    apos = lookup_actual(ev, gt, best["tick"] + horizon_ticks(horizon))
     if apos is None:
-        return first, ""
-    return first, round(math.hypot(f3[0] - apos[0], f3[1] - apos[1]), 3)
+        return ""
+    return round(math.hypot(fh[0] - apos[0], fh[1] - apos[1]), 3)
+
+
+def own_speed_at_launch(d, dest, lt):
+    """Destination's estimated speed (m/s) of its OWN gating-id track at launch.
+
+    Derivation: forecast-implied initial speed = |pred(+0.25s) - Actual_now| /
+    0.25, taken from the destination forecast block nearest launch. The first
+    forecast step (t=0 Actual -> +0.25 s prediction) is the track's initial
+    velocity estimate, so this reads out the speed the destination's tracker
+    carried for the oncoming at the moment the ego committed. "" if no forecast
+    at/before launch or no +0.25 s point."""
+    best = forecast_block_near_launch(dest, lt)
+    if best is None:
+        return ""
+    f025 = best["futs"].get(0.25)
+    if f025 is None:
+        return ""
+    return round(math.hypot(f025[0] - best["ax"], f025[1] - best["ay"]) / 0.25, 3)
+
+
+def actual_speed_at_launch(d, gid, lt):
+    """gid's true speed (m/s) at launch: EVAL "Actual Speed" of the rec nearest
+    launch (within 4 ticks), else a finite difference of Actual/GT positions."""
+    if gid == "" or gid is None or lt is None:
+        return ""
+    recs = [r for r in d["eval"].get(gid, []) if r.get("speed") is not None]
+    if recs:
+        best = min(recs, key=lambda r: abs(r["tick"] - lt))
+        if abs(best["tick"] - lt) <= ACTUAL_TOL_TICKS:
+            return round(best["speed"], 3)
+    ev, gt = actual_timeline(d, gid)
+    src = ev or gt
+    if len(src) >= 2:
+        ticks = sorted(src)
+        t = min(ticks, key=lambda x: abs(x - lt))
+        i = ticks.index(t)
+        t2 = ticks[i + 1] if i + 1 < len(ticks) else ticks[i - 1]
+        dt = abs(t2 - t) * SIM_DT
+        if dt > 0:
+            (x1, y1), (x2, y2) = src[t], src[t2]
+            return round(math.hypot(x2 - x1, y2 - y1) / dt, 3)
+    return ""
 
 
 def derive_arm(cell):
@@ -689,7 +753,12 @@ def build_row(path, tag_override):
     gfd = first_detection_tick(d, gid) if gid != "" else ""
     gct = gating_commit_tick(d, gid) if gid != "" else ""
 
-    own_ff, own_fde3 = own_forecast(d, gid, lt)
+    dest_fc = dest_forecasts(d, gid)
+    own_ff = own_first_forecast_tick(dest_fc)
+    own_fde3 = own_fde_at_launch(d, gid, dest_fc, lt, 3.0)
+    own_fdeH = own_fde_at_launch(d, gid, dest_fc, lt, FDE_LAUNCH_H)
+    own_spd = own_speed_at_launch(d, dest_fc, lt)
+    act_spd = actual_speed_at_launch(d, gid, lt)
 
     arm = derive_arm(cell)
     blind = blind_flag(arm, lt, gating_track_id, gfu)
@@ -727,6 +796,9 @@ def build_row(path, tag_override):
         "collision_partner_resolved": partner_resolved,
         "own_first_forecast_tick": own_ff,
         "own_fde3_at_launch": own_fde3,
+        FDE_LAUNCH_COL: own_fdeH,
+        "own_speed_at_launch": own_spd,
+        "actual_speed_at_launch": act_spd,
         # Headline-only extras (dropped from the ablation CSV via fieldnames).
         "arm": arm,
         "collision_partner": d["pred_coll_ids"][-1] if d["pred_coll_ids"] else "",
@@ -745,7 +817,8 @@ COLUMNS = [
     "gating_track_id", "gating_first_use_tick", "gating_commit_tick",
     "gating_first_detection_tick",
     "blind", "collision_partner_resolved",
-    "own_first_forecast_tick", "own_fde3_at_launch",
+    "own_first_forecast_tick", "own_fde3_at_launch", FDE_LAUNCH_COL,
+    "own_speed_at_launch", "actual_speed_at_launch",
 ]
 
 # Extra columns emitted only for the headline arms (all-hl_ selections).
