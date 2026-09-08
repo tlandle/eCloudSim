@@ -1,0 +1,13 @@
+maneuver,arm,one_step_err_m
+straight,history,0.027
+straight,one_frame,0.205
+straight,cold,0.25
+turn,history,0.068
+turn,one_frame,0.252
+turn,cold,0.287
+brake,history,0.079
+brake,one_frame,0.227
+brake,cold,0.263
+lane_change,history,0.047
+lane_change,one_frame,0.236
+lane_change,cold,0.273
