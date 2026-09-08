@@ -65,6 +65,31 @@ MODE_TUP_RE = re.compile(
 FROZEN_DISP_M = 1.0     # top-mode self-motion over 5 s below this = frozen
 ACTUAL_MOVE_M = 10.0    # actor's true motion over the same window above this
 
+# ---- non-central blocks (freshness, t25b, theta+pdst, faults, repl_period) ----
+AGEROW_TICK_RE = re.compile(
+    r"\[AGEROW\] tick=(\d+) edge=\S+ realized_age_ms=([0-9.]+)")
+PDSTROW_RE = re.compile(
+    r"\[PDSTROW\] tick=(\d+) npc=(-?\d+) p_dst=([0-9.]+) "
+    r"mtr_theta=([0-9.]+) fired=(\w+)")
+FAULTROW_RE = re.compile(
+    r"\[FAULTROW\] fault=(\S+) double_emission_ms=([0-9.]+) recovered=(\w*)")
+FAULTPATH_RE = re.compile(
+    r"\[FAULTPATH\] fault=(\S+) tid=(-?\d+) stale_consumed=(\w+) "
+    r"fallback=(\w+) recovered=(\w+)")
+HANDOFF_WBFU_RE = re.compile(r"\[HANDOFFROW\][^\n]*warm_before_first_use=(\w+)")
+FRESH_TAG_RE = re.compile(r"^fresh_(?P<scn>flow|accel)_i(?P<inj>\d+)_s(?P<seed>\d+)$")
+T25B_TAG_RE = re.compile(r"^t25b_(?P<mode>[a-z]+)_x(?P<shift>-?\d+)_s(?P<seed>\d+)$")
+THETA_TAG_RE = re.compile(r"^th_mtr(?P<theta>[0-9.]+)_s(?P<seed>\d+)$")
+FLT_TAG_RE = re.compile(r"^flt_(?P<fault>[a-z_]+)_e(?P<ep>on|off)_s(?P<seed>\d+)$")
+REPL_TAG_RE = re.compile(r"^repl_p(?P<period>[0-9.]+)_s(?P<seed>\d+)$")
+AGESWEEP_EXTRA = ["scenario", "inject_ms", "baseline_age_ms", "realized_age_ms"]
+THETA_EXTRA = ["mtr_theta"]
+PDST_COLS = ["tag", "tick", "p_dst", "mtr_theta", "fired", "eval_tag"]
+FAULTS_COLS = ["tag", "fault", "epochs", "rep", "double_emission_ms",
+               "stale_consumed", "fallback", "recovered", "eval_tag"]
+REPL_EXTRA = ["repl_period_s", "bytes_per_crossing", "warm_before_first_use",
+              "age_at_decision_ms"]
+
 # Modes whose final update is built in (warm path + the final-sync arms).
 _FINAL_BUILTIN = {
     "warm", "edgewarp", "edgewarp_full", "repl_final", "kf_final",
@@ -692,6 +717,189 @@ def run_topmode(args):
 
 
 # ---------------------------------------------------------------------------
+# non-central blocks
+# ---------------------------------------------------------------------------
+def _age_at_tick(text, target):
+    """AGEROW realized_age_ms nearest `target` tick (last AGEROW if target is
+    None). The pipeline age the planner acted on at the maneuver decision."""
+    best = bt = None
+    for m in AGEROW_TICK_RE.finditer(text):
+        t, a = int(m.group(1)), float(m.group(2))
+        if target is None or bt is None or abs(t - target) < abs(bt - target):
+            best, bt = a, t
+    return best
+
+
+def run_age_sweep(args):
+    """frozen1l_age_sweep_rows.csv (schema row 47). realized_age_ms = TOTAL age
+    at use = pipeline age at the maneuver decision (AGEROW realized_age_ms
+    nearest the sustained do_ov launch) + the injected delay; baseline_age_ms is
+    the pipeline age alone; inject_ms is the AOI_INJECT_MS knob."""
+    rows = []
+    for name in sorted(os.listdir(args.logdir)):
+        if not name.endswith(".log"):
+            continue
+        stem = name[:-4]
+        tm = FRESH_TAG_RE.match(stem)
+        if not tm:
+            continue
+        path = os.path.join(args.logdir, name)
+        row = std_row(path, stem, args.machine, args.oncoming_speed,
+                      args.trigger_dist, args.tag)
+        if row is None or row == "INVALID":
+            print(f"skip ({'no RUNROW' if row is None else 'INVALID'}): {name}",
+                  file=sys.stderr)
+            continue
+        text = _read(path)
+        d = kad.parse_log(path)
+        inj = int(tm.group("inj"))
+        base = _age_at_tick(text, kad.launch_tick(d))
+        row["scenario"] = tm.group("scn")
+        row["inject_ms"] = inj
+        row["baseline_age_ms"] = round(base, 1) if base is not None else ""
+        row["realized_age_ms"] = round(base + inj, 1) if base is not None else ""
+        rows.append(row)
+    _write(rows, STD_COLS + AGESWEEP_EXTRA, args.out)
+    return rows
+
+
+def run_t25b(args):
+    """frozen1l_t25b_rows.csv: khonsu_t25_land's row (STD + the nine T25 columns)
+    plus shift_x_m. Reuses khonsu_t25_land.build_row verbatim; the t25b tag
+    (t25b_{mode}_x{shift}_s{seed}) does not match its _TAG, so seed/rep and
+    shift_x_m are set here (oncoming_speed falls back to LAUNCHENV 12)."""
+    import khonsu_t25_land as kt25
+    rows = []
+    for name in sorted(os.listdir(args.logdir)):
+        if not name.endswith(".log"):
+            continue
+        stem = name[:-4]
+        tm = T25B_TAG_RE.match(stem)
+        if not tm:
+            continue
+        path = os.path.join(args.logdir, name)
+        r = kt25.build_row(path, args.machine)
+        if r is None or r == "INVALID":
+            print(f"skip ({'no RUNROW' if r is None else 'INVALID'}): {name}",
+                  file=sys.stderr)
+            continue
+        r["seed"] = tm.group("seed")
+        r["rep"] = tm.group("seed")
+        text = _read(path)
+        env = re.search(r"shift_x_m=(-?[0-9.]+)", text)
+        if env and str(int(float(env.group(1)))) != tm.group("shift"):
+            print(f"WARN {stem}: tag shift={tm.group('shift')} != "
+                  f"RUNROW shift_x_m={env.group(1)}", file=sys.stderr)
+        r["shift_x_m"] = tm.group("shift")
+        rows.append(r)
+    _write(rows, kt25.HEADER + ["shift_x_m"], args.out)
+    return rows
+
+
+def run_theta(args):
+    """frozen1l_theta_rows.csv (STD + mtr_theta) and frozen1l_pdst_rows.csv (one
+    row per [PDSTROW] prepare decision: tick, p_dst, mtr_theta, fired)."""
+    rows, pdst = [], []
+    for name in sorted(os.listdir(args.logdir)):
+        if not name.endswith(".log"):
+            continue
+        stem = name[:-4]
+        tm = THETA_TAG_RE.match(stem)
+        if not tm:
+            continue
+        path = os.path.join(args.logdir, name)
+        row = std_row(path, stem, args.machine, args.oncoming_speed,
+                      args.trigger_dist, args.tag)
+        if row is None or row == "INVALID":
+            print(f"skip ({'no RUNROW' if row is None else 'INVALID'}): {name}",
+                  file=sys.stderr)
+            continue
+        row["mtr_theta"] = tm.group("theta")
+        rows.append(row)
+        for m in PDSTROW_RE.finditer(_read(path)):
+            pdst.append({"tag": stem, "tick": int(m.group(1)),
+                         "p_dst": m.group(3), "mtr_theta": m.group(4),
+                         "fired": m.group(5), "eval_tag": args.tag})
+    _write(rows, STD_COLS + THETA_EXTRA, args.out)
+    _write(pdst, PDST_COLS, args.pdst_out)
+    return rows
+
+
+def run_faults(args):
+    """frozen1l_faults_rows.csv (schema row 58). double_emission_ms + recovered
+    from [FAULTROW]; stale_consumed + fallback from the daemon's per-injection
+    [FAULTPATH]. The clean-handoff control (flt_control_*) has fault=none."""
+    rows = []
+    for name in sorted(os.listdir(args.logdir)):
+        if not name.endswith(".log"):
+            continue
+        stem = name[:-4]
+        tm = FLT_TAG_RE.match(stem)
+        if not tm:
+            continue
+        path = os.path.join(args.logdir, name)
+        core = kde.parse_log(path)
+        if core is None or core == "INVALID":
+            print(f"skip ({'no RUNROW' if core is None else 'INVALID'}): {name}",
+                  file=sys.stderr)
+            continue
+        text = _read(path)
+        fr = FAULTROW_RE.search(text)
+        fp = FAULTPATH_RE.search(text)
+        de = fr.group(2) if fr else ""
+        rec = (fr.group(3) if fr and fr.group(3) else
+               (fp.group(5) if fp else ""))
+        fault = tm.group("fault")
+        rows.append({
+            "tag": stem,
+            "fault": "none" if fault == "control" else fault,
+            "epochs": tm.group("ep"),
+            "rep": tm.group("seed"),
+            "double_emission_ms": de,
+            "stale_consumed": fp.group(3) if fp else "",
+            "fallback": fp.group(4) if fp else "",
+            "recovered": rec,
+            "eval_tag": args.tag,
+        })
+    _write(rows, FAULTS_COLS, args.out)
+    return rows
+
+
+def run_repl(args):
+    """frozen1l_repl_period_rows.csv: STD + repl_period_s, bytes_per_crossing
+    (RUNROW bytes / number of HANDOFFROW crossings), warm_before_first_use
+    (per-run YES fraction), age_at_decision_ms (AGEROW realized at launch)."""
+    rows = []
+    for name in sorted(os.listdir(args.logdir)):
+        if not name.endswith(".log"):
+            continue
+        stem = name[:-4]
+        tm = REPL_TAG_RE.match(stem)
+        if not tm:
+            continue
+        path = os.path.join(args.logdir, name)
+        row = std_row(path, stem, args.machine, args.oncoming_speed,
+                      args.trigger_dist, args.tag)
+        if row is None or row == "INVALID":
+            print(f"skip ({'no RUNROW' if row is None else 'INVALID'}): {name}",
+                  file=sys.stderr)
+            continue
+        text = _read(path)
+        d = kad.parse_log(path)
+        row["repl_period_s"] = tm.group("period")
+        by = int(row.get("by", "0") or 0)
+        ncross = len(re.findall(r"\[HANDOFFROW\]", text))
+        row["bytes_per_crossing"] = round(by / ncross, 1) if ncross else ""
+        wb = [1 if m == "YES" else 0 for m in HANDOFF_WBFU_RE.findall(text)]
+        row["warm_before_first_use"] = round(sum(wb) / len(wb), 3) if wb else ""
+        a = _age_at_tick(text, kad.launch_tick(d))
+        row["age_at_decision_ms"] = round(a, 1) if a is not None else ""
+        rows.append(row)
+    _write(rows, STD_COLS + REPL_EXTRA, args.out)
+    return rows
+
+
+# ---------------------------------------------------------------------------
 def _write(rows, cols, out):
     fh = open(out, "w", newline="") if out else sys.stdout
     w = csv.DictWriter(fh, fieldnames=cols, extrasaction="ignore")
@@ -744,12 +952,46 @@ def main():
     t.add_argument("--tag", default="khonsu-eval-freeze-1k")
     t.set_defaults(func=run_topmode)
 
+    _KB = "docs/kb/data/relay_eval_2026_08"
+
+    def _common(sp, default_out):
+        sp.add_argument("logdir")
+        sp.add_argument("-o", "--out", default=f"{_KB}/{default_out}")
+        sp.add_argument("--tag", default="khonsu-eval-freeze-1l")
+        sp.add_argument("--machine", default="atlas")
+        sp.add_argument("--oncoming-speed", dest="oncoming_speed", default="12")
+        sp.add_argument("--trigger-dist", dest="trigger_dist", default="300")
+
+    ags = sub.add_parser("age_sweep", help="freshness AOI sweep lander")
+    _common(ags, "frozen1l_age_sweep_rows.csv")
+    ags.set_defaults(func=run_age_sweep)
+
+    tb = sub.add_parser("t25b", help="geometry shift sweep lander (reuses t25)")
+    _common(tb, "frozen1l_t25b_rows.csv")
+    tb.set_defaults(func=run_t25b)
+
+    th = sub.add_parser("theta", help="MTR-theta sweep + p_dst trace lander")
+    _common(th, "frozen1l_theta_rows.csv")
+    th.add_argument("--pdst-out", dest="pdst_out",
+                    default=f"{_KB}/frozen1l_pdst_rows.csv")
+    th.set_defaults(func=run_theta)
+
+    fl = sub.add_parser("faults", help="fault-injection lander")
+    _common(fl, "frozen1l_faults_rows.csv")
+    fl.set_defaults(func=run_faults)
+
+    rp = sub.add_parser("repl", help="repl_final REPL_PERIOD sweep lander")
+    _common(rp, "frozen1l_repl_period_rows.csv")
+    rp.set_defaults(func=run_repl)
+
     args = ap.parse_args()
-    if args.cmd in ("acc", "fde", "topmode"):
-        outdir = os.path.dirname(os.path.abspath(args.out))
-        if outdir:
-            os.makedirs(outdir, exist_ok=True)
-    else:
+    for _attr in ("out", "pdst_out"):
+        _v = getattr(args, _attr, None)
+        if _v:
+            _d = os.path.dirname(os.path.abspath(_v))
+            if _d:
+                os.makedirs(_d, exist_ok=True)
+    if getattr(args, "outdir", None):
         os.makedirs(args.outdir, exist_ok=True)
     args.func(args)
 
