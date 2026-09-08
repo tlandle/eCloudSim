@@ -69,6 +69,10 @@ class Mamba3DTracker:
             list of active tracklets
         """
         self.frame_id += 1
+        # freeze-1k: the source sim tick for this frame (set by the wrapper), so
+        # each memo append is stamped with its exact tick for time-denominated
+        # velocity. Falls back to the internal frame_id if unset.
+        _st = getattr(self, '_src_tick', self.frame_id)
         activated_tracklets = []
         refind_tracklets = []
         lost_tracklets = []
@@ -103,7 +107,7 @@ class Mamba3DTracker:
         for itracked, idet in matches:
             track = self.tracked_tracklets[itracked]
             det = detections[idet]
-            track.update(det, self.frame_id)
+            track.update(det, self.frame_id, source_tick=_st)
             activated_tracklets.append(track)
 
         # --- Round 2: match lost tracklets with remaining detections ---
@@ -122,7 +126,7 @@ class Mamba3DTracker:
         for ilost, idet in matches_lost:
             track = self.lost_tracklets[ilost]
             det = detections_remain[idet]
-            track.re_activate(det, self.frame_id, new_id=False)
+            track.re_activate(det, self.frame_id, new_id=False, source_tick=_st)
             refind_tracklets.append(track)
 
         # --- Round 1b: center-distance recovery for ACTIVE tracks IoU missed.
@@ -144,7 +148,7 @@ class Mamba3DTracker:
             matched_k = set()
             for ia, ir in matches_act:
                 track = act_pool[ia]
-                track.update(rem_dets[ir], self.frame_id)
+                track.update(rem_dets[ir], self.frame_id, source_tick=_st)
                 activated_tracklets.append(track)
                 matched_it.add(u_track[ia])
                 matched_k.add(u_det_remain[ir])
@@ -177,7 +181,7 @@ class Mamba3DTracker:
             det_idx = u_detection[idet]
             det = detections[det_idx]
             if det.score >= self.new_track_thresh:
-                det.activate(self.frame_id)
+                det.activate(self.frame_id, source_tick=_st)
                 activated_tracklets.append(det)
 
         # Update tracker state

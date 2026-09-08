@@ -47,9 +47,16 @@ def latent_from_tracklet(
     """
     memo = np.asarray(tracklet.memo_bank, dtype=np.float32)
     diff = np.asarray(tracklet.diff_memo_bank, dtype=np.float32)
+    # freeze-1k: per-frame source ticks, parallel to memo_bank; None (unstamped)
+    # -> -1 sentinel so the array stays integer. Truncated with the memo below.
+    _mt = getattr(tracklet, 'memo_tick', None)
+    tick = np.asarray(
+        [(-1 if t is None else int(t)) for t in (_mt or [])], dtype=np.int32)
     if history_depth is not None and history_depth > 0:
         memo = memo[-history_depth:]
         diff = diff[-history_depth:]
+        if tick.size:
+            tick = tick[-history_depth:]
     pred = (
         np.asarray(tracklet.predicted_last_bbox, dtype=np.float32).copy()
         if tracklet.predicted_last_bbox is not None
@@ -60,6 +67,7 @@ def latent_from_tracklet(
         persistent_vehicle_id=int(persistent_vehicle_id),
         memo_bank=memo.copy(),
         diff_memo_bank=diff.copy(),
+        memo_tick=(tick.copy() if tick.size else None),
         bbox_3d=np.asarray(tracklet._bbox_3d, dtype=np.float32).copy(),
         predicted_last_bbox=pred,
         frame_id=int(tracklet.frame_id),

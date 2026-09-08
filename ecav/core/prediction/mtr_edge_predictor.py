@@ -310,6 +310,18 @@ class MTREdgePredictor:
                 continue
             mature_tracks[tid] = ot
 
+        # freeze-1k: log the CV->MTR takeover once, when a formerly cv_migrated
+        # imported track first becomes mature (history reached _MIN_HIST_TICKS).
+        if hasattr(self, '_cv_first_tick'):
+            if not hasattr(self, '_cv_switched'):
+                self._cv_switched = set()
+            for _tid in mature_tracks:
+                if _tid in self._cv_first_tick and _tid not in self._cv_switched:
+                    self._cv_switched.add(_tid)
+                    logger.info("[CVSWITCH] tid=%s switch_tick=%s frames=%d",
+                                _tid, publish_tick,
+                                len(mature_tracks[_tid].trajectory))
+
         predictions = []
 
         # Stationary: constant position prediction
@@ -317,6 +329,31 @@ class MTREdgePredictor:
             p = self._static_prediction(ot, source_tick, publish_tick)
             p.source = 'static'
             predictions.append(p)
+
+        # freeze-1k fair-Kalman path: an imported track still below the MTR
+        # history threshold carries the migrated velocity (obstacle.mig_vel_mps);
+        # publish a CV forecast from it instead of dropping the track. Local
+        # fresh tracks (no migrated velocity) still drop as before. Once the
+        # track's history reaches _MIN_HIST_TICKS it becomes mature and MTR
+        # takes over; this also serves the hist2 factorial arm (any imported
+        # track below the threshold). Goes through the same publish path, so the
+        # publish gate still suppresses it until commit.
+        for tid, ot in immature_tracks.items():
+            mv = getattr(ot.obstacle, 'mig_vel_mps', None)
+            if mv is None:
+                continue
+            p = self._cv_from_migrated(ot, mv, source_tick, publish_tick)
+            p.source = 'cv_migrated'
+            predictions.append(p)
+            self._stats['cv_migrated'] = self._stats.get('cv_migrated', 0) + 1
+            if not hasattr(self, '_cv_first_tick'):
+                self._cv_first_tick = {}
+            if tid not in self._cv_first_tick:
+                self._cv_first_tick[tid] = publish_tick
+                logger.info(
+                    "[CVMIGRATED] tid=%s first_cv_publish_tick=%s vx=%.2f "
+                    "vy=%.2f |v|=%.2f", tid, publish_tick, float(mv[0]),
+                    float(mv[1]), float((mv[0] ** 2 + mv[1] ** 2) ** 0.5))
 
         if not mature_tracks:
             return predictions
@@ -797,6 +834,30 @@ class MTREdgePredictor:
         return predictions
 
     # ── Fallback predictions ───────────────────────────────────────
+
+    def _cv_from_migrated(self, ot: ObstacleTrajectory, mig_vel,
+                          source_tick, publish_tick) -> ObstaclePrediction:
+        """freeze-1k: constant-velocity forecast from the MIGRATED velocity, for
+        an imported track still below the MTR history threshold (fair Kalman
+        baseline). Unlike _linear_prediction, the velocity comes from the
+        migrated (vx, vy) rather than the 1-point trajectory (which would be
+        stationary)."""
+        cur = ot.trajectory[0]
+        vx, vy = float(mig_vel[0]), float(mig_vel[1])
+        dt = 0.05  # 20Hz tick
+        pred_tfs = []
+        for step in range(self.num_output_steps):
+            t = (step + 1) * dt
+            pred_tfs.append(Transform(
+                location=Location(x=cur.location.x + vx * t,
+                                  y=cur.location.y + vy * t,
+                                  z=cur.location.z),
+                rotation=Rotation(yaw=cur.rotation.yaw)))
+        cur_tf = Transform(location=cur.location, rotation=cur.rotation)
+        return ObstaclePrediction(
+            ot, cur_tf, probability=0.5,
+            predicted_trajectory=pred_tfs,
+            source_tick=source_tick, publish_tick=publish_tick)
 
     def _linear_prediction(self, ot: ObstacleTrajectory,
                            source_tick, publish_tick) -> ObstaclePrediction:

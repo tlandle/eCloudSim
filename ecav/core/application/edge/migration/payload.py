@@ -70,6 +70,11 @@ class TrackLatent:
     # --- MambaTrack backend: learned-motion-model input history + bookkeeping ---
     memo_bank: Optional[np.ndarray] = None         # (K, 7) float32, K up to max_window
     diff_memo_bank: Optional[np.ndarray] = None    # (K, 7) float32
+    # freeze-1k: source sim tick per memo frame (K,), so the record carries its
+    # own exact frame timing. The per-frame cadence is runtime-variable, so the
+    # exported velocity spans (tick[-1]-tick[-n])*sim_tick_s rather than a stride
+    # guess. Adds ~K*4 B to the serialized record; measured in the byte table.
+    memo_tick: Optional[np.ndarray] = None         # (K,) int32
     bbox_3d: Optional[np.ndarray] = None           # (7,) float32
     predicted_last_bbox: Optional[np.ndarray] = None  # (7,) or None
     frame_id: int = 0
@@ -99,6 +104,7 @@ class TrackLatent:
         for arr in (
             self.memo_bank,
             self.diff_memo_bank,
+            self.memo_tick,
             self.bbox_3d,
             self.predicted_last_bbox,
             self.hidden_state,

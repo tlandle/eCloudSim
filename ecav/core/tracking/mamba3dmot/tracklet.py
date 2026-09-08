@@ -80,6 +80,11 @@ class MambaTracklet3D(BaseTrack):
         # History buffers
         self.memo_bank = [self._bbox_3d.copy()]
         self.diff_memo_bank = [np.zeros(BOX_DIM, dtype=np.float32)]
+        # freeze-1k: the source sim tick of each memo frame, parallel to
+        # memo_bank. Enables an exact time span for the exported velocity
+        # (dt = (tick[-1] - tick[-n]) * sim_tick_s) instead of a stride guess.
+        # The birth frame's tick is stamped at activate(); None until then.
+        self.memo_tick = [None]
 
         self.device = device
 
@@ -219,18 +224,22 @@ class MambaTracklet3D(BaseTrack):
         self.time_since_update += 1
         self.predicted_last_bbox = pred
 
-    def activate(self, frame_id):
+    def activate(self, frame_id, source_tick=None):
         self.track_id = self.next_id()
         self.state_flag = TrackState.Tracked
         if frame_id == 1:
             self.is_activated = True
         self.frame_id = frame_id
         self.start_frame = frame_id
+        # freeze-1k: stamp the birth memo frame with its source tick.
+        if source_tick is not None and self.memo_tick:
+            self.memo_tick[-1] = int(source_tick)
 
-    def re_activate(self, new_track, frame_id, new_id=False):
+    def re_activate(self, new_track, frame_id, new_id=False, source_tick=None):
         diff = new_track._bbox_3d - self.memo_bank[-1]
         self.diff_memo_bank.append(self._wrap_yaw_diff(diff))
         self.memo_bank.append(new_track._bbox_3d.copy())
+        self.memo_tick.append(int(source_tick) if source_tick is not None else None)
         self._bbox_3d = new_track._bbox_3d.copy()  # last-observed box
         self._migrated_vel_mps = None  # fresh observation; local estimation resumes
 
@@ -238,6 +247,7 @@ class MambaTracklet3D(BaseTrack):
         if len(self.memo_bank) > max_window:
             self.memo_bank = self.memo_bank[1:]
             self.diff_memo_bank = self.diff_memo_bank[1:]
+            self.memo_tick = self.memo_tick[1:]
 
         self.state_flag = TrackState.Tracked
         self.is_activated = True
@@ -247,16 +257,18 @@ class MambaTracklet3D(BaseTrack):
             self.track_id = self.next_id()
         self.score = new_track.score
 
-    def update(self, new_track, frame_id):
+    def update(self, new_track, frame_id, source_tick=None):
         if new_track is None:
             diff = self.predicted_last_bbox - self.memo_bank[-1]
             self.diff_memo_bank.append(self._wrap_yaw_diff(diff))
             self.memo_bank.append(self.predicted_last_bbox.copy())
+            self.memo_tick.append(int(source_tick) if source_tick is not None else None)
         else:
             self.frame_id = frame_id
             diff = new_track._bbox_3d - self.memo_bank[-1]
             self.diff_memo_bank.append(self._wrap_yaw_diff(diff))
             self.memo_bank.append(new_track._bbox_3d.copy())
+            self.memo_tick.append(int(source_tick) if source_tick is not None else None)
             # Keep the last-observed box current: _bbox_3d was set once at
             # creation and never refreshed, so distance-based association
             # (center_distance_3d) matched against a stale birth position.
@@ -268,6 +280,7 @@ class MambaTracklet3D(BaseTrack):
         if len(self.memo_bank) > max_window:
             self.memo_bank = self.memo_bank[1:]
             self.diff_memo_bank = self.diff_memo_bank[1:]
+            self.memo_tick = self.memo_tick[1:]
 
         self.state_flag = TrackState.Tracked
         self.is_activated = True

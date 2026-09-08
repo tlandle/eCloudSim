@@ -1681,6 +1681,15 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 traj.obstacle.location = tf.location
                 traj.obstacle.carla_id = cid
                 self.track_to_carla[tid] = cid
+                # freeze-1k: carry the migrated velocity onto the obstacle so the
+                # predictor can publish a CV forecast for an imported track still
+                # below the MTR history threshold (fair Kalman baseline). None for
+                # locally-born tracks, so their behavior is unchanged.
+                _mtl = next((t for t in getattr(self.tracker, 'tracked_tracklets', [])
+                             if int(getattr(t, 'track_id', -1)) == tid), None)
+                traj.obstacle.mig_vel_mps = (
+                    getattr(_mtl, '_migrated_vel_mps', None)
+                    if _mtl is not None else None)
                 # KF velocity for prediction.  AB3DMOT KF state stores
                 # velocity in m per AB3DMOT internal step (= 0.1 s, not the
                 # sim dt 0.05 s).  Verified against Tesla cross-traffic at

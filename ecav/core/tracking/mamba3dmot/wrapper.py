@@ -138,12 +138,23 @@ class Mamba3DMOTWrapper(BaseTracker):
         _last = getattr(self, '_last_stick', None)
         if _last is not None and _stick > _last:
             _stride = float(_stick - _last)
+            self._last_gap = _stride
             _prev = getattr(self, '_stride_ema', None)
             self._stride_ema = _stride if _prev is None \
                 else 0.2 * _stride + 0.8 * _prev
         self._last_stick = _stick
-        # Publish live seconds-per-frame for tracklet dead-reckoning of
-        # migrated (m/s-denominated) velocities.
+        # freeze-1k: expose the current source tick so the tracker can stamp each
+        # memo frame with its exact sim tick. The per-frame cadence is
+        # runtime-variable (jitter-buffer drain gives 1/2/4-tick gaps within and
+        # across runs), so no single stride constant scales velocity correctly;
+        # exact per-frame ticks do.
+        self._tracker._src_tick = int(_stick)
+        # Publish live seconds-per-frame for tracklet dead-reckoning. The coast
+        # projection re-anchors each tick as vel*spf*steps (uniform-spf), so spf
+        # must be STABLE across the coast window; the EMA is smooth. The exact
+        # last inter-frame gap flips 0.1<->0.2 tick-to-tick and jitters the
+        # projected position, so it is NOT used here. (Exported velocity uses
+        # exact per-frame ticks; that is a separate, one-shot computation.)
         self._tracker.cfgs['_spf_live'] = \
             (getattr(self, '_stride_ema', None) or 4.0) \
             * float(self._cfg.get('sim_tick_s', 0.05))

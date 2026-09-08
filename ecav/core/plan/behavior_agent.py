@@ -1740,12 +1740,86 @@ class BehaviorAgent(object):
         self.ttc = 1000
         # when overtake_counter > 0, another overtake/lane change is forbidden
         if self.overtake_counter > 0 and not self.overtake_other_direction \
-                and self._committed_brake_ttl <= 0:
+                and self._committed_brake_ttl <= 0 \
+                and not getattr(self, '_ot_recheck_hold', False):
             # Do not burn maneuver time while RSS proper response has the ego
-            # stopped: the timer expiring mid-stall advanced the state machine
-            # to return-to-lane while still behind the subject (measured:
-            # return path rejoined into the truck at 11 m/s).
+            # stopped, nor while the per-tick recheck is HOLDing for a late
+            # opposing track: the timer expiring mid-stall advanced the state
+            # machine to return-to-lane while still behind the subject (measured:
+            # return path rejoined into the truck at 11 m/s). freeze-1k: the
+            # recheck HOLD also freezes the timer so a latch cannot expire into a
+            # return while the subject is still alongside.
             self.overtake_counter -= 1
+
+        # freeze-1k: re-evaluate the overtake sight distance EVERY tick while the
+        # maneuver is latched. The start-time check in overtake_management fires
+        # once; a long latch let an opposing track that entered the ego's
+        # predictions AFTER commit go unseen. Safe response: if the ego has
+        # cleared the subject, complete the pass; if it has fallen a following
+        # gap behind the subject, return to its own lane behind it (the return
+        # path is collision-checked); otherwise (alongside) force the proper
+        # response brake and HOLD the latch, never steering back into the
+        # subject. There is no timer-based state advance while HOLDing.
+        self._ot_recheck_hold = False
+        if self.do_overtake:
+            _rc_clear, _rc_onc = self._nearest_oncoming_ahead()
+            _rc_need = 4.0 * (7.0 + max(_rc_onc, 2.0))
+            _following_gap = 7.0
+            _subj = getattr(self, '_overtake_subject_loc', None)
+            if _subj is not None and self._ego_pos is not None:
+                _yaw = math.radians(self._ego_pos.rotation.yaw)
+                _subj_ahead = ((_subj[0] - self._ego_pos.location.x) * math.cos(_yaw)
+                               + (_subj[1] - self._ego_pos.location.y) * math.sin(_yaw))
+            else:
+                _subj_ahead = float('nan')
+            if _rc_clear < _rc_need:
+                if _subj_ahead < 0:
+                    # already past the subject: completing the pass is safer than
+                    # stalling in the oncoming lane.
+                    logger.warning("[OT RECHECK] COMPLETE subj_ahead=%.1fm "
+                                   "clear=%.0fm need=%.0fm", _subj_ahead,
+                                   _rc_clear, _rc_need)
+                elif _subj_ahead >= _following_gap:
+                    # the ego has fallen a following gap behind the subject:
+                    # returning to its OWN lane behind the subject is now safe
+                    # (the return path below is collision-checked). Release the
+                    # latch so the return-to-lane fires this tick. Block re-commit
+                    # until the gap is clear for 10 consecutive ticks.
+                    self.do_overtake = False
+                    self.overtake_counter = 0
+                    self._ot_return_behind = True
+                    self._ot_aborted = True
+                    self._ot_abort_hold_ticks = 0
+                    logger.warning("[OT RECHECK] ABORT subj_ahead=%.1fm "
+                                   "clear=%.0fm need=%.0fm onc_spd=%.1f",
+                                   _subj_ahead, _rc_clear, _rc_need, _rc_onc)
+                else:
+                    # alongside (0 <= subj_ahead < gap): braking in the oncoming
+                    # lane and steering back both risk the subject, so force the
+                    # proper response brake and HOLD the latch until the ego
+                    # clears the subject or falls behind it. Never steer back.
+                    self._committed_brake_ttl = max(self._committed_brake_ttl, 20)
+                    self._ot_recheck_hold = True
+                    logger.warning("[OT RECHECK] HOLD subj_ahead=%.1fm "
+                                   "clear=%.0fm need=%.0fm onc_spd=%.1f",
+                                   _subj_ahead, _rc_clear, _rc_need, _rc_onc)
+            else:
+                logger.info("[OT RECHECK] CLEAR need=%.0fm subj_ahead=%.1fm",
+                            _rc_need, _subj_ahead)
+        elif getattr(self, '_ot_aborted', False):
+            # after an abort, require the sight check to pass for 10 consecutive
+            # ticks before another overtake may commit, so the ego does not
+            # oscillate at the boundary of the gap.
+            _rc_clear, _rc_onc = self._nearest_oncoming_ahead()
+            _rc_need = 4.0 * (7.0 + max(_rc_onc, 2.0))
+            if _rc_clear >= _rc_need:
+                self._ot_abort_hold_ticks = getattr(self, '_ot_abort_hold_ticks', 0) + 1
+                if self._ot_abort_hold_ticks >= 10:
+                    self._ot_aborted = False
+                    logger.warning("[OT RECHECK] RECOMMIT-OK after %d clear ticks",
+                                   self._ot_abort_hold_ticks)
+            else:
+                self._ot_abort_hold_ticks = 0
 
         # we reset destination push flag for every n rounds
         if self.destination_push_flag > 0:
@@ -2240,10 +2314,14 @@ class BehaviorAgent(object):
                 else:
                     car_following_flag = True
                 end_time_9 = time.time()
-        # return to other lane if overtaking
+        # return to other lane if overtaking. freeze-1k: also fire when the
+        # recheck flagged a return BEHIND the subject (the ego fell a following
+        # gap back); the collision_manager below vets the return path so the
+        # merge only completes into a clear lane.
         elif self.overtake_counter <= 0 and self.overtake_other_direction and len(self.overtake_end_wpts) > 0 \
-                and self._subject_passed():
+                and (self._subject_passed() or getattr(self, '_ot_return_behind', False)):
             self.overtake_counter = 100 # perform another lane change
+            self._ot_return_behind = False
 
             # DEBUG: Breakpoint when returning from overtake
             import os

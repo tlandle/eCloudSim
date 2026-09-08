@@ -223,19 +223,40 @@ class _PluggableEdgeBase(_BaseEdgeManager):
                     else None
                 # Time-denominated ground velocity (m/s) from the source memo
                 # and the wrapper's measured frame cadence, so the destination
-                # dead-reckons correctly at its own cadence. The depth-1
-                # snapshot arm carries no history and hence no velocity.
+                # dead-reckons correctly at its own cadence. freeze-1k: computed
+                # for ALL modes including the snapshot arms (kf/edgewarp/
+                # handover_snapshot), so a depth-1 record carries position AND
+                # velocity and the destination coasts CV from the first frame
+                # instead of a stationary forecast (was: velocity only when
+                # _hd is None, which left the snapshot arms with no velocity).
                 _vel = None
-                if _hd is None:
-                    _mb = getattr(tracklet, 'memo_bank', None)
-                    if _mb is not None and len(_mb) >= 2:
-                        import numpy as _np
-                        _spf = (getattr(self.tracker, '_stride_ema', None) or 1.0) \
-                            * float(getattr(self.tracker, '_cfg', {}).get(
-                                'sim_tick_s', 0.05))
-                        _span_s = max(len(_mb) - 1, 1) * max(_spf, 1e-6)
-                        _vel = (_np.asarray(_mb[-1][:2], dtype=_np.float64)
-                                - _np.asarray(_mb[0][:2], dtype=_np.float64)) / _span_s
+                _mb = getattr(tracklet, 'memo_bank', None)
+                if _mb is not None and len(_mb) >= 2:
+                    import numpy as _np
+                    # freeze-1k: velocity from the last 3 frames of the record
+                    # (responsive; the whole-window mean lagged ~30% at constant
+                    # speed) over the EXACT time span from the per-frame source
+                    # ticks. The per-frame cadence is runtime-variable (1/2/4-tick
+                    # gaps within and across runs), so a stride/EMA/median/edge_dt
+                    # constant mis-scales velocity by ~2x; exact ticks do not.
+                    # span = (tick[-1] - tick[-n]) * sim_tick_s. Falls back to
+                    # edge_dt only if the relevant ticks are unstamped.
+                    _n = min(3, len(_mb))
+                    _sts = float(getattr(self, 'cfg', {}).get('sim_tick_s', 0.05))
+                    _mt = getattr(tracklet, 'memo_tick', None)
+                    _span_s = None
+                    if _mt is not None and len(_mt) >= _n:
+                        _t_last = _mt[-1]
+                        _t_first = _mt[-_n]
+                        if (_t_last is not None and _t_first is not None
+                                and int(_t_last) >= 0 and int(_t_first) >= 0
+                                and int(_t_last) > int(_t_first)):
+                            _span_s = (int(_t_last) - int(_t_first)) * _sts
+                    if _span_s is None or _span_s <= 0:
+                        _span_s = max(_n - 1, 1) * float(
+                            getattr(self, 'cfg', {}).get('edge_dt', 0.2))
+                    _vel = (_np.asarray(_mb[-1][:2], dtype=_np.float64)
+                            - _np.asarray(_mb[-_n][:2], dtype=_np.float64)) / _span_s
                 # Exp A state-depth factorial (MIGRATION_HIST): keep the warm
                 # timing and the full-span velocity computed above, but truncate
                 # the migrated memo/diff banks to the last N frames. Unset ->
