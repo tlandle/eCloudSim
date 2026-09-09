@@ -54,7 +54,7 @@ HLN_EXTRA = ["ns3_lut_n", "age_med_ms", "age_p95_ms"]
 # displacement at the horizon, mean over the first five post-commit refreshes.
 # No ADE / minADE / miss-rate columns (Tyler's rule).
 FDE_COLS = ["tag", "arm", "seed", "fde5_m", "fde3_m", "fde5_top_m",
-            "eval_tag", "machine"]
+            "window_anchor", "eval_tag", "machine"]
 # Top-mode frozen-rate lander (freeze-1k headline).
 TOPMODE_COLS = ["tag", "arm", "seed", "completed", "collided",
                 "forecast_blocks", "frozen_blocks", "eval_tag"]
@@ -77,16 +77,20 @@ FAULTPATH_RE = re.compile(
     r"\[FAULTPATH\] fault=(\S+) tid=(-?\d+) stale_consumed=(\w+) "
     r"fallback=(\w+) recovered=(\w+)")
 HANDOFF_WBFU_RE = re.compile(r"\[HANDOFFROW\][^\n]*warm_before_first_use=(\w+)")
+CONSUMEDEPOCH_RE = re.compile(
+    r"\[CONSUMEDEPOCH\] ego=\S+ actor=(-?\d+) tick=\S+ "
+    r"consumed_epoch=(-?\d+) fenced=(\d+)")
 FRESH_TAG_RE = re.compile(r"^fresh_(?P<scn>flow|accel)_i(?P<inj>\d+)_s(?P<seed>\d+)$")
 T25B_TAG_RE = re.compile(r"^t25b_(?P<mode>[a-z]+)_x(?P<shift>-?\d+)_s(?P<seed>\d+)$")
 THETA_TAG_RE = re.compile(r"^th_mtr(?P<theta>[0-9.]+)_s(?P<seed>\d+)$")
-FLT_TAG_RE = re.compile(r"^flt_(?P<fault>[a-z_]+)_e(?P<ep>on|off)_s(?P<seed>\d+)$")
+FLT_TAG_RE = re.compile(r"^flt_(?P<fault>[a-z_]+)_ef(?P<ef>[01])_s(?P<seed>\d+)$")
 REPL_TAG_RE = re.compile(r"^repl_p(?P<period>[0-9.]+)_s(?P<seed>\d+)$")
 AGESWEEP_EXTRA = ["scenario", "inject_ms", "baseline_age_ms", "realized_age_ms"]
 THETA_EXTRA = ["mtr_theta"]
 PDST_COLS = ["tag", "tick", "p_dst", "mtr_theta", "fired", "eval_tag"]
 FAULTS_COLS = ["tag", "fault", "epochs", "rep", "double_emission_ms",
-               "stale_consumed", "fallback", "recovered", "eval_tag"]
+               "stale_consumed", "fallback", "recovered",
+               "stale_owner_consumed", "both_emit_window_ms", "eval_tag"]
 REPL_EXTRA = ["repl_period_s", "bytes_per_crossing", "warm_before_first_use",
               "age_at_decision_ms"]
 BAND_TAG_RE = re.compile(r"^fb_band(?P<w>\d+)_r(?P<rep>\d+)$")
@@ -640,10 +644,27 @@ def run_fde(args):
             commit = int(hf.get("first_dst_track_tick"))
         except (TypeError, ValueError):
             commit = None
+        ev, gt = kad.actual_timeline(d, gid)
+        # Window anchor = the destination's FIRST forecast of the gating oncoming.
+        # Migrated arms: the destination commit (first_dst_track_tick). A
+        # no-migration arm (cold) has no commit; its destination still rebuilds a
+        # LOCAL track of the oncoming at the crossing and the focal CAV consumes
+        # THAT forecast, so anchor to the first MODESROW tick where the actor is in
+        # the destination locale (Actual x >= 240) = own_first_forecast_tick. NOT
+        # the run start (the old commit-None fallback took ticks 32-37, the source
+        # edge's early forecast, seed-independent and never consumed).
+        if commit is not None:
+            anchor, anchor_kind = commit, "commit"
+        else:
+            anchor, anchor_kind = None, "first_local"
+            for _T in sorted(modes):
+                _ap = kad.lookup_actual(ev, gt, _T)
+                if _ap is not None and _ap[0] >= 240.0:
+                    anchor = _T
+                    break
         ticks = sorted(t for t, hd in modes.items()
                        if 3.0 in hd and 5.0 in hd
-                       and (commit is None or t >= commit))[:5]
-        ev, gt = kad.actual_timeline(d, gid)
+                       and (anchor is None or t >= anchor))[:5]
         f5, f3, f5top = [], [], []
         for T in ticks:
             m5, t5 = _min_top2_fde(
@@ -665,6 +686,7 @@ def run_fde(args):
             "fde5_m": round(sum(f5) / len(f5), 3),
             "fde3_m": round(sum(f3) / len(f3), 3) if f3 else "",
             "fde5_top_m": round(sum(f5top) / len(f5top), 3) if f5top else "",
+            "window_anchor": anchor_kind,
             "eval_tag": args.tag,
             "machine": args.machine,
         })
@@ -861,16 +883,38 @@ def run_faults(args):
         de = fr.group(2) if fr else ""
         rec = (fr.group(3) if fr and fr.group(3) else
                (fp.group(5) if fp else ""))
-        fault = tm.group("fault")
+        ef = tm.group("ef")  # EPOCH_FENCE 1 (on) / 0 (off)
+        # stale_owner_consumed: an upstream-bound planner consumes a forecast
+        # whose owner epoch is below one already committed for the actor. The
+        # committed epoch is inferred as the running max consumed_epoch across
+        # ALL [CONSUMEDEPOCH] planners for that actor (the dest-bound ego carries
+        # the committed epoch), so consumed < committed = a stale-owner
+        # consumption. On flow (single crossing, ego bound to the destination)
+        # this is 0 for both arms; the off>0 signal comes from the corridor arm.
+        _cmax = {}
+        _stale = 0
+        for m in CONSUMEDEPOCH_RE.finditer(text):
+            _a, _e = int(m.group(1)), int(m.group(2))
+            if _e < 0:
+                continue
+            _prev = _cmax.get(_a, -1)
+            if _e < _prev:
+                _stale += 1
+            _cmax[_a] = max(_prev, _e)
         rows.append({
             "tag": stem,
-            "fault": "none" if fault == "control" else fault,
-            "epochs": tm.group("ep"),
+            "fault": "none" if tm.group("fault") == "control" else tm.group("fault"),
+            "epochs": "on" if ef == "1" else "off",  # EPOCH_FENCE
             "rep": tm.group("seed"),
             "double_emission_ms": de,
             "stale_consumed": fp.group(3) if fp else "",
             "fallback": fp.group(4) if fp else "",
             "recovered": rec,
+            "stale_owner_consumed": _stale,
+            # both-emit window = the ownership dual-publishable window
+            # (double_emission_ms); the source-gate's delivery-coast collapse is
+            # measured via [PUBGATE_SRC] in the corridor lander.
+            "both_emit_window_ms": de,
             "eval_tag": args.tag,
         })
     _write(rows, FAULTS_COLS, args.out)
