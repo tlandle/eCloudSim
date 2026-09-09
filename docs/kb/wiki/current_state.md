@@ -1,9 +1,19 @@
 ---
-updated: 2026-09-07
+updated: 2026-09-09
 ---
 # Current State
 
 Primary context-switching artifact. Read this first after a gap.
+
+## 2026-09-09 (code session): freeze-1l accel panel is FDE-only; closed-loop collision metric saturated
+
+- Accel a=1..5 LANDED (frozen1l_acc_rows.csv, 250 rows, _acc_done Sep 9 05:04; a=0.5 still pending behind acc05 on the central lock). Levels are commanded a=2,3,4,5,6 (10 seeds x 5 arms warm/kf/reactive/cold/warm_ablation). Central chain now on its hln block; acc05 -> fde_subset -> noncentral queued behind it.
+- est_a FIX HELD (the earlier lander bug is gone): warm/reactive estimate accel (est_a mean 6.23 at a>=4, matches GT actual_a ~6.3), kf/cold CV-only (est_a blank), warm_ablation blank (term off). Oncoming GT accel SATURATES ~6.3 m/s^2 (physical limit), so actual_a plateaus 6.25-6.6 for a>=3; at a=2 est_a@launch=0 because the oncoming has not begun accelerating at the launch tick (actual_a 3.89 develops after).
+- COLLISION METRIC SATURATED: 0 collisions across ALL 250 runs, every arm, every level (collided=no, completed=YES for all 250). The constant-accel-from-spawn scenario (unlike the freeze-1k ego-triggered step, which was 0/10 completion) now COMPLETES in every arm but SEPARATES none on collisions. NOTE: an earlier pandas pass mis-coerced the string columns (completed=YES->NaN) and read 0/250 completed; the correct read is 250/250 completed, 0/250 collided.
+- MECHANISM: the scenario DOES create genuine conflicts. The accelerating oncoming reaches the ego lane during the overtake commit ([TRAJ_COLL] collision=True ttc=0.10 spatial_min=0.0m at a=6), and the ego's collision-checker + emergency brake is a HARD BACKSTOP that prevents the physical collision in every arm (minTTC~0, maxjerk saturated at 100 for all arms). The forecast-quality difference (warm accel term vs kf CV) is absorbed by the braking backstop, not converted into a collision difference.
+- NO closed-loop metric separates warm from kf: minTTC ~0 all arms; collTrue/run and ghost_brakes are NOISY and where they differ warm is MORE conservative, not safer (a=2 warm ghost_br 24.8 > kf 17.2; a=6 warm 33.2 > kf 22.7). The accel term makes the planner brake MORE (its forecast puts the oncoming closer), it does not make kf collide.
+- CONSEQUENCE: the accel/maneuvering panel is FORECAST-QUALITY (FDE) ONLY, consistent with the record-depth ablation finding below (FDE monotone, not closed-loop safety). warm's accel term reduces FDE at high accel (captures ~6.3 m/s^2 that kf ignores -> ~0.5*6.3*1^2 ~= 3 m position error over the 1 s lookahead at a=6); the FDE subset (frozen1l_fde_rows.csv, still running in the chain) will quantify it directly. The load-bearing CLOSED-LOOP safety separation remains cold-vs-migrated in the FLOW scenario ONLY (freeze-1k: cold 9/20 collisions, warm 6/195, kf 0/20; kf is safe in flow because flow has no acceleration).
+- Tyler P0 (khonsu must work with acceleration) is satisfied at the FORECAST level (the accel term works: est_a tracks GT accel). It is NOT demonstrated at the closed-loop-safety level (no accel scenario shows warm collides less than kf). REPORTED to peer for the accel-panel framing call: (a) accel panel = FDE-vs-accel, honest, recommended; (b) tighten the conflict window so the backstop cannot save kf (scenario redesign + full rerun, real cost). Freshness separating level (collision-based warm>=8 AND kf<=3) is UNDEFINED (no arm collides) -> fallback 3.
 
 ## 2026-09-07 (code session, later): fair-KF smoke passes fix, gate exposes inv8 planner-provenance mismatch; freeze-1k BLOCKED
 
