@@ -53,6 +53,11 @@ trap restore EXIT
 _backup
 for p in "${COMMON[@]}"; do d=${p%%|*}; s=${p##*|}; cp "$SP/$s" "$d"; done
 grep -q "SEEDROW" ecav/scenario_testing/scenarios/scenario_1.py || { echo "ABORT paired seed not applied"; exit 1; }
+# model-integrity guard (peer 57af285a): abort if this host's weights differ from
+# the manifest, so a block never runs on a divergent visual backbone / checkpoint.
+git fetch origin develop -q 2>/dev/null || true
+git checkout origin/develop -- scripts/verify_models.sh scripts/models.manifest 2>/dev/null || true
+bash scripts/verify_models.sh "$(pwd)" || { echo "ABORT: model artefacts differ from manifest; results from this host are not comparable"; exit 1; }
 R="$WT/evaluation_outputs/frozen_1m_t25"; mkdir -p "$R"
 carla_restart () { pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 6; ( cd "$CARLA_ROOT" && setsid nohup ./CarlaUE4.sh -RenderOffScreen >/dev/null 2>&1 9>&- & ); sleep 55; }
 _degenerate () { local lg="$1"
