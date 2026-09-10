@@ -1,0 +1,241 @@
+"""
+Mamba3DMOT wrapper conforming to ecav's BaseTracker interface.
+
+Wraps the Mamba3DTracker for use in the edge pipeline.
+Same input/output format as AB3DMOTWrapper.
+"""
+import os
+import logging
+from typing import Any, List, Tuple
+
+import numpy as np
+import torch
+import yaml
+
+from ecav.core.tracking.base_tracker import BaseTracker
+from ecav.core.tracking.mamba3dmot.tracker import Mamba3DTracker
+
+logger = logging.getLogger("Mamba3DMOTWrapper")
+
+
+class Mamba3DMOTWrapper(BaseTracker):
+    """
+    Wraps Mamba3DTracker with AB3DMOT-compatible input/output format.
+
+    Input:  dets_all = {'dets': (N, 8) [h,w,l,x,y,z,yaw,score], 'info': (N, 3)}
+    Output: tracks_list = [(M, 14)
+            [h,w,l,x,y,z,yaw,id,carla_id,det_idx,vx,vz,vy,0]]
+            (AB3DMOT-consumer layout: ab3d_tracks_to_trajectories reads
+            carla_id at col 8 and velocities at cols 10/12)
+    """
+
+    _DEFAULTS = {
+        'min_hits': 3,
+        'max_age': 6,
+        'filter_thresh': 0.2,
+        'new_track_thresh': 0.3,
+        'match_thresh': 0.7,
+        'max_time_lost': 30,
+        'enable_time_thresh': 5,
+        'max_window': 10,
+        'manner': 'diff',
+        'scale_factor': 1.0,
+        'd_m': 512,
+        'd_state': 16,
+        'L': 3,
+        'box_dim': 4,
+        'avg_pool_out_dim': [1, 128],
+        'pred_head_dims': [64, 4],
+        'q': 10,
+    }
+
+    def __init__(self, cfg: dict):
+        merged = {**self._DEFAULTS, **cfg}
+        self.device = merged.get('device', 'cuda:0' if torch.cuda.is_available() else 'cpu')
+
+        # Load config from yaml if provided
+        config_path = merged.get('config_yaml')
+        if config_path and os.path.exists(config_path):
+            with open(config_path) as f:
+                yaml_cfg = yaml.safe_load(f)
+            for section in ['train', 'inference']:
+                if section in yaml_cfg:
+                    merged.update(yaml_cfg[section])
+
+        self.min_hits = merged.get('min_hits', 3)
+        self._cfg = merged
+        self._tracker = Mamba3DTracker(merged, self.device)
+
+    @property
+    def tracker(self) -> Mamba3DTracker:
+        """Access the underlying Mamba3DTracker (for migration state transfer)."""
+        return self._tracker
+
+    # Gate for associating an updated tracklet back to the detection that
+    # fed it this tick, to recover the detection's carla_id.
+    _CARLA_ID_GATE_M = 2.0
+
+    def _associate_carla_ids(self, dets_3d: np.ndarray, info: np.ndarray) -> None:
+        """Stamp carla_id on tracklets updated this tick by nearest detection.
+
+        Mamba3DTracker.update() does not see the info array, so the stable
+        CARLA actor id would otherwise be lost. Migration export needs it to
+        find a vehicle's tracklet by persistent id.
+        """
+        if len(dets_3d) == 0 or info is None or len(info) == 0:
+            return
+        det_xyz = dets_3d[:, :3]
+        for trk in self._tracker.tracked_tracklets:
+            if trk.time_since_update != 0:
+                continue
+            d = np.linalg.norm(det_xyz - np.asarray(trk.state[:3]), axis=1)
+            j = int(np.argmin(d))
+            if d[j] <= self._CARLA_ID_GATE_M:
+                trk.carla_id = int(info[j, 2])
+
+    def track(self, dets_all: dict, frame: int) -> Tuple[List[np.ndarray], Any]:
+        """
+        Run one tracking step.
+
+        Args:
+            dets_all: {'dets': (N, 8) [h,w,l,x,y,z,yaw,score], 'info': (N, 3)}
+            frame: frame index
+
+        Returns:
+            (tracks_list, None) matching AB3DMOT output format
+        """
+        dets = dets_all['dets']
+        info = dets_all['info']
+
+        if len(dets) == 0:
+            scores = np.array([])
+            dets_3d = np.empty((0, 7))
+        else:
+            scores = dets[:, 7]  # last column is score
+            # Convert AB3DMOT format [h,w,l,x,y,z,yaw] to tracker format [x,y,z,l,w,h,yaw]
+            dets_3d = np.column_stack([
+                dets[:, 3],  # x
+                dets[:, 4],  # y (AB3DMOT uses z here but we keep consistent)
+                dets[:, 5],  # z
+                dets[:, 2],  # l
+                dets[:, 1],  # w
+                dets[:, 0],  # h
+                dets[:, 6],  # yaw
+            ])
+
+        # Internal call counter, NOT the caller's tick number: callers pass
+        # sim ticks striding 4+ per edge cycle, which stretches every frame-
+        # denominated constant and the motion-model extrapolation (observed
+        # live: tracks teleporting between vehicles). Offline retrack and
+        # training count one frame per update call; live must match.
+        # The caller's tick IS kept to measure the real wall-time per tracker
+        # frame: detection cadence varies with the perception source (WF emits
+        # per edge cycle, ~4 sim ticks; GT injection per sim tick), so any
+        # fixed frames-to-seconds constant mis-scales velocity (measured 4x
+        # under GT). An EMA of the source-tick stride converts frame-
+        # denominated motion to m/s regardless of cadence.
+        _stick = frame
+        _last = getattr(self, '_last_stick', None)
+        if _last is not None and _stick > _last:
+            _stride = float(_stick - _last)
+            self._last_gap = _stride
+            _prev = getattr(self, '_stride_ema', None)
+            self._stride_ema = _stride if _prev is None \
+                else 0.2 * _stride + 0.8 * _prev
+        self._last_stick = _stick
+        # freeze-1k: expose the current source tick so the tracker can stamp each
+        # memo frame with its exact sim tick. The per-frame cadence is
+        # runtime-variable (jitter-buffer drain gives 1/2/4-tick gaps within and
+        # across runs), so no single stride constant scales velocity correctly;
+        # exact per-frame ticks do.
+        self._tracker._src_tick = int(_stick)
+        # Publish live seconds-per-frame for tracklet dead-reckoning. The coast
+        # projection re-anchors each tick as vel*spf*steps (uniform-spf), so spf
+        # must be STABLE across the coast window; the EMA is smooth. The exact
+        # last inter-frame gap flips 0.1<->0.2 tick-to-tick and jitters the
+        # projected position, so it is NOT used here. (Exported velocity uses
+        # exact per-frame ticks; that is a separate, one-shot computation.)
+        self._tracker.cfgs['_spf_live'] = \
+            (getattr(self, '_stride_ema', None) or 4.0) \
+            * float(self._cfg.get('sim_tick_s', 0.05))
+        self._frame_n = getattr(self, '_frame_n', 0) + 1
+        frame = self._frame_n
+        active_tracklets = self._tracker.update(dets_3d, scores)
+        self._associate_carla_ids(dets_3d, info)
+
+        # Convert output to AB3DMOT format
+        results = []
+        coast_window = self._cfg.get('coast_window', 8)
+        for trk in active_tracklets:
+            if trk.is_activated and trk.time_since_update <= coast_window:
+                # Coasting output: during a short detection gap use the
+                # predicted (advancing) box, not the frozen last observation,
+                # so a fast track stays continuous in downstream predictions.
+                # Without this the oncoming vanishes from the planner's view
+                # ~half the time (real WF recall ~50%) and the overtake gate
+                # sees a false "clear" at the commit tick.
+                if trk.time_since_update > 0 and trk.predicted_last_bbox is not None:
+                    state = np.asarray(trk.predicted_last_bbox)  # [x,y,z,l,w,h,yaw]
+                else:
+                    state = trk.state  # [x,y,z,l,w,h,yaw]
+                # Convert back to AB3DMOT output: [h,w,l,x,y,z,yaw,id,...]
+                # Velocity from the Mamba tracker's OWN memo-bank (net
+                # displacement averaged over the window), not a frame-to-frame
+                # reconstruction. We use MambaTrack, not a Kalman filter, so
+                # the track's velocity is the memo-bank motion, and it is
+                # available immediately after a migration import. The previous
+                # frame-to-frame EMA restarted at zero on import (no _prev_out
+                # on a freshly injected tracklet), so a migrated occluded track
+                # read as stationary for several frames and the downstream
+                # stationary gate (kf_speed<1) froze its predicted trajectory
+                # during the exact window the ego needed it. Averaging over the
+                # window keeps the estimate bounded (no absurd single-diff
+                # spikes) and jitter-robust for parked cars.
+                mig = getattr(trk, '_migrated_vel_mps', None)
+                mb = trk.memo_bank
+                if mig is not None:
+                    # Migrated track still coasting unobserved: its memo is in
+                    # the SOURCE cadence; the latent's m/s velocity is the
+                    # correct, cadence-independent estimate.
+                    vel = np.array([float(mig[0]), float(mig[1]), 0.0])
+                elif mb is not None and len(mb) >= 2:
+                    span = max(len(mb) - 1, 1)
+                    mv = (np.asarray(mb[-1], dtype=np.float64)
+                          - np.asarray(mb[0], dtype=np.float64)) / span
+                    # m/frame -> m/s using the measured source-tick stride
+                    # (cadence-independent; see stride EMA above).
+                    _spf = (getattr(self, '_stride_ema', None) or 1.0) \
+                        * float(self._cfg.get('sim_tick_s', 0.05))
+                    vel = np.array([mv[0], mv[1], mv[2]]) / max(_spf, 1e-6)
+                else:
+                    vel = np.zeros(3)
+
+                # Column layout matches what ab3d_tracks_to_trajectories
+                # parses for AB3DMOT rows: carla_id at 8, vx at 10, vy at 12
+                # (previously carla_id sat at 10 and frame at 8, so replay
+                # stamped carla_id=frame and kf_speed from (carla_id, vy)).
+                out = np.array([
+                    state[5],  # h
+                    state[4],  # w
+                    state[3],  # l
+                    state[0],  # x
+                    state[1],  # y
+                    state[2],  # z
+                    state[6],  # yaw
+                    trk.track_id,
+                    getattr(trk, 'carla_id', -1),
+                    0,       # det_idx
+                    vel[0],  # vx  (m/s; col 13 flags the unit)
+                    vel[2],  # vz
+                    vel[1],  # vy
+                    1.0,     # velocity-is-m/s flag (AB3DMOT rows leave 0.0)
+                ], dtype=np.float64)
+                results.append(out)
+
+        if results:
+            return [np.array(results)], None
+        else:
+            return [np.empty((0, 14))], None
+
+    def reset(self):
+        self._tracker = Mamba3DTracker(self._cfg, self.device)
