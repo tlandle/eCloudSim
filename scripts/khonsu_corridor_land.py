@@ -73,7 +73,7 @@ SUMMARY_COLS = [
     "eval_tag", "final_update", "traffic_n", "crossings", "warm_frac",
     "compliance_frac", "bytes_per_crossing", "dual_fuse_ms", "dual_predict_ms",
     "route_success", "stale_owner_consumed", "both_emit_window_ticks",
-    "epoch_fence", "source_bound_reads",
+    "epoch_fence", "source_bound_reads", "conflicting_ticks",
 ]
 
 DUAL_RE = re.compile(r"DUALROW\] .*?fuse_ms=(?P<fuse>[\d.]+) predict_ms=(?P<pred>[\d.]+)")
@@ -305,11 +305,23 @@ def run(args):
         for cm in CONSUMED_RE.finditer(text):
             a = int(cm.group("actor"))
             last_consume[a] = max(last_consume.get(a, -1), int(cm.group("tick")))
+        # both_emit_window_ticks is the RAW overlap window (denominator): ticks in
+        # which both source and destination could emit. conflicting_ticks is the
+        # risk-bearing SUBSET (numerator): ticks within an overlap window in which
+        # the consuming CAV is DESTINATION-bound (in dst, not in src) and so could
+        # actually receive both the source's prior-epoch stream and the dest's.
+        # The paper reports their ratio. A fenced arm has a non-zero raw window but
+        # a zero conflicting subset (the CAV is source-bound through the overlap,
+        # which stale_owner_consumed=0 independently confirms); the ef0 arm drives
+        # the subset non-zero. Do NOT narrow the raw window: it is the denominator.
+        _cx_sd = {cx: (s, d) for v in committed.values() for (cx, ep, s, d) in v}
         both_emit = 0
+        conflicting = 0
         for actor, evec in committed.items():
             cxs = sorted(cx for (cx, ep, s, d) in evec if cx >= 0)
             if not cxs:
                 continue
+            windows = []
             drops = pubsrc.get(actor)
             if drops:
                 # Pair each source drop with the commit it followed: the latest
@@ -317,14 +329,23 @@ def run(args):
                 for D in drops:
                     dp = max((cx for cx in cxs if cx <= D), default=None)
                     if dp is not None:
-                        both_emit = max(both_emit, max(0, D - dp))
+                        windows.append((dp, D))
             else:
                 # source never fenced (ef0): open window from the last commit's
                 # dest publish to the last observed consume of the actor.
                 lc = last_consume.get(actor)
                 if lc is not None:
                     dp = max((cx for cx in cxs if cx <= lc), default=cxs[0])
-                    both_emit = max(both_emit, max(0, lc - dp))
+                    windows.append((dp, lc))
+            for (dp, D) in windows:
+                both_emit = max(both_emit, max(0, D - dp))
+                _src_w, _dst_w = _cx_sd.get(dp, (None, None))
+                if _dst_w is None:
+                    continue
+                for t in range(dp, D + 1):
+                    x = _ego_x_at(t)
+                    if x is not None and _inloc(x, _dst_w) and not _inloc(x, _src_w):
+                        conflicting += 1
 
         # Route summary.
         dist_m = core.get("dist_m", "")
@@ -379,6 +400,7 @@ def run(args):
             "both_emit_window_ticks": both_emit if _migrates else "",
             "epoch_fence": epoch_fence,
             "source_bound_reads": source_bound if _migrates else "",
+            "conflicting_ticks": conflicting if _migrates else "",
         })
 
     os.makedirs(args.outdir, exist_ok=True)
