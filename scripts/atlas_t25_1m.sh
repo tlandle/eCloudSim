@@ -1,11 +1,11 @@
 #!/bin/bash
 set +u
-# T25 SPEED SWEEP under freeze-1m (regions figure, TOP panel = constant-speed
+# T25 SPEED SWEEP under freeze-1n (regions figure, TOP panel = constant-speed
 # oncoming). Adapted from the canonical cetus_t25_rerun.sh (same scenario
 # openscenario_1_flow_gt, same lander khonsu_t25_land.py, same defaults-BEFORE-$@
-# speed-clobber fix). Differences required by freeze-1m:
+# speed-clobber fix). Differences required by freeze-1n:
 #   - runs on atlas in the idfix_wt worktree at the frozen base 71c9f37e, with the
-#     freeze-1m overlay applied (cp COMMON -> base, trap restore); the base is not
+#     freeze-1n overlay applied (cp COMMON -> base, trap restore); the base is not
 #     modified. This carries Defect B (coast-through-blind-window), the ghost-filter
 #     fix and the accel-consumption fix, which is what lets warm beat kf/cold.
 #   - passes KHONSU_SEED=$s so the "seeds" are the PAIRED spawn-phase samples
@@ -58,7 +58,7 @@ grep -q "SEEDROW" ecav/scenario_testing/scenarios/scenario_1.py || { echo "ABORT
 git fetch origin develop -q 2>/dev/null || true
 git checkout origin/develop -- scripts/verify_models.sh scripts/models.manifest 2>/dev/null || true
 bash scripts/verify_models.sh "$(pwd)" || { echo "ABORT: model artefacts differ from manifest; results from this host are not comparable"; exit 1; }
-R="$WT/evaluation_outputs/frozen_1m_t25"; mkdir -p "$R"
+R="$WT/evaluation_outputs/frozen_1n_t25"; mkdir -p "$R"
 carla_restart () { pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 6; ( cd "$CARLA_ROOT" && setsid nohup ./CarlaUE4.sh -RenderOffScreen >/dev/null 2>&1 9>&- & ); sleep 55; }
 _degenerate () { local lg="$1"
   grep -q "is not found in your CARLA repo\|has no attribute 'world'" "$lg" 2>/dev/null && return 0
@@ -72,7 +72,7 @@ run () { local tag="$1"; shift; local log="$R/${tag}.log"
   for attempt in 1 2; do
     carla_restart; echo "[$(date +%H:%M:%S)] $tag attempt $attempt : $@"
     echo "[LAUNCHENV] defaults(ONCOMING_SPEED=12 TRIGGER_DIST=300) then $@" > "$log"
-    ( env ONCOMING_SPEED=12 TRIGGER_DIST=300 "$@" EVAL_TAG=khonsu-eval-freeze-1m timeout -k 30 900 python ecav.py -t openscenario_1_flow_gt --apply_ml >> "$log" 2>&1 ) || true
+    ( env ONCOMING_SPEED=12 TRIGGER_DIST=300 "$@" EVAL_TAG=khonsu-eval-freeze-1n timeout -k 30 900 python ecav.py -t openscenario_1_flow_gt --apply_ml >> "$log" 2>&1 ) || true
     _degenerate "$log" || break
     echo "[retry] $tag degenerate (startup transient)"
   done

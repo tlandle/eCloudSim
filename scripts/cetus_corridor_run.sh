@@ -24,7 +24,7 @@ grep -q "PUBGATE_SRC" ecav/core/application/edge/edge_manager/edge_manager_world
 grep -q "CONSUMEDEPOCH" ecav/core/plan/behavior_agent.py || { echo "ABORT epoch behavior missing"; exit 1; }
 grep -q "CORRIDORCROSS" ecav/scenario_testing/openscenario_1_corridor_gt.py || { echo "ABORT corridor runner missing"; exit 1; }
 pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 3
-R="$WT/evaluation_outputs/frozen_1m_corridor"; mkdir -p "$R"
+R="$WT/evaluation_outputs/frozen_1n_corridor"; mkdir -p "$R"
 carla_restart () { pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 6; ( cd "$CARLA_ROOT" && setsid nohup ./CarlaUE4.sh -RenderOffScreen >/dev/null 2>&1 9>&- & ); sleep 55; }
 _degenerate () { local lg="$1"
   grep -q "is not found in your CARLA repo\|has no attribute 'world'" "$lg" 2>/dev/null && return 0
@@ -36,7 +36,7 @@ run () { local tag="$1"; shift; local log="$R/${tag}.log"
   for attempt in 1 2; do
     carla_restart; echo "[$(date +%H:%M:%S)] $tag attempt $attempt : $@"
     echo "[LAUNCHENV] ONCOMING_SPEED=12 TRIGGER_DIST=300 $@" > "$log"
-    ( env "$@" ONCOMING_SPEED=12 TRIGGER_DIST=300 EVAL_TAG=khonsu-eval-freeze-1m timeout -k 30 2100 python ecav.py -t openscenario_1_corridor_gt --apply_ml >> "$log" 2>&1 ) || true
+    ( env "$@" ONCOMING_SPEED=12 TRIGGER_DIST=300 EVAL_TAG=khonsu-eval-freeze-1n timeout -k 30 2100 python ecav.py -t openscenario_1_corridor_gt --apply_ml >> "$log" 2>&1 ) || true
     _degenerate "$log" || break
     echo "[retry] $tag degenerate"
   done
