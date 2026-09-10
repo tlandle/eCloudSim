@@ -93,7 +93,7 @@ FAULTS_COLS = ["tag", "fault", "epochs", "rep", "double_emission_ms",
                "stale_owner_consumed", "both_emit_window_ms", "eval_tag"]
 REPL_EXTRA = ["repl_period_s", "bytes_per_crossing", "warm_before_first_use",
               "age_at_decision_ms"]
-BAND_TAG_RE = re.compile(r"^fb_band(?P<w>\d+)_r(?P<rep>\d+)$")
+BAND_TAG_RE = re.compile(r"^fb_band(?P<w>\d+)(_v(?P<spd>\d+))?_r(?P<rep>\d+)$")
 CROSSROW_RE = re.compile(
     r"\[CROSSROW\] npc=(-?\d+) crossing_tick=(-?\d+) first_detection_tick=(-?\d+) "
     r"tenth_observation_tick=(-?\d+) first_prediction_tick=(-?\d+) "
@@ -168,6 +168,12 @@ def std_row(path, name, machine, oncoming_speed, trigger_dist, tag_default):
         seed = sm.group(1)
     rm = re.search(r"_r(\d+)", name)
     rep = rm.group(1) if rm else seed  # acc/hln index on _s; _r if present
+    # oncoming speed from the tag (_v{spd}) overrides the fixed --oncoming-speed
+    # arg, so a two-speed band sweep in one dir carries the true speed per row
+    # (mirrors the T25 lander's v{spd} parse). No _v -> the arg default stands.
+    vm = re.search(r"_v(\d+)", name)
+    if vm:
+        oncoming_speed = vm.group(1)
     raw_mode = core.get("mode", "")
     if raw_mode in _FINAL_BUILTIN:
         final_update = "builtin"

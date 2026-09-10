@@ -74,9 +74,15 @@ fi
 for s in $SEEDS; do
   # baseline shared by all three figures (warm, predictive trigger, 1 s lead)
   run "fa_base_s${s}"        MIGRATION_MODE=warm TRIGGER_MODE=predictive LOOKAHEAD_S=1 KHONSU_SEED=$s
-  # overlap: band widths (fb_band* -> band lander)
+  # overlap: band widths at BOTH speeds so the measured side matches the
+  # generated frozengen_rows.csv exactly (5 widths x 2 speeds = 10 band cells/
+  # seed; the overlap figure draws one curve per speed). 12 m/s uses the default
+  # (no _v tag); 20 m/s is tagged _v20 so the lander reads the true speed per row
+  # (std_row parses _v(\d+)) and the two lowest-width curves never mix a measured
+  # 12 m/s point with a projected 20 m/s one.
   for w in 10 20 40 80 120; do
-    run "fb_band${w}_r${s}"  MIGRATION_MODE=warm TRIGGER_MODE=band BAND_W_M=$w KHONSU_SEED=$s
+    run "fb_band${w}_r${s}"      MIGRATION_MODE=warm TRIGGER_MODE=band BAND_W_M=$w KHONSU_SEED=$s
+    run "fb_band${w}_v20_r${s}"  MIGRATION_MODE=warm TRIGGER_MODE=band BAND_W_M=$w ONCOMING_SPEED=20 KHONSU_SEED=$s
   done
   # trigger modes for the trigger figure's rows.csv (predictive = baseline,
   # band = fb_band20; mtr representative arm at the default theta 0.5, the theta
