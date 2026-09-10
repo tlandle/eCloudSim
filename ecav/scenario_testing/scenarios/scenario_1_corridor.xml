@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<scenarios>
+    <!-- Reduced three-locale corridor (Town01), forked from scenario_1_flow.xml.
+         Ego spawns east (x=317, locale_0) and drives WEST to a west endpoint
+         (x=-80, locale_2), threading TWO conflict zones:
+           conflict 1: stationary blocker at x=250 (locale_0)
+           conflict 2: stationary blocker at x=120 (locale_1)
+         Oncoming Leons drive EAST (yaw=0, y=199) from the far west; a Leon that
+         starts in locale_2 crosses locale_2->locale_1 and locale_1->locale_0
+         (two obstacle handoffs). The eastbound stream is dense enough that both
+         conflict zones have oncoming when the ego arrives.
+         Actor order: the first two other_actors are the blockers (indices 0,1);
+         scenario_1_corridor.py zeroes CORRIDOR_BLOCKERS (default 2) leading
+         indices under ONCOMING_SPEED. num_actors in the yaml = 1 ego + 12 = 13. -->
+    <scenario name="Scenario_1" type="Scenario_1" town="Town01">
+        <ego_vehicle x="317.4" y="195.4" z="0.3" yaw="180" model="vehicle.nissan.patrol" />
+        <!-- conflict-zone blockers (ego lane y=195.4, stopped) -->
+        <other_actor x="250.0" y="195.4" z="-500" yaw="180" model="vehicle.carlamotors.carlacola" />
+        <other_actor x="120.0" y="195.4" z="-500" yaw="180" model="vehicle.carlamotors.carlacola" />
+        <!-- eastbound oncoming stream (opposite lane y=199, yaw=0), 50 m spacing -->
+        <other_actor x="230.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="180.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="130.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="80.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="30.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="-20.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="-70.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="-120.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="-170.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="-220.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <weather cloudiness="0" precipitation="0" precipitation_deposits="0" wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75" />
+    </scenario>
+</scenarios>

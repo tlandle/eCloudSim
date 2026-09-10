@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<scenarios>
+    <scenario name="Scenario_1" type="Scenario_1" town="Town01">
+        <ego_vehicle x="317.4" y="195.4" z="0.3" yaw="180" model="vehicle.nissan.patrol" />
+        <other_actor x="278.0" y="195.4" z="-500" yaw="180" model="vehicle.carlamotors.carlacola" />
+        <!-- oncoming stream (y=199, eastbound), ~70 m spacing: gap ~9 s at the
+             conflict > ~6 s maneuver, so a foresighted (warm) ego can complete
+             a graze-free pass; a blind (cold) ego commits into a false gap -->
+        <other_actor x="265.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="195.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="125.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="55.0"  y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <weather cloudiness="0" precipitation="0" precipitation_deposits="0" wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75" />
+    </scenario>
+</scenarios>
