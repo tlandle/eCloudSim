@@ -1,7 +1,7 @@
 #!/bin/bash
 set +u
 # CETUS corridor RUN-ONLY. The worktree ~/cetus_1m_wt is already set up (frozen
-# base 71c9f37e + freeze_1m_overlay applied + corridor files + proto stubs + REAL
+# base 71c9f37e + code_overlay applied + corridor files + proto stubs + REAL
 # models placed by the peer). This script does NOT recreate the worktree and does
 # NOT touch the models (doing so would clobber the peer's real checkpoints with
 # dangling symlinks). It only verifies the setup then runs the 70 routes.

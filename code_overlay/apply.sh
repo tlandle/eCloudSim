@@ -1,11 +1,11 @@
 #!/bin/bash
-# Apply the freeze-1m overlay (this directory) onto the frozen base, or restore it.
+# Apply the code overlay (this directory) onto the frozen base, or restore it.
 # The overlay files are byte-identical to what the campaign/probe scripts copy at
 # runtime; this is the same cp-then-git-checkout step, packaged so reproduction is
 # one command instead of copying files by hand.
 #
-#   freeze_1m_overlay/apply.sh apply    [repo_root]   # overlay -> base paths
-#   freeze_1m_overlay/apply.sh restore  [repo_root]   # git checkout the base paths
+#   code_overlay/apply.sh apply    [repo_root]   # overlay -> base paths
+#   code_overlay/apply.sh restore  [repo_root]   # git checkout the base paths
 #
 # The frozen base is commit 71c9f37e (freeze-1h). Run `apply` on a checkout at
 # that base, run the scenario, then `restore`. scenario_1_1l.py is NOT included

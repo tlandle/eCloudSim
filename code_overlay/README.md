@@ -1,10 +1,20 @@
-# freeze-1m overlay (settled non-scenario code)
+# code overlay (settled non-scenario code)
 
-Version-controlled snapshot of the settled freeze-1m code fixes so the set is
-reproducible from the repo rather than living only in a scratchpad on one host.
-These files OVERLAY the frozen base (commit `71c9f37e`, freeze-1h) at runtime:
-the campaign/probe scripts `cp` each overlay onto its base path, run, then
-`git checkout` the base back (trap on EXIT). The frozen base is not modified.
+Version-neutral, so the directory states its own build rather than implying it by
+name (it was `freeze_1m_overlay`; renamed because it now holds a later build).
+
+**Current build: freeze-1n.** Corresponds to run tag `khonsu-eval-freeze-1n` and
+measured CSVs `frozen1n_*`. The one code difference from freeze-1m is the
+ghost-filter fix (location-keyed removal of static unmapped `carla_id=-1`
+phantoms), commit `206192bc`. freeze-1m runs (pre-fix) are abandoned; their rows
+are quarantined out of the paper repo's `mock_data/`.
+
+Version-controlled snapshot of the settled code fixes so the set is reproducible
+from the repo rather than living only in a scratchpad on one host. These files
+OVERLAY the frozen base (commit `71c9f37e`, freeze-1h) at runtime: the campaign
+scripts `cp` each overlay onto its base path, run, then `git checkout` the base
+back (trap on EXIT). The frozen base is not modified. Bump this header's build
+line whenever the overlay contents change to a new tag.
 
 ## Overlay map (overlay file -> base path it replaces)
 
