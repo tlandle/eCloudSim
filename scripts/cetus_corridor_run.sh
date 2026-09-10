@@ -39,7 +39,12 @@ run () { local tag="$1"; shift; local log="$R/${tag}.log"
     ( env "$@" ONCOMING_SPEED=12 TRIGGER_DIST=300 EVAL_TAG=khonsu-eval-freeze-1m timeout -k 30 2100 python ecav.py -t openscenario_1_corridor_gt --apply_ml >> "$log" 2>&1 ) || true
     _degenerate "$log" || break
     echo "[retry] $tag degenerate"
-  done; }
+  done
+  # HARD FAIL: no completion marker means the route was killed/crashed (e.g. a
+  # too-short timeout). A corridor route must reach RUNROW and cross >=1 boundary
+  # (CORRIDORCROSS); stop the block loudly rather than churn out zero-row cells.
+  grep -q RUNROW "$log" 2>/dev/null || { echo "[HARD FAIL] $tag no RUNROW after $attempt attempts (timeout/crash); STOPPING block"; exit 2; }
+  [ "$(grep -c CORRIDORCROSS "$log" 2>/dev/null)" -gt 0 ] || { echo "[HARD FAIL] $tag RUNROW but 0 CORRIDORCROSS (broken route/no handoff); STOPPING block"; exit 2; }; }
 SEEDS=${SEEDS:-"1 2 3 4 5"}
 if [ "${SMOKE:-0}" = "1" ]; then run "co_warm_n1_r1" MIGRATION_MODE=warm EPOCH_FENCE=1; echo "smoke $(date +%H:%M:%S)"; pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; exit 0; fi
 for rep in $SEEDS; do

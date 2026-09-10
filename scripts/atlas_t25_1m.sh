@@ -75,7 +75,11 @@ run () { local tag="$1"; shift; local log="$R/${tag}.log"
     ( env ONCOMING_SPEED=12 TRIGGER_DIST=300 "$@" EVAL_TAG=khonsu-eval-freeze-1m timeout -k 30 900 python ecav.py -t openscenario_1_flow_gt --apply_ml >> "$log" 2>&1 ) || true
     _degenerate "$log" || break
     echo "[retry] $tag degenerate (startup transient)"
-  done; }
+  done
+  # HARD FAIL: a cell that exits without its completion marker (RUNROW) means the
+  # run was killed/crashed (e.g. a wrong-sized timeout). Stop the block loudly
+  # rather than move on and silently produce zero usable rows.
+  grep -q RUNROW "$log" 2>/dev/null || { echo "[HARD FAIL] $tag produced no RUNROW after $attempt attempts (timeout/crash); STOPPING block"; exit 2; }; }
 arm_env () { case "$1" in
     cold)     echo "MIGRATION_MODE=cold" ;;
     kf)       echo "MIGRATION_MODE=kf" ;;
