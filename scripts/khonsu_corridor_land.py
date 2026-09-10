@@ -286,6 +286,16 @@ def run(args):
         except (TypeError, ValueError):
             _by_total = 0
         bytes_per_crossing = round(_by_total / n_cross) if n_cross > 0 else ""
+        # stale_owner_consumed and both_emit_window_ticks are ONLY defined when an
+        # ownership transfer occurs. On a non-migrating arm (cold) there is no
+        # second owner and no epoch reads, so 0 would read as "as well fenced as
+        # fencing" and the both_emit else-branch emits a spurious open window
+        # (e.g. 1298) that a reader takes as the worst dual-emission figure. Emit
+        # EMPTY (not applicable) for those arms. Do NOT backfill with zeros.
+        # Migration is detected by the presence of the migration markers
+        # themselves: fenced arms have PUBGATE_SRC + CONSUMEDEPOCH, ef0 has
+        # CONSUMEDEPOCH (no source drop), cold has neither.
+        _migrates = bool(PUBSRC_RE.search(text) or CONSUMED_RE.search(text))
         # frozengen columns not on RUNROW: raw collisions, dual timings, env.
         eps_raw, contact_raw = _eps_raw_contact(text)
         dual_fuse_ms, dual_predict_ms = _dual_ms(text)
@@ -310,8 +320,8 @@ def run(args):
             "bytes_per_crossing": bytes_per_crossing,
             "dual_fuse_ms": dual_fuse_ms, "dual_predict_ms": dual_predict_ms,
             "route_success": route_success,
-            "stale_owner_consumed": stale_owner,
-            "both_emit_window_ticks": both_emit,
+            "stale_owner_consumed": stale_owner if _migrates else "",
+            "both_emit_window_ticks": both_emit if _migrates else "",
         })
 
     os.makedirs(args.outdir, exist_ok=True)
