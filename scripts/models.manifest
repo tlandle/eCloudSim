@@ -1,0 +1,18 @@
+# Model artefacts the closed-loop campaign loads, with their content hashes.
+# Verified identical on atlas (idfix_wt) and cetus (cetus_1m_wt) on 2026-09-10,
+# so results from the two hosts are comparable.
+#
+# None of these are safely carried by a plain checkout:
+#  - the .pth files are git-lfs objects, and lfs is NOT installed on cetus,
+#    so a fresh worktree there writes 133-byte pointers
+#  - the thresh02 entries are SYMLINKS into an absolute atlas path, which
+#    dangle on any other machine
+#  - the Swin backbone is untracked; without it the run falls back to a
+#    HuggingFace download, which either fails (401) or silently fetches a
+#    different revision than the one every prior result used
+#
+# md5(first 16)   bytes        path (relative to the repo root)
+0925cfa567547ff7  53362901     ecav/core/tracking/mamba3dmot/mamba3dmot_weights.pth
+17e22087cc70c840  64733964     ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth
+546ce0586c5f232f  624305848    ecav/ml_manager/models/mtr_wf_mamba/best_model.pth
+bfe71d38383d66fe  347488216    ecav/core/application/v2v/baselines/cmp/CMP/MTR/pretrained/swin-base-patch4-window7-224/model.safetensors
