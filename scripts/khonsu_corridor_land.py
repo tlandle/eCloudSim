@@ -50,6 +50,7 @@ import sys
 # khonsu_design_extract (STD [RUNROW] parser) lives beside this script.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import khonsu_design_extract as kde  # noqa: E402
+import khonsu_ablation_diag as kad    # noqa: E402  (resolve_collision_partner)
 
 # Arms whose migrated state is refreshed at the crossing (final sync). For these
 # the age-at-use production origin is the crossing tick, not the prepare tick.
@@ -74,6 +75,7 @@ SUMMARY_COLS = [
     "compliance_frac", "bytes_per_crossing", "dual_fuse_ms", "dual_predict_ms",
     "route_success", "stale_owner_consumed", "both_emit_window_ticks",
     "epoch_fence", "source_bound_reads", "conflicting_ticks",
+    "collision_partner_resolved",
 ]
 
 DUAL_RE = re.compile(r"DUALROW\] .*?fuse_ms=(?P<fuse>[\d.]+) predict_ms=(?P<pred>[\d.]+)")
@@ -210,6 +212,17 @@ def run(args):
         traffic = tm.group("traffic") or ""
         mode = core.get("mode", "")
         text = _read(path)
+        # collision_partner_resolved: the real CARLA actor the ego physically
+        # contacted (geometric nearest non-ego actor at collision onset), blank if
+        # no collision or no real actor near. A blank on a collided route flags a
+        # phantom-caused stop with no real partner; a real id is a genuine
+        # oncoming/blocker impact. Same resolver the headline diag used.
+        try:
+            _dk = kad.parse_log(path)
+            collision_partner = kad.resolve_collision_partner(
+                _dk, kad.identify_ego_cid(_dk))
+        except Exception:  # noqa: BLE001
+            collision_partner = ""
         # EPOCH_FENCE off when the arm carries ef0 or the launch env set it 0.
         epoch_fence = "0" if ("ef0" in arm
                               or re.search(r"EPOCH_FENCE=0", text)) else "1"
@@ -409,6 +422,7 @@ def run(args):
             "epoch_fence": epoch_fence,
             "source_bound_reads": source_bound if _migrates else "",
             "conflicting_ticks": conflicting if _migrates else "",
+            "collision_partner_resolved": collision_partner,
         })
 
     os.makedirs(args.outdir, exist_ok=True)
