@@ -50,7 +50,10 @@ import sys
 # khonsu_design_extract (STD [RUNROW] parser) lives beside this script.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import khonsu_design_extract as kde  # noqa: E402
-import khonsu_ablation_diag as kad    # noqa: E402  (resolve_collision_partner)
+try:
+    import khonsu_ablation_diag as kad    # resolve_collision_partner
+except Exception:  # noqa: BLE001 - degrade to blank if the module is absent
+    kad = None
 
 # Arms whose migrated state is refreshed at the crossing (final sync). For these
 # the age-at-use production origin is the crossing tick, not the prepare tick.
@@ -217,12 +220,14 @@ def run(args):
         # no collision or no real actor near. A blank on a collided route flags a
         # phantom-caused stop with no real partner; a real id is a genuine
         # oncoming/blocker impact. Same resolver the headline diag used.
-        try:
-            _dk = kad.parse_log(path)
-            collision_partner = kad.resolve_collision_partner(
-                _dk, kad.identify_ego_cid(_dk))
-        except Exception:  # noqa: BLE001
-            collision_partner = ""
+        collision_partner = ""
+        if kad is not None:
+            try:
+                _dk = kad.parse_log(path)
+                collision_partner = kad.resolve_collision_partner(
+                    _dk, kad.identify_ego_cid(_dk))
+            except Exception:  # noqa: BLE001
+                collision_partner = ""
         # EPOCH_FENCE off when the arm carries ef0 or the launch env set it 0.
         epoch_fence = "0" if ("ef0" in arm
                               or re.search(r"EPOCH_FENCE=0", text)) else "1"
