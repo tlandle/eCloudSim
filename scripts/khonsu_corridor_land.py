@@ -60,13 +60,58 @@ CROSSING_COLS = [
     "warm", "age_at_use_ms", "compliant", "bytes", "epoch", "eval_tag",
     "machine",
 ]
+# Matches frozengen_corridor_rows.csv column-for-column (the figure reads these
+# names/order). No generated column is obsolete; all are extracted below.
 SUMMARY_COLS = [
-    "tag", "arm", "seed", "traffic", "epoch_fence", "mode", "trigger",
-    "eps", "ct", "tx", "by", "dist_m", "time_s", "completed", "collided",
-    "route_success", "n_crossings", "warm_frac", "compliance_frac",
-    "bytes_per_crossing", "stale_owner_consumed", "both_emit_window_ticks",
-    "tau_ms", "complete_m", "eval_tag", "machine",
+    "tag", "mode", "trigger", "band", "refresh", "mirror", "look", "rep",
+    "eps", "ct", "collided", "dist_m", "time_s", "completed", "tx", "by",
+    "eps_raw", "contact_raw", "machine", "oncoming_speed", "trigger_dist",
+    "eval_tag", "final_update", "traffic_n", "crossings", "warm_frac",
+    "compliance_frac", "bytes_per_crossing", "dual_fuse_ms", "dual_predict_ms",
 ]
+# Corridor-specific epoch-fencing metrics (the block's core result) that
+# frozengen has no column for. Kept in a side file so they are not lost; whether
+# they join the main schema is the figure owner's call.
+EPOCH_COLS = [
+    "tag", "arm", "seed", "epoch_fence", "route_success",
+    "stale_owner_consumed", "both_emit_window_ticks", "tau_ms", "complete_m",
+    "eval_tag", "machine",
+]
+
+DUAL_RE = re.compile(r"DUALROW\] .*?fuse_ms=(?P<fuse>[\d.]+) predict_ms=(?P<pred>[\d.]+)")
+
+
+def _dual_ms(text):
+    """Mean dual-authority fuse/predict ms across DUALROW markers."""
+    fu, pr = [], []
+    for m in DUAL_RE.finditer(text):
+        fu.append(float(m.group("fuse"))); pr.append(float(m.group("pred")))
+    f = round(sum(fu) / len(fu), 2) if fu else ""
+    p = round(sum(pr) / len(pr), 2) if pr else ""
+    return f, p
+
+
+def _eps_raw_contact(text):
+    """Raw collision episodes (dedup >1s) + contact ticks from per-tick warnings."""
+    ts = []
+    for ln in text.splitlines():
+        if "WARNING" in ln and "Collision" in ln and "Eval" not in ln:
+            m = re.search(r"(\d{2}):(\d{2}):(\d{2}),(\d{3})", ln)
+            if m:
+                h, mn, s, ms = map(int, m.groups())
+                ts.append(h * 3600 + mn * 60 + s + ms / 1000.0)
+    eps, last = 0, None
+    for t in ts:
+        if last is None or t - last > 1.0:
+            eps += 1
+        last = t
+    return eps, len(ts)
+
+
+def _launchenv(text, key, default):
+    """Read an uppercase env var (e.g. ONCOMING_SPEED=12) from the LAUNCHENV line."""
+    m = re.search(rf"\b{key}=([0-9.]+)", text)
+    return m.group(1) if m else default
 
 # Tag forms accepted:
 #   co_<arm>_n<traffic>_r<rep>   (campaign; arm may carry underscores)
@@ -120,6 +165,7 @@ def _age_and_compliance(mode, prepare, crossing, first_use, dt_ms, tau_ms):
 def run(args):
     crossings = []
     summaries = []
+    epochs = []
     dt_ms = float(args.dt_ms)
     tau_ms = float(args.tau_ms)
     complete_m = float(args.complete_m)
@@ -245,18 +291,33 @@ def run(args):
         except (TypeError, ValueError):
             _by_total = 0
         bytes_per_crossing = round(_by_total / n_cross) if n_cross > 0 else ""
+        # frozengen columns not on RUNROW: raw collisions, dual timings, env.
+        eps_raw, contact_raw = _eps_raw_contact(text)
+        dual_fuse_ms, dual_predict_ms = _dual_ms(text)
+        final_update = "builtin" if mode in FINAL_SET else "none"
         summaries.append({
-            "tag": stem, "arm": arm, "seed": seed, "traffic": traffic,
-            "epoch_fence": epoch_fence,
-            "mode": mode, "trigger": core.get("trigger", ""),
+            "tag": stem, "mode": mode, "trigger": core.get("trigger", ""),
+            "band": core.get("band", ""), "refresh": core.get("refresh", ""),
+            "mirror": core.get("mirror", ""), "look": core.get("look", ""),
+            "rep": seed,
             "eps": core.get("eps", ""), "ct": core.get("ct", ""),
+            "collided": collided, "dist_m": dist_m,
+            "time_s": core.get("time_s", ""), "completed": core.get("completed", ""),
             "tx": core.get("tx", ""), "by": core.get("by", ""),
-            "dist_m": dist_m, "time_s": core.get("time_s", ""),
-            "completed": core.get("completed", ""), "collided": collided,
-            "route_success": route_success, "n_crossings": n_cross,
+            "eps_raw": eps_raw, "contact_raw": contact_raw,
+            "machine": args.machine,
+            "oncoming_speed": _launchenv(text, "ONCOMING_SPEED", "12"),
+            "trigger_dist": _launchenv(text, "TRIGGER_DIST", "300"),
+            "eval_tag": args.tag, "final_update": final_update,
+            "traffic_n": traffic, "crossings": n_cross,
             "warm_frac": _mean_frac(warm_flags),
             "compliance_frac": _mean_frac(comp_flags),
             "bytes_per_crossing": bytes_per_crossing,
+            "dual_fuse_ms": dual_fuse_ms, "dual_predict_ms": dual_predict_ms,
+        })
+        epochs.append({
+            "tag": stem, "arm": arm, "seed": seed, "epoch_fence": epoch_fence,
+            "route_success": route_success,
             "stale_owner_consumed": stale_owner,
             "both_emit_window_ticks": both_emit,
             "tau_ms": tau_ms, "complete_m": complete_m,
@@ -266,8 +327,10 @@ def run(args):
     os.makedirs(args.outdir, exist_ok=True)
     cross_out = os.path.join(args.outdir, "frozen1l_corridor_crossings.csv")
     rows_out = os.path.join(args.outdir, "frozen1l_corridor_rows.csv")
+    epoch_out = os.path.join(args.outdir, "frozen1l_corridor_epoch.csv")
     _write(crossings, CROSSING_COLS, cross_out)
     _write(summaries, SUMMARY_COLS, rows_out)
+    _write(epochs, EPOCH_COLS, epoch_out)
     if not summaries:
         print("no corridor logs matched (none landed yet)", file=sys.stderr)
     return summaries
