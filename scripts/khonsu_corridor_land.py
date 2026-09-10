@@ -41,6 +41,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import bisect
 import csv
 import os
 import re
@@ -72,6 +73,7 @@ SUMMARY_COLS = [
     "eval_tag", "final_update", "traffic_n", "crossings", "warm_frac",
     "compliance_frac", "bytes_per_crossing", "dual_fuse_ms", "dual_predict_ms",
     "route_success", "stale_owner_consumed", "both_emit_window_ticks",
+    "epoch_fence", "source_bound_reads",
 ]
 
 DUAL_RE = re.compile(r"DUALROW\] .*?fuse_ms=(?P<fuse>[\d.]+) predict_ms=(?P<pred>[\d.]+)")
@@ -108,6 +110,29 @@ def _launchenv(text, key, default):
     """Read an uppercase env var (e.g. ONCOMING_SPEED=12) from the LAUNCHENV line."""
     m = re.search(rf"\b{key}=([0-9.]+)", text)
     return m.group(1) if m else default
+
+
+def _locale_ranges(text):
+    """x-range per locale parsed from the config JSON in the log (not hardcoded,
+    so the split survives a geometry change). Overlap bands are handled by the
+    caller checking membership in both src and dst."""
+    import json
+    ranges = {}
+    for m in re.finditer(r'"id":\s*"(locale_\d+)",\s*"polygon":\s*(\[\[.*?\]\])', text):
+        try:
+            xs = [p[0] for p in json.loads(m.group(2))]
+            ranges[m.group(1)] = (min(xs), max(xs))
+        except Exception:  # noqa: BLE001
+            pass
+    return ranges
+
+
+def _ego_x_map(text):
+    """tick -> ego x from EGO-DBG, for reconstructing the consuming CAV's locale."""
+    d = {}
+    for m in re.finditer(r"EGO-DBG\] tick=(\d+) pos=\(([0-9.-]+),", text):
+        d[int(m.group(1))] = float(m.group(2))
+    return d
 
 # Tag forms accepted:
 #   co_<arm>_n<traffic>_r<rep>   (campaign; arm may carry underscores)
@@ -192,7 +217,7 @@ def run(args):
         warm_flags = []
         comp_flags = []
         n_cross = 0
-        committed = {}   # actor carla_id -> [(crossing_tick, epoch_int), ...]
+        committed = {}   # actor carla_id -> [(crossing_tick, epoch_int, src, dst), ...]
         for m in CROSS_RE.finditer(text):
             n_cross += 1
             npc = int(m.group("npc"))
@@ -208,7 +233,7 @@ def run(args):
             epoch = m.group("epoch")
             epoch = int(epoch) if epoch is not None else ""
             if isinstance(epoch, int):
-                committed.setdefault(npc, []).append((cx, epoch))
+                committed.setdefault(npc, []).append((cx, epoch, src, dst))
             age_ms, compliant = _age_and_compliance(
                 mode, pt, cx, fu, dt_ms, tau_ms)
             warm_flags.append(warm == "YES")
@@ -224,20 +249,48 @@ def run(args):
                 "eval_tag": args.tag, "machine": args.machine,
             })
 
-        # stale_owner_consumed: join each [CONSUMEDEPOCH] against the actor's
-        # committed owner epoch at that tick (max CORRIDORCROSS epoch whose
-        # crossing_tick <= tick). A consume under a LOWER epoch after commit is a
-        # stale-owner read. Must be 0 under EPOCH_FENCE=1; >0 is the ef0 signal.
+        # stale_owner_consumed: a [CONSUMEDEPOCH] read under a LOWER epoch than the
+        # actor's committed owner epoch, counted ONLY when the consuming CAV is
+        # bound to the DESTINATION locale of the transfer (its position is in dst
+        # and not in src). A source-bound read (CAV still in the source locale)
+        # from the source's own local track is design-permitted (the source serves
+        # it until its tracker drops the road user), so it is reported separately
+        # as source_bound_reads and excluded from the violation count. The
+        # violation count must be 0 under EPOCH_FENCE=1; the ef0 arm is the
+        # negative control that drives it non-zero.
+        _loc = _locale_ranges(text)
+        _egox = _ego_x_map(text)
+        _egt = sorted(_egox)
+
+        def _ego_x_at(t):
+            i = bisect.bisect_right(_egt, t) - 1
+            return _egox[_egt[i]] if i >= 0 else None
+
+        def _inloc(x, loc):
+            r = _loc.get(loc)
+            return r is not None and r[0] <= x <= r[1]
+
         stale_owner = 0
+        source_bound = 0
         for cm in CONSUMED_RE.finditer(text):
             actor = int(cm.group("actor"))
             ctick = int(cm.group("tick"))
             ce = int(cm.group("ce"))
-            evec = committed.get(actor, [])
-            cur = max((ep for (cx, ep) in evec if 0 <= cx <= ctick),
-                      default=None)
-            if cur is not None and ce >= 0 and ce < cur:
-                stale_owner += 1
+            evec = [(cx, ep, s, d) for (cx, ep, s, d) in committed.get(actor, [])
+                    if 0 <= cx <= ctick]
+            if not evec:
+                continue
+            cur = max(ep for (cx, ep, s, d) in evec)
+            if not (ce >= 0 and ce < cur):
+                continue
+            _cx, _ep, _src, _dst = [t for t in evec if t[1] == cur][-1]
+            _x = _ego_x_at(ctick)
+            if _x is None:
+                continue
+            if _inloc(_x, _dst) and not _inloc(_x, _src):
+                stale_owner += 1        # destination-bound read: a real violation
+            elif _inloc(_x, _src):
+                source_bound += 1       # source-bound read: design-permitted
         # both_emit_window_ticks: per actor, ticks in which BOTH the source
         # (still publishing until its [PUBGATE_SRC] drop) and the destination
         # (publishing from its shadow-clear = first crossing_tick) could emit.
@@ -254,7 +307,7 @@ def run(args):
             last_consume[a] = max(last_consume.get(a, -1), int(cm.group("tick")))
         both_emit = 0
         for actor, evec in committed.items():
-            cxs = sorted(cx for (cx, ep) in evec if cx >= 0)
+            cxs = sorted(cx for (cx, ep, s, d) in evec if cx >= 0)
             if not cxs:
                 continue
             drops = pubsrc.get(actor)
@@ -324,6 +377,8 @@ def run(args):
             "route_success": route_success,
             "stale_owner_consumed": stale_owner if _migrates else "",
             "both_emit_window_ticks": both_emit if _migrates else "",
+            "epoch_fence": epoch_fence,
+            "source_bound_reads": source_bound if _migrates else "",
         })
 
     os.makedirs(args.outdir, exist_ok=True)
