@@ -188,6 +188,16 @@ def build_row(path, machine):
     else:
         row["final_update"] = "none"
 
+    # oracle arm = warm content (MIGRATION_MODE=warm) with the ground-truth
+    # crossing (TRIGGER_MODE=oracle) trigger, the T20 upper bound. RUNROW logs
+    # mode=warm, so relabel from the tag to keep it a distinct arm in the figure
+    # (fig_regions iterates oracle, warm, reactive, kf, cold). final_update is
+    # already resolved from the underlying warm above; it migrates the full
+    # latent so it reads crossing_tick from HANDOFFROW like warm.
+    if tm and tm.group("mode") == "oracle":
+        row["mode"] = "oracle"
+        mode = "oracle"
+
     # --- T25-specific ---
     oncoming, _amb = kad.identify_oncoming(d)
     lt = kad.launch_tick(d)
@@ -197,7 +207,7 @@ def build_row(path, machine):
     row["contact_actor"] = kad.resolve_collision_partner(d, kad.identify_ego_cid(d))
 
     hf = d["handoff"].get(gid, {}) if gid != "" else {}
-    migrated = mode in ("warm", "reactive", "kf") and "crossing_tick" in hf
+    migrated = mode in ("warm", "reactive", "kf", "oracle") and "crossing_tick" in hf
 
     # crossing_tick: HANDOFFROW for migration arms, GT x>=240 for cold.
     crossing = ""
