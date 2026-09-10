@@ -1,9 +1,21 @@
 ---
-updated: 2026-09-09
+updated: 2026-09-10
 ---
 # Current State
 
 Primary context-switching artifact. Read this first after a gap.
+
+## 2026-09-10 (code session): Defect B NOT confirmed closed; the flow verify smoke was UNATTRIBUTABLE; added locale tag, re-running
+
+CORRECTION to the Sep 9 "Defect B - FIXED" claim below (line ~12): the flow verify smoke could NOT confirm Defect B, and three re-runs left the MODESROW gap at ~77-111 ticks. Root cause of the FAILED VERIFICATION (not necessarily of the fix itself):
+
+- The smoke's GAP metric was unattributable. MODESROW/MIG_SEAM/MIG_DBG carried NO locale tag, and both edge managers (source locale_1 = west/oncoming approach, dest locale_0 = east/conflict/ego) log into ONE file with per-edge-manager tids that COLLIDE (both start at tid=1). So "first MODESROW after crossing for cid=X" mixed source and destination tracks. The source (locale_1) emits MTR for an oncoming vehicle ~120 ticks BEFORE it crosses (cid=201 earliest MODESROW tick 132, IDENTICAL in cold and warm, because migration never touches the source), which dominated the min and made the metric read ~80 regardless of the fix. This is the SAME source-forecast confound already recorded for the FDE cold anchor (Sep 9, line ~193).
+- Evidence from frozen_1m_verify/verify_warm.log (npc=201, the gating handoff: prepare 254, crossing 257, first_dst_track 255, first_use 275, warm_before_first_use=YES): only ONE track was ever seeded (MIG_SEAM tid=2, n_frames=10, n_imported=10) and it carried cid 197/199, NEVER the gating cid=201. cid=201 mapped to tids {1,4,5,6} (warm) / {4,5,6,7} (kf) with the earliest MODESROW at tick 132 in BOTH modes. The gating handoff produced no seam. Whether that is identity fragmentation (imported tid != the destination's settled tid, cf. _merge_duplicate_carla_ids) or the destination already tracking cid=201 locally cannot be told apart WITHOUT a locale tag.
+- The seeding MECHANISM works for at least one track: tid=2 was seeded and produced MTR MODESROW at tick 32 (early maturity). The failure is in VERIFICATION/attribution and possibly in identity continuity at the seam, not proven in the memo_bank->trajectory rebuild itself.
+
+FIX APPLIED THIS SESSION (scratchpad edge_manager_merged_1l_epoch.py, py_compile clean): self._locale_id from cfg['locale']['id'] in __init__ (both proxy and non-proxy paths); locale=<id> appended to [MODESROW], [MIG_SEAM], [MIG_DBG]. atlas_1m_verify.sh report rewritten: per handoff (all 3: npc 199/200/201) measure the first DESTINATION (locale=locale_0) MODESROW at/after first_dst_track_tick, GAP_vs_fdt, and list destination tids per cid (fragmentation check). Defect B closed => warm GAP_vs_fdt <= ~4 ticks (1 edge cycle), kf ~80. Attributed verify re-running on Atlas now (frozen_1m_verify/_report.txt).
+
+DO NOT proceed to Defect A, the finer probe sign-off, the relay smoke, or the whole-campaign rerun until the attributed verify shows the destination-side GAP actually drops for warm. If it does not, the next hypothesis is identity fragmentation at the seam (seed the destination's settled tid, not just the imported one).
 
 ## 2026-09-09 (code session, latest): TWO migration-path DEFECTS found; Defect B fixed; WHOLE-CAMPAIGN rerun on freeze-1m ordered
 
