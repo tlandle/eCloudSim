@@ -292,10 +292,12 @@ def run(args):
         # fencing" and the both_emit else-branch emits a spurious open window
         # (e.g. 1298) that a reader takes as the worst dual-emission figure. Emit
         # EMPTY (not applicable) for those arms. Do NOT backfill with zeros.
-        # Migration is detected by the presence of the migration markers
-        # themselves: fenced arms have PUBGATE_SRC + CONSUMEDEPOCH, ef0 has
-        # CONSUMEDEPOCH (no source drop), cold has neither.
-        _migrates = bool(PUBSRC_RE.search(text) or CONSUMED_RE.search(text))
+        # Migration is detected by CAMIGRATED, the actual track-migration event.
+        # CONSUMEDEPOCH is NOT the signal: it is logged for every track epoch read
+        # including local (non-migrated) tracks, so cold shows thousands of them
+        # (15411 in cold_r1) with zero migration. PUBGATE_SRC is likewise absent
+        # on cold. CAMIGRATED is 0 on cold and >0 on the migrating arms.
+        _migrates = "CAMIGRATED" in text
         # frozengen columns not on RUNROW: raw collisions, dual timings, env.
         eps_raw, contact_raw = _eps_raw_contact(text)
         dual_fuse_ms, dual_predict_ms = _dual_ms(text)
