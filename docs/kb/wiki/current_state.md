@@ -5,6 +5,19 @@ updated: 2026-09-10
 
 Primary context-switching artifact. Read this first after a gap.
 
+## 2026-09-10 (code session): host-effect validated; 3 of 5 "missing runners" are flow-block arms, not new sweeps
+
+HOST-EFFECT TEST (freeze-1n, cold_v20_s1, fixed seed, 3 reps/host). atlas episodes 0/0/0 all completed, phantoms 35/39/35; cetus episodes 0/0/0 all completed, phantoms 47/26/45. Collision outcome identical across both hosts and all six reps: no host effect on outcome, no run-to-run non-determinism on outcome for this cell. Phantom count is a nuisance variable only (within-host spread atlas 4 / cetus 21; cross-host medians 36 vs 45) and does not convert to collisions. Whole-blocks-per-host validated: any residual host offset stays within-block and preserves arm-to-arm. Byte-identical models already verified (verify_models.sh + models.manifest). Regions can restart on freeze-1n on atlas.
+
+MISSING-RUNNER AUDIT (peer traced figure->CSV consumers; I traced the flow runner env params). The flow runner runner_wired.py (overlays openscenario_1_flow_gt.py) reads: MIGRATION_MODE, LOOKAHEAD_S (1.0), TRIGGER_MODE (predictive), MTR_THETA (0.5), BAND_W_M (20.0), COMMIT_REFRESH (none), MIRROR_PERIOD_S (0.0), ONCOMING_SPEED, TRIGGER_DIST, NET_LAT_MS/JITTER/LOSS. TRIGGER_MODE branches on predictive/band/mtr/oracle/computed (runner_wired.py:551/562/605/628). Consequence: 3 of the 5 "missing runners" are cell enumerations inside the flow block, not new runners:
+- Overlap = band-width arms. TRIGGER_MODE=band + BAND_W_M. scripts/khonsu_design_sweep.sh ALREADY enumerates band {5,10,20,40,80}; figure wants {10,20,40,80,120}. CAVEAT: only the geometric band trigger exists in code; the T14 three-forms taxonomy (sensing-only / compute-overlap / dual-authority) is NOT three distinct modes. If the overlap figure reads band-width arms from frozengen_rows.csv it is fine; three-forms would be a code gap (peer's call).
+- Trigger-Pareto = TRIGGER_MODE {predictive,band,computed,mtr,oracle} + MTR_THETA {0.3..0.9}. Drivable now, no existing enumeration of the non-band modes.
+- Lookahead (T18) = LOOKAHEAD_S {1,2,3,4}. Drivable now. T18 also sweeps M {0.15,0.35,0.6}s and lead cap {1.5,2.5,4.0}s; those two knobs NOT yet confirmed as env params.
+GENUINELY NEED WORK:
+- Controlled-age (T12): the one real separate sweep, frozengen_age_sweep_rows.csv (STD + scenario, inject_ms, baseline_age_ms, realized_age_ms; scenarios acceleration + blind overtake). Consume-side knob AOI_INJECT_MS EXISTS (behavior_agent_1m.py:342). Conflict: Tyler's T12 amendment 2 requires age via the ns-3 radio plane (NET_LAT_MS/load) and marks AOI_INJECT runs pilot-only, while figure_schemas.md:50 still names the AOI_INJECT_MS knob and axis realized_age_ms = pipeline age + injected delay. Needs a wrapper enumerating age levels + logging realized_age_ms and a lander emitting the age_sweep schema; knob choice pending peer/Tyler.
+- Import-age (T17): NO registry CSV, NO IMPORT_AGE knob. Currently a projected sentence in the record appendix (evaluation.tex:265-267, error < 0.05 m for 0-400 ms). Only needs a knob + small measurement if it must be measured.
+NET: zero new full runners. Plan sent to peer: extend khonsu_design_sweep.sh into a freeze-1n flow-arms enumeration (band/trigger/lookahead) with verify_models + hard-fail-on-missing-RUNROW + [CELLTIME] + frozengen-schema lander; build controlled-age once the knob is chosen; import-age only if measured. Tasks #29/#30/#31 reduce to enumeration + one small build.
+
 ## 2026-09-10 (code session): Defect B NOT confirmed closed; the flow verify smoke was UNATTRIBUTABLE; added locale tag, re-running
 
 CORRECTION to the Sep 9 "Defect B - FIXED" claim below (line ~12): the flow verify smoke could NOT confirm Defect B, and three re-runs left the MODESROW gap at ~77-111 ticks. Root cause of the FAILED VERIFICATION (not necessarily of the fix itself):
