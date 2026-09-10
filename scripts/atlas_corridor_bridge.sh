@@ -16,7 +16,6 @@ land_and_pull () {
   ssh -o ConnectTimeout=15 "$CETUS" "mkdir -p $OUT; cd $WT && source ~/anaconda3/etc/profile.d/conda.sh && conda activate opencda310 && python scripts/khonsu_corridor_land.py $R --outdir $OUT --tau-ms 500 --complete-m 350 --tag khonsu-eval-freeze-1m --machine cetus" >>"$LOG" 2>&1 || true
   scp -o ConnectTimeout=15 "$CETUS:$OUT/frozen1l_corridor_rows.csv"      "$MOCK/frozen1m_corridor_rows.csv" >/dev/null 2>&1 || true
   scp -o ConnectTimeout=15 "$CETUS:$OUT/frozen1l_corridor_crossings.csv" "$MOCK/frozen1m_corridor_crossings.csv" >/dev/null 2>&1 || true
-  scp -o ConnectTimeout=15 "$CETUS:$OUT/frozen1l_corridor_epoch.csv"     "$MOCK/frozen1m_corridor_epoch.csv" >/dev/null 2>&1 || true
   local n=$(tail -n +2 "$MOCK/frozen1m_corridor_rows.csv" 2>/dev/null | wc -l)
   echo "[$(date +%H:%M:%S)] corridor rows landed=$n" >> "$LOG"
 }

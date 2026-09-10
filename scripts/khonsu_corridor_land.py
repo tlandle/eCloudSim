@@ -61,21 +61,17 @@ CROSSING_COLS = [
     "machine",
 ]
 # Matches frozengen_corridor_rows.csv column-for-column (the figure reads these
-# names/order). No generated column is obsolete; all are extracted below.
+# names/order). The first 30 are the shared flow schema; the last three are the
+# corridor's epoch-fencing result, promoted into the main schema per the figure
+# owner (already columns in the multi-ego schema, so this keeps the two blocks
+# consistent). frozengen_corridor_rows.csv is regenerated to the same 33.
 SUMMARY_COLS = [
     "tag", "mode", "trigger", "band", "refresh", "mirror", "look", "rep",
     "eps", "ct", "collided", "dist_m", "time_s", "completed", "tx", "by",
     "eps_raw", "contact_raw", "machine", "oncoming_speed", "trigger_dist",
     "eval_tag", "final_update", "traffic_n", "crossings", "warm_frac",
     "compliance_frac", "bytes_per_crossing", "dual_fuse_ms", "dual_predict_ms",
-]
-# Corridor-specific epoch-fencing metrics (the block's core result) that
-# frozengen has no column for. Kept in a side file so they are not lost; whether
-# they join the main schema is the figure owner's call.
-EPOCH_COLS = [
-    "tag", "arm", "seed", "epoch_fence", "route_success",
-    "stale_owner_consumed", "both_emit_window_ticks", "tau_ms", "complete_m",
-    "eval_tag", "machine",
+    "route_success", "stale_owner_consumed", "both_emit_window_ticks",
 ]
 
 DUAL_RE = re.compile(r"DUALROW\] .*?fuse_ms=(?P<fuse>[\d.]+) predict_ms=(?P<pred>[\d.]+)")
@@ -165,7 +161,6 @@ def _age_and_compliance(mode, prepare, crossing, first_use, dt_ms, tau_ms):
 def run(args):
     crossings = []
     summaries = []
-    epochs = []
     dt_ms = float(args.dt_ms)
     tau_ms = float(args.tau_ms)
     complete_m = float(args.complete_m)
@@ -314,23 +309,16 @@ def run(args):
             "compliance_frac": _mean_frac(comp_flags),
             "bytes_per_crossing": bytes_per_crossing,
             "dual_fuse_ms": dual_fuse_ms, "dual_predict_ms": dual_predict_ms,
-        })
-        epochs.append({
-            "tag": stem, "arm": arm, "seed": seed, "epoch_fence": epoch_fence,
             "route_success": route_success,
             "stale_owner_consumed": stale_owner,
             "both_emit_window_ticks": both_emit,
-            "tau_ms": tau_ms, "complete_m": complete_m,
-            "eval_tag": args.tag, "machine": args.machine,
         })
 
     os.makedirs(args.outdir, exist_ok=True)
     cross_out = os.path.join(args.outdir, "frozen1l_corridor_crossings.csv")
     rows_out = os.path.join(args.outdir, "frozen1l_corridor_rows.csv")
-    epoch_out = os.path.join(args.outdir, "frozen1l_corridor_epoch.csv")
     _write(crossings, CROSSING_COLS, cross_out)
     _write(summaries, SUMMARY_COLS, rows_out)
-    _write(epochs, EPOCH_COLS, epoch_out)
     if not summaries:
         print("no corridor logs matched (none landed yet)", file=sys.stderr)
     return summaries
