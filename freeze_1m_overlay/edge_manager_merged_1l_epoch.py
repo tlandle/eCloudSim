@@ -2156,6 +2156,46 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     print(f"[GHOST FILTER] Removing static track {tid} at {pos_str} "
                           f"(kf_speeds: {[f'{s:.2f}' for s in recent_speeds]})")
 
+        # Location-keyed removal of UNMAPPED phantoms (carla_id == -1). The
+        # per-track-id consecutive-static counter above cannot survive id churn: a
+        # WorldFusion false positive re-appears with a fresh track_id every few
+        # frames (measured: 17 ids in a 3 m band at a fixed location), resetting
+        # the per-tid counter so it is never removed and the ego stalls behind it.
+        # Key persistence on a spatial cell instead, and SCOPE it to UNMAPPED
+        # tracks only (carla_id == -1) so a real stopped vehicle, which always
+        # carries a carla_id via GT injection, is never deleted. A cell occupied
+        # by a static unmapped track for unmapped_loc_frames consecutive ticks is
+        # a phantom and its track(s) are removed.
+        if not hasattr(self, '_unmapped_static_loc'):
+            self._unmapped_static_loc = {}
+        unmapped_loc_frames = 8
+        seen_cells: Dict[tuple, list] = {}
+        for tid, traj in self.tracked_trajectories.items():
+            cid = self.track_to_carla.get(tid, -1)
+            if cid is not None and cid != -1:
+                continue                      # mapped (real) track: never touched
+            sp = self.track_velocities.get(tid)
+            sp = sp[-1] if sp else 0.0
+            if sp >= min_speed_mps:
+                continue                      # moving unmapped track: not a phantom
+            pos = traj.trajectory[0].location if traj.trajectory else None
+            if pos is None:
+                continue
+            cell = (round(pos.x / 2.0) * 2, round(pos.y / 2.0) * 2)
+            seen_cells.setdefault(cell, []).append(tid)
+        for cell in list(self._unmapped_static_loc):
+            if cell not in seen_cells:
+                del self._unmapped_static_loc[cell]   # cell vacated: reset
+        for cell, tids in seen_cells.items():
+            self._unmapped_static_loc[cell] = self._unmapped_static_loc.get(cell, 0) + 1
+            if self._unmapped_static_loc[cell] >= unmapped_loc_frames:
+                for tid in tids:
+                    if tid not in tracks_to_remove:
+                        tracks_to_remove.append(tid)
+                        print(f"[GHOST FILTER] Removing UNMAPPED phantom track {tid} "
+                              f"at cell {cell} (occupied "
+                              f"{self._unmapped_static_loc[cell]} frames, carla_id=-1)")
+
         # Remove ghost tracks
         for tid in tracks_to_remove:
             del self.tracked_trajectories[tid]
