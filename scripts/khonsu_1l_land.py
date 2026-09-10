@@ -86,6 +86,20 @@ THETA_TAG_RE = re.compile(r"^th_mtr(?P<theta>[0-9.]+)_s(?P<seed>\d+)$")
 FLT_TAG_RE = re.compile(r"^flt_(?P<fault>[a-z_]+)_ef(?P<ef>[01])_s(?P<seed>\d+)$")
 REPL_TAG_RE = re.compile(r"^repl_p(?P<period>[0-9.]+)_s(?P<seed>\d+)$")
 AGESWEEP_EXTRA = ["scenario", "inject_ms", "baseline_age_ms", "realized_age_ms"]
+# T12 radio-plane (ns-3 LUT) age sweep. Per-run sweep file = STD + these; the
+# envelope figure reads scenario/realized_age_ms/collided/completed and bins
+# realized_age_ms by RUN, so realized_age_ms on the row is the age at the maneuver
+# decision (the load-bearing one). Per-decision decisions file = T12_DEC_COLS.
+T12_SWEEP_EXTRA = ["scenario", "ns3_lut_n", "realized_age_ms",
+                   "realized_age_p50_ms", "realized_age_p95_ms",
+                   "network_age_p50_ms", "realized_age_maneuver_ms",
+                   "network_age_maneuver_ms"]
+T12_DEC_COLS = ["scenario", "ns3_lut_n", "seed", "realized_age_ms",
+                "network_age_ms", "run_collided"]
+T12_TAG_RE = re.compile(r"^t12_(?P<scn>[a-z]+)_n(?P<n>\d+)_s(?P<seed>\d+)$")
+AGEROW_FULL_RE = re.compile(
+    r"\[AGEROW\] tick=(\d+) edge=\S+ realized_age_ms=(-?[0-9.]+) "
+    r"network_age_ms=(-?[0-9.]+)")
 THETA_EXTRA = ["mtr_theta"]
 PDST_COLS = ["tag", "tick", "p_dst", "mtr_theta", "fired", "eval_tag"]
 FAULTS_COLS = ["tag", "fault", "epochs", "rep", "double_emission_ms",
@@ -803,6 +817,73 @@ def run_age_sweep(args):
     return rows
 
 
+def run_t12lut(args):
+    """T12 radio-plane age sweep (ns-3 LUT load via NS3_LUT_N). Emits TWO files.
+    args.out = per-run sweep (STD_COLS + T12_SWEEP_EXTRA): one row per (scenario,
+    ns3_lut_n, seed); the envelope figure reads scenario/realized_age_ms/collided/
+    completed and bins by run, so realized_age_ms here is the age at the maneuver
+    decision (the load-bearing one). args.decisions_out = per-decision file
+    (T12_DEC_COLS): the figure's bottom panel reads ns3_lut_n from it. Tag form
+    t12_{scenario}_n{N}_s{seed}. Ages from [AGEROW]; the maneuver decision is the
+    sustained launch (kad.launch_tick), falling back to the per-run realized-age
+    median when no sustained launch is logged (e.g. the acceleration scenario)."""
+    sweep, decisions = [], []
+    for name in sorted(os.listdir(args.logdir)):
+        if not name.endswith(".log"):
+            continue
+        stem = name[:-4]
+        tm = T12_TAG_RE.match(stem)
+        if not tm:
+            continue
+        path = os.path.join(args.logdir, name)
+        row = std_row(path, stem, args.machine, args.oncoming_speed,
+                      args.trigger_dist, args.tag)
+        if row is None or row == "INVALID":
+            print(f"skip ({'no RUNROW' if row is None else 'INVALID'}): {name}",
+                  file=sys.stderr)
+            continue
+        text = _read(path)
+        d = kad.parse_log(path)
+        scn = tm.group("scn")
+        n = int(tm.group("n"))
+        seed = int(tm.group("seed"))
+        run_collided = 1 if str(row.get("collided", "")).upper() == "YES" else 0
+        ages, nets, ticks = [], [], []
+        for m in AGEROW_FULL_RE.finditer(text):
+            tk, ra, na = int(m.group(1)), float(m.group(2)), float(m.group(3))
+            ticks.append(tk)
+            ages.append(ra)
+            nets.append(na)
+            decisions.append({
+                "scenario": scn, "ns3_lut_n": n, "seed": seed,
+                "realized_age_ms": round(ra, 1), "network_age_ms": round(na, 1),
+                "run_collided": run_collided,
+            })
+        # maneuver decision: sustained launch tick, else per-run median age.
+        lt = kad.launch_tick(d)
+        man_ra = man_na = ""
+        if ticks:
+            if lt is not None:
+                j = min(range(len(ticks)), key=lambda i: abs(ticks[i] - lt))
+                man_ra, man_na = round(ages[j], 1), round(nets[j], 1)
+            else:
+                man_ra = _pctl(ages, 0.5)
+                man_na = _pctl(nets, 0.5)
+        row["scenario"] = scn
+        row["ns3_lut_n"] = n
+        row["realized_age_maneuver_ms"] = man_ra
+        row["network_age_maneuver_ms"] = man_na
+        row["realized_age_ms"] = man_ra   # figure axis = maneuver-decision age
+        row["realized_age_p50_ms"] = _pctl(ages, 0.5)
+        row["realized_age_p95_ms"] = _pctl(ages, 0.95)
+        row["network_age_p50_ms"] = _pctl(nets, 0.5)
+        sweep.append(row)
+    _write(sweep, STD_COLS + T12_SWEEP_EXTRA, args.out)
+    if getattr(args, "decisions_out", None):
+        _write(decisions, T12_DEC_COLS, args.decisions_out)
+    return sweep
+
+
 def run_t25b(args):
     """frozen1l_t25b_rows.csv: khonsu_t25_land's row (STD + the nine T25 columns)
     plus shift_x_m. Reuses khonsu_t25_land.build_row verbatim; the t25b tag
@@ -1133,6 +1214,15 @@ def main():
     _common(ags, "frozen1l_age_sweep_rows.csv")
     ags.set_defaults(func=run_age_sweep)
 
+    t12 = sub.add_parser("t12lut",
+                         help="T12 radio-plane (ns-3 LUT) age sweep: per-run "
+                              "sweep + per-decision decisions file")
+    _common(t12, "frozen1l_age_sweep_rows.csv")
+    t12.add_argument("--decisions-out", dest="decisions_out",
+                     default=f"{_KB}/t12_lut_decisions.csv",
+                     help="per-decision output (figure bottom panel)")
+    t12.set_defaults(func=run_t12lut)
+
     tb = sub.add_parser("t25b", help="geometry shift sweep lander (reuses t25)")
     _common(tb, "frozen1l_t25b_rows.csv")
     tb.set_defaults(func=run_t25b)
@@ -1162,7 +1252,7 @@ def main():
     rw.set_defaults(func=run_rows)
 
     args = ap.parse_args()
-    for _attr in ("out", "pdst_out"):
+    for _attr in ("out", "pdst_out", "decisions_out"):
         _v = getattr(args, _attr, None)
         if _v:
             _d = os.path.dirname(os.path.abspath(_v))
