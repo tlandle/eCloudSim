@@ -51,25 +51,37 @@ def build_traj(man):
 
 
 def kf_series(traj):
-    """Real AB3DMOT filterpy KF. Returns {frame: (one_step_err_m, vel_err_mps)}."""
+    """Real AB3DMOT filterpy KF. Returns {frame: (one_step_err_m, vel_err_mps)}.
+
+    Velocity-seeded init: the filter's velocity state x[7:10] is set from the
+    first two detections (per-frame displacement p1 - p0) at frame 0, not left
+    at zero. This mirrors the closed-loop Kalman SNAPSHOT arm, which restores
+    the source KF's full state vector including its estimated velocity x[7:10]
+    (ab3dmot_state_transfer.py:91,134). Covariance is left at AB3DMOT's default
+    init here (the closed-loop arm additionally migrates P; the seed reproduces
+    the nonzero-velocity-at-init condition, which is what removes the transient).
+    """
     def to_state(b):  # harness box [x,y,z,l,w,h,yaw] -> KF state [x,y,z,theta,l,w,h]
         return np.array([b[0], b[1], b[2], b[6], b[3], b[4], b[5]], dtype=float)
     info = np.array([0.95, -1.0, -1.0])   # [score, guid=-1, cid=-1]; anchoring not used
-    trk, prev_gt, out = None, None, {}
-    for i in range(len(traj)):
+    p0, p1 = to_state(traj[0]), to_state(traj[1])
+    trk = ABKF(p0.copy(), info, 0)
+    trk.kf.x[7:10, 0] = (p1[:3] - p0[:3])   # per-frame displacement = migrated velocity
+    prev_gt, out = np.asarray(traj[0][:2], dtype=float), {}
+    for i in range(1, len(traj)):
         z = to_state(traj[i])
         gt = np.asarray(traj[i][:2], dtype=float)
-        if trk is None:
-            trk = ABKF(z.copy(), info, 0)
-            prev_gt = gt
-            continue
         trk.kf.predict()
         pred_xy = np.asarray(trk.kf.x[:2]).reshape(-1)
         vel_xy = np.asarray(trk.kf.x[7:9]).reshape(-1) / DT
-        one_step = float(np.hypot(*(pred_xy - gt)))
-        true_vel = (gt - prev_gt) / DT
-        vel_err = float(np.hypot(*(vel_xy - true_vel)))
-        out[i] = (one_step, vel_err)
+        # Skip frame 1: its prediction is circular (the seed velocity was
+        # computed from the frame 0->1 displacement, so predicting frame 1
+        # uses the answer). Genuine predictions start at frame 2.
+        if i >= 2:
+            one_step = float(np.hypot(*(pred_xy - gt)))
+            true_vel = (gt - prev_gt) / DT
+            vel_err = float(np.hypot(*(vel_xy - true_vel)))
+            out[i] = (one_step, vel_err)
         trk.kf.update(z.reshape((7, 1)))
         prev_gt = gt
     return out, 0
@@ -80,7 +92,10 @@ def ssm_series(cfg, device, traj):
     tracker = Mamba3DTracker(cfg, device=device)
     results = H._drive(tracker, traj, start_frame=0)
     out = {}
-    for i in range(1, len(results)):
+    # Skip frame 1 (the tracker's first raw prediction is a birth transient:
+    # a single frame of history yields a static hold). Genuine predictions
+    # start at frame 2, matching the KF arm's recording start.
+    for i in range(2, len(results)):
         pred = results[i].predicted_bbox
         if pred is None:
             continue
@@ -117,13 +132,21 @@ def main():
         w.writerows(rows)
     print(f"wrote {path} ({len(rows)} rows)")
 
-    # Compact summary: mean one-step error over the maneuver window (t in [0,2] s).
+    # Summary window: t in [0.0, 2.0] s inclusive, relative to maneuver onset
+    # (onset = frame 10, where each traj_* maneuver begins). The SAME window is
+    # used for all four maneuvers including straight (for straight, onset is the
+    # same reference frame and the window is a constant-speed steady-state
+    # segment).
     import statistics as st
-    print("\nmean one_step_err_m over maneuver window t in [0,2] s:")
+    W_LO, W_HI = 0.0, 2.0
+    print(f"\nwindow t in [{W_LO}, {W_HI}] s inclusive (same for all maneuvers + straight)")
+    print(f"{'maneuver':<12} {'tracker':<7} {'one_step_m':>10} {'vel_err_mps':>11}  n")
     for man in MANEUVERS:
         for trk in ("kalman", "ssm"):
-            vals = [r[4] for r in rows if r[0] == man and r[1] == trk and 0.0 <= r[2] <= 2.0]
-            print(f"  {man:<12} {trk:<7} {st.mean(vals):.3f}  (n={len(vals)})")
+            sel = [r for r in rows if r[0] == man and r[1] == trk and W_LO <= r[2] <= W_HI]
+            os_m = st.mean(r[4] for r in sel)
+            ve_m = st.mean(r[3] for r in sel)
+            print(f"  {man:<10} {trk:<7} {os_m:>10.3f} {ve_m:>11.3f}  {len(sel)}")
     return 0
 
 
