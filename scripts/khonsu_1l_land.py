@@ -955,14 +955,76 @@ def run_repl(args):
     return rows
 
 
+def _flow_overlap_row(path, stem, args):
+    """One STD+BAND_EXTRA row for a flow log: RUNROW via std_row, handoff
+    warm-before-use, the CROSSROW overlap breakdown in SECONDS after overlap entry
+    (first_detection_s / tenth_observation_s / first_prediction_s), and the
+    [DUALROW] dual-compute columns (dual_owned_tracks_in_overlap, dual_fuse_ms /
+    dual_predict_ms mean over overlap ticks, overlap_dwell_s). Dual/CROSSROW
+    columns land blank on logs without them. Returns None to skip (no RUNROW /
+    INVALID)."""
+    row = std_row(path, stem, args.machine, args.oncoming_speed,
+                  args.trigger_dist, args.tag)
+    if row is None or row == "INVALID":
+        print(f"skip ({'no RUNROW' if row is None else 'INVALID'}): {stem}.log",
+              file=sys.stderr)
+        return None
+    text = _read(path)
+    d = kad.parse_log(path)
+    gid = _gating_oncoming(d)
+    wb = HANDOFF_WBFU_RE.findall(text)
+    row["handoffs"] = len(wb)
+    row["warm_before_first_use"] = (
+        round(sum(1 for m in wb if m == "YES") / len(wb), 3) if wb else "")
+    # CROSSROW overlap breakdown for the gating oncoming, in seconds after
+    # overlap entry (crossing_tick).
+    cr = None
+    crs = list(CROSSROW_RE.finditer(text))
+    for m in crs:
+        if gid is not None and int(m.group(1)) == int(gid):
+            cr = m
+            break
+    if cr is None and crs:
+        cr = crs[0]
+
+    def _sec(tk, base):
+        return round((tk - base) * 0.05, 3) if tk >= 0 and base >= 0 else ""
+    if cr is not None:
+        base = int(cr.group(2))
+        row["first_detection_s"] = _sec(int(cr.group(3)), base)
+        row["tenth_observation_s"] = _sec(int(cr.group(4)), base)
+        row["first_prediction_s"] = _sec(int(cr.group(5)), base)
+    else:
+        row["first_detection_s"] = row["tenth_observation_s"] = \
+            row["first_prediction_s"] = ""
+    # DUALROW aggregation.
+    dfuse, dpred, dcids, dticks = [], [], set(), set()
+    has_dual = False
+    for m in DUALROW_RE.finditer(text):
+        has_dual = True
+        if m.group(4) == "1":
+            dcids.add(int(m.group(3)))
+            dfuse.append(float(m.group(5)))
+            dpred.append(float(m.group(6)))
+            if gid is not None and int(m.group(3)) == int(gid):
+                dticks.add(int(m.group(1)))
+    if has_dual:
+        row["dual_owned_tracks_in_overlap"] = len(dcids)
+        row["dual_fuse_ms"] = round(sum(dfuse) / len(dfuse), 3) if dfuse else ""
+        row["dual_predict_ms"] = (
+            round(sum(dpred) / len(dpred), 3) if dpred else "")
+        row["overlap_dwell_s"] = (
+            round(len(dticks) * 0.05, 3) if dticks else "")
+    else:
+        row["dual_owned_tracks_in_overlap"] = ""
+        row["dual_fuse_ms"] = row["dual_predict_ms"] = ""
+        row["overlap_dwell_s"] = ""
+    return row
+
+
 def run_band(args):
-    """frozen1l_rows.csv (fb_band* rows, schema row 50). STD + the CROSSROW
-    overlap breakdown in SECONDS after overlap entry (crossing_tick): Table 12
-    first_detection_s / tenth_observation_s / first_prediction_s; and the
-    dual-compute columns from [DUALROW]: dual_owned_tracks_in_overlap (distinct
-    cids ever both-locale-held), dual_fuse_ms / dual_predict_ms (mean over
-    overlap ticks), overlap_dwell_s (gating cid both-locale ticks x 0.05). Dual
-    columns land blank on logs without [DUALROW]."""
+    """frozen1l_rows.csv from fb_band* rows only (schema row 50). See
+    _flow_overlap_row for the column set (STD + CROSSROW + DUALROW breakdown)."""
     rows = []
     for name in sorted(os.listdir(args.logdir)):
         if not name.endswith(".log"):
@@ -970,64 +1032,30 @@ def run_band(args):
         stem = name[:-4]
         if not BAND_TAG_RE.match(stem):
             continue
-        path = os.path.join(args.logdir, name)
-        row = std_row(path, stem, args.machine, args.oncoming_speed,
-                      args.trigger_dist, args.tag)
-        if row is None or row == "INVALID":
-            print(f"skip ({'no RUNROW' if row is None else 'INVALID'}): {name}",
-                  file=sys.stderr)
-            continue
-        text = _read(path)
-        d = kad.parse_log(path)
-        gid = _gating_oncoming(d)
-        wb = HANDOFF_WBFU_RE.findall(text)
-        row["handoffs"] = len(wb)
-        row["warm_before_first_use"] = (
-            round(sum(1 for m in wb if m == "YES") / len(wb), 3) if wb else "")
-        # CROSSROW overlap breakdown for the gating oncoming, in seconds after
-        # overlap entry (crossing_tick).
-        cr = None
-        crs = list(CROSSROW_RE.finditer(text))
-        for m in crs:
-            if gid is not None and int(m.group(1)) == int(gid):
-                cr = m
-                break
-        if cr is None and crs:
-            cr = crs[0]
+        row = _flow_overlap_row(os.path.join(args.logdir, name), stem, args)
+        if row is not None:
+            rows.append(row)
+    _write(rows, STD_COLS + BAND_EXTRA, args.out)
+    return rows
 
-        def _sec(tk, base):
-            return round((tk - base) * 0.05, 3) if tk >= 0 and base >= 0 else ""
-        if cr is not None:
-            base = int(cr.group(2))
-            row["first_detection_s"] = _sec(int(cr.group(3)), base)
-            row["tenth_observation_s"] = _sec(int(cr.group(4)), base)
-            row["first_prediction_s"] = _sec(int(cr.group(5)), base)
-        else:
-            row["first_detection_s"] = row["tenth_observation_s"] = \
-                row["first_prediction_s"] = ""
-        # DUALROW aggregation.
-        dfuse, dpred, dcids, dticks = [], [], set(), set()
-        has_dual = False
-        for m in DUALROW_RE.finditer(text):
-            has_dual = True
-            if m.group(4) == "1":
-                dcids.add(int(m.group(3)))
-                dfuse.append(float(m.group(5)))
-                dpred.append(float(m.group(6)))
-                if gid is not None and int(m.group(3)) == int(gid):
-                    dticks.add(int(m.group(1)))
-        if has_dual:
-            row["dual_owned_tracks_in_overlap"] = len(dcids)
-            row["dual_fuse_ms"] = round(sum(dfuse) / len(dfuse), 3) if dfuse else ""
-            row["dual_predict_ms"] = (
-                round(sum(dpred) / len(dpred), 3) if dpred else "")
-            row["overlap_dwell_s"] = (
-                round(len(dticks) * 0.05, 3) if dticks else "")
-        else:
-            row["dual_owned_tracks_in_overlap"] = ""
-            row["dual_fuse_ms"] = row["dual_predict_ms"] = ""
-            row["overlap_dwell_s"] = ""
-        rows.append(row)
+
+def run_rows(args):
+    """frozen1l_rows.csv generic flow lander: every flow log in --logdir keyed off
+    RUNROW (mode/trigger/band/refresh/mirror/look), matching frozengen_rows.csv so
+    the overlap, trigger-mode and lookahead figures read one file. Skips th_mtr*
+    (the theta sweep has its own file, frozen1l_theta_rows.csv, so rows.csv keeps a
+    single mtr arm from fa_trig_mtr). Overlap columns fill when CROSSROW/DUALROW
+    are present, blank otherwise; same column set as run_band."""
+    rows = []
+    for name in sorted(os.listdir(args.logdir)):
+        if not name.endswith(".log"):
+            continue
+        stem = name[:-4]
+        if THETA_TAG_RE.match(stem):
+            continue
+        row = _flow_overlap_row(os.path.join(args.logdir, name), stem, args)
+        if row is not None:
+            rows.append(row)
     _write(rows, STD_COLS + BAND_EXTRA, args.out)
     return rows
 
@@ -1120,6 +1148,12 @@ def main():
     bd = sub.add_parser("band", help="band overlap lander (CROSSROW+DUALROW)")
     _common(bd, "frozen1l_rows.csv")
     bd.set_defaults(func=run_band)
+
+    rw = sub.add_parser("rows",
+                        help="generic flow rows lander (all arms via RUNROW; "
+                             "skips th_mtr*)")
+    _common(rw, "frozen1l_rows.csv")
+    rw.set_defaults(func=run_rows)
 
     args = ap.parse_args()
     for _attr in ("out", "pdst_out"):
