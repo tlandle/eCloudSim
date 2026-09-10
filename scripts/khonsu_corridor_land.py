@@ -316,7 +316,7 @@ def run(args):
         # the subset non-zero. Do NOT narrow the raw window: it is the denominator.
         _cx_sd = {cx: (s, d) for v in committed.values() for (cx, ep, s, d) in v}
         both_emit = 0
-        conflicting = 0
+        _max_win = None   # (dp, D, src, dst) of the single largest overlap window
         for actor, evec in committed.items():
             cxs = sorted(cx for (cx, ep, s, d) in evec if cx >= 0)
             if not cxs:
@@ -338,14 +338,22 @@ def run(args):
                     dp = max((cx for cx in cxs if cx <= lc), default=cxs[0])
                     windows.append((dp, lc))
             for (dp, D) in windows:
-                both_emit = max(both_emit, max(0, D - dp))
-                _src_w, _dst_w = _cx_sd.get(dp, (None, None))
-                if _dst_w is None:
-                    continue
-                for t in range(dp, D + 1):
-                    x = _ego_x_at(t)
-                    if x is not None and _inloc(x, _dst_w) and not _inloc(x, _src_w):
-                        conflicting += 1
+                w = max(0, D - dp)
+                if w > both_emit:
+                    both_emit = w
+                    _s_w, _d_w = _cx_sd.get(dp, (None, None))
+                    _max_win = (dp, D, _s_w, _d_w)
+        # conflicting_ticks is the risk-bearing SUBSET of the raw window and must be
+        # <= both_emit, so it is counted within the SAME (largest) overlap window
+        # both_emit reports, not summed across every actor's window (which massively
+        # over-counts). Ticks in that window where the CAV is destination-bound.
+        conflicting = 0
+        if _max_win is not None and _max_win[3] is not None:
+            _dp, _D, _s_w, _d_w = _max_win
+            for t in range(_dp, _D + 1):
+                x = _ego_x_at(t)
+                if x is not None and _inloc(x, _d_w) and not _inloc(x, _s_w):
+                    conflicting += 1
 
         # Route summary.
         dist_m = core.get("dist_m", "")
