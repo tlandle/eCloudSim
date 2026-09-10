@@ -21,6 +21,7 @@ the campaign/probe scripts `cp` each overlay onto its base path, run, then
 | `tracklet_1l.py` | `ecav/core/tracking/mamba3dmot/tracklet.py` |
 | `payload_wired.py` | `ecav/core/application/edge/migration/payload.py` |
 | `daemon_1l.py` | `ecav/core/application/edge/migration/daemon.py` |
+| `scenario_1_1l.py` | `ecav/scenario_testing/scenarios/scenario_1.py` |
 
 ## Settled fixes captured here
 
@@ -40,10 +41,20 @@ the campaign/probe scripts `cp` each overlay onto its base path, run, then
 - Round-trip relay transport (loud `[XFER_FALLBACK]` guard, `[XFERROW]`) in
   `daemon_1l.py`.
 
-## NOT here (held)
+`scenario_1_1l.py` carries the paired spawn-phase seed (settled; SEEDROW,
+deterministic per-index oncoming spawn-x offset, paired across arms) and an
+endogenous acceleration-onset branch (ONCOMING_CRUISE + ONCOMING_ACCEL_ONSET).
+The onset branch is inert unless ONCOMING_ACCEL_ONSET is set, so the file is safe
+for the headline / record-ablation / corridor blocks that do not set it.
 
-`scenario_1_1l.py` (overlays `ecav/scenario_testing/scenarios/scenario_1.py`) is
-held: it carries the paired spawn-phase seed (settled) AND the maneuvering
-endogenous-onset geometry (NOT finalized - the current onset places the ego's
-launch before the oncoming's delivery; the conflict/crossing timing is being
-corrected). It lands once the maneuvering scenario is finalized.
+## Panel runner (parked)
+
+`atlas_maneuver_panel.sh` is the maneuvering success-rate / FDE panel runner
+(across-seed situational spread plus a same-seed repetition cell for run-to-run
+jitter; log names match ACC_TAG_RE so `scripts/khonsu_1l_land.py acc` lands it).
+It is versioned here so it is not lost, but it is NOT wired to a finalized
+geometry. The closed-loop maneuvering collision panel was found not to be
+load-bearing for the record-depth claim: that claim rests on the closed-loop
+record ablation (the large separation is carrying velocity at all) and the
+offline forced-handoff depth benchmark, not on a closed-loop collision. Whether
+the projected-acceleration panel stays in the paper is Tyler's call.

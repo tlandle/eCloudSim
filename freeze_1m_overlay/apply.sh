@@ -27,7 +27,7 @@ MAP=(
   "tracklet_1l.py|ecav/core/tracking/mamba3dmot/tracklet.py"
   "payload_wired.py|ecav/core/application/edge/migration/payload.py"
   "daemon_1l.py|ecav/core/application/edge/migration/daemon.py"
-  # "scenario_1_1l.py|ecav/scenario_testing/scenarios/scenario_1.py"  # added when finalized
+  "scenario_1_1l.py|ecav/scenario_testing/scenarios/scenario_1.py"
 )
 cd "$ROOT" || { echo "bad repo root: $ROOT"; exit 1; }
 case "${1:-}" in
