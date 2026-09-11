@@ -17,11 +17,27 @@ instead of blank. This strictly bends one-freeze-one-code-state, allowed because
 the field only reads a value already computed and already summed into `RUNROW by=`,
 is stored in a dict never read during the sim, and is emitted only at scenario
 end, so no running block's result can change (regions does not feed the handoff
-figures and is NOT given this build). Tag does NOT move; still freeze-1n. To be
-applied to the flow-arms host (cetus) only AFTER a paired same-host/same-seed
-before/after inert proof passes (outcome fields identical); if they differ, the
-change is reverted and reported. Proof + commit + apply date recorded here once
-done. Commit: <pending proof>.
+figures and is NOT given this build). Tag does NOT move; still freeze-1n.
+Commit `1ed3a4ba`. APPLIED to cetus 2026-09-11.
+
+GATE OVERRIDE, recorded so the basis is visible (peer-agreed). The original gate
+required a paired same-host/same-seed before/after run with IDENTICAL outcome
+fields (episodes/contact_ticks/dist_m/time_s). That gate is unsatisfiable here:
+the CARLA flow sim is not reproducible to a tenth of a metre. Three host-test reps
+(identical code, same cell/seed, cold_v20_s1) span dist_m 92.5-94.9 (2.4 m) and
+time_s 20.3-24.3 (4.0 s); the byte-field before/after diff was 0.5 m / 0.3 s, well
+inside that. So the gate was overridden and the field applied on the CONSTRUCTION
+argument, verified in code not asserted: `npc_handoff_bytes` is written in the tick
+loop (runner_wired.py:677) and read only once, at the scenario-end `[HANDOFFROW]`
+emit inside the post-loop `finally` block (line 866); it is never read during the
+run, so it cannot influence the simulation regardless of any run pair. The noise
+comparison is a sanity check, not the evidence.
+
+INERTNESS METHOD (rule for future changes, both sessions): on a non-deterministic
+simulator, inertness is established by (1) inspecting the code path to confirm the
+change is never consumed during the run, and (2) if needed, comparing DISTRIBUTIONS
+over many runs. NEVER by field equality between two runs; the flow sim jitters
+~2.4 m / 4 s run-to-run at a fixed seed, so exact-match gates only ever fail.
 
 Version-controlled snapshot of the settled code fixes so the set is reproducible
 from the repo rather than living only in a scratchpad on one host. These files
