@@ -25,7 +25,9 @@ GAP D (fig_capacity ld_ block) DEFERRED, triple-blocked: (1) no variable-platoon
 
 OUT-OF-CHAIN (faults/transport/association): each has a matching lander (faults FAULTS_COLS is a superset of the figure schema; transport netem + assoc landers exist). No freeze-1n rerun now (provenance question deferred until measured blocks land; do not spend the compute).
 
-CHAIN-WAIT bug fixed earlier: 14h->48h (t12 would have aborted before flow-arms finished). Chain: capacity(capped 5, q5 running) -> flowarms -> t12 -> corridor, whole-block-per-host, poll armed for the flow-arms first row.
+CHAIN-WAIT bug fixed earlier: 14h->48h (t12 would have aborted before flow-arms finished). Chain: capacity(capped 5, q5 running) -> byte-field proof gate -> flowarms -> t12 -> corridor, whole-block-per-host.
+
+REGIONS 6 m/s CELL IS A SCENARIO LIMIT (peer flagged at 50/150 rows; do not stop the grid): at ONCOMING_SPEED=6 all five arms fail (8/10 collide), contact_actor is the oncoming STREAM (199 x6, 201 x2; GT-inject shows ids 197/199/200/201/202/205 all in the conflict zone), not a fixed obstacle. The stream is a slow-moving wall at 6 m/s (scenario tuned for ~12+ m/s), no gap to overtake into for any method, so it measures the scenario not the method. The t_avail x-axis also breaks there: 3 outliers (12.95/20.75/32.0 s, all seed 2) pair one gating oncoming's crossing_tick with a different stream member's conflict_tick (e.g. cold s2 crossing=452 gating vs contact=201, 640-tick span). Recommendation to figure owner: drop 6 m/s (start sweep at 8) or keep only as an annotated scenario-limit point and pair crossing/conflict to the same (contact) actor. Higher speeds separate the arms (2/2 by 16). Awaiting peer's call on the sweep floor before the n=6-10 extension.
 
 ## 2026-09-10 (code session): host-effect validated; 3 of 5 "missing runners" are flow-block arms, not new sweeps
 
