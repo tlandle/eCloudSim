@@ -103,7 +103,17 @@ def ssm_series(cfg, device, traj):
         prev_gt = np.asarray(traj[i - 1][:2], dtype=float)
         pred_xy = np.asarray(pred[:2], dtype=float)
         one_step = float(np.hypot(*(pred_xy - gt)))
-        est_vel = (pred_xy - prev_gt) / DT      # SSM has no explicit velocity state
+        # WARNING: this is NOT a velocity estimate and must not be plotted as one.
+        # The state-space tracker has no explicit velocity state, so the only thing
+        # that can be formed here is (predicted position - previous truth) / dt, which
+        # reduces algebraically to one_step_err_m / DT. Verified on the measured file:
+        # the ssm rows' vel_err_mps is EXACTLY 20x their one_step_err_m for all four
+        # maneuvers, 20 being 1/DT, while the Kalman rows sit near 10x because the
+        # filter has a real velocity state that is read directly. Plotting the two
+        # against each other compares a velocity estimate with a rescaled position
+        # error. The paper's tracker figure was corrected to drop the velocity panel
+        # (2026-09-10). The column is kept only so the file's schema does not change.
+        est_vel = (pred_xy - prev_gt) / DT
         true_vel = (gt - prev_gt) / DT
         vel_err = float(np.hypot(*(est_vel - true_vel)))
         out[i] = (one_step, vel_err)
