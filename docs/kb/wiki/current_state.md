@@ -5,6 +5,28 @@ updated: 2026-09-10
 
 Primary context-switching artifact. Read this first after a gap.
 
+## 2026-09-10 (code session): figure-vs-block arm audit; every block checked; capacity rescoped; EdgeWarp appendix conflict; new landers
+
+Peer-driven cross-check: for each block my chain feeds, compare the arm list the FIGURE iterates against what the RUNNER drives. Figures identify arms by arm_of(r) (mode/trigger/band columns) OR by a tag-prefix arm column (TRIGGER_ORDER) OR by ld_ tag split. Three mismatches found and fixed, plus a paper-claim conflict.
+
+- CORRIDOR: was 6 arms, the alternatives figure + tab_corridor iterate ALT_ORDER = 13 (cold, handover_snapshot, kf, kf_final, edgewarp, reactive, band20, band40, band80, replication, repl_final, warm, oracle). Fixed cetus_corridor_run.sh to all 13 (edgewarp=MIGRATION_MODE=edgewarp_full; band20/40/80=warm+TRIGGER_MODE=band+BAND_W_M; oracle=warm+TRIGGER_MODE=oracle). Verified corridor_gt supports band/oracle triggers + all modes; generated corridor carries exactly these 13. khonsu_ef0 kept (unfenced control, NOT in ALT_ORDER). 13x5 + ef0x5 = 70 routes.
+- CAPACITY: the burst+q5 block feeds the APPENDIX (tab:scale + \nDens{arm}{Two,Four,Eight} at FLOW_N 2/4/8, arms warm/edgewarp/cold; burst 5/5 platoon), NOT fig_capacity. Confirmed q5 IS consumed (appendix.tex:349) before nearly dropping it. Capped SEEDS 10->5 (paper says "of 5"; 60 runs). fig_capacity is a SEPARATE ld_<mode>_p<platoon> block (see GAP D).
+- EDGEWARP APPENDIX CONFLICT (real result, not a bug): measured freeze-1n burst = warm 5/5, edgewarp_full 5/5, cold 0/5. Appendix claimed EdgeWarp 0/5 (a hardcoded literal, no provenance). Peer chose option (a): measurement stands, rewrite the sentence (five-vehicle platoon separates state-transfer from none, not full-record from EdgeWarp timing; separation, if any, shows in the 2/4/8 density macros). Rejected fitting the arm/scenario to the prose.
+
+NEW LANDERS in khonsu_1l_land.py (all committed):
+- rows: generic flow rows -> frozen1n_rows.csv (overlap), skips th_mtr* and fb_band5 (band5 is handoff-only). run_band refactored to share _flow_overlap_row. std_row parses _v{spd} for per-row oncoming speed (two-speed band).
+- handoffs: per-[HANDOFFROW] -> frozen1n_handoffs.csv (trigger_pareto + lead_cdf). arm=tag stem (tr_computed/mtr/oracle/look2/4, fb_band5/20/40/80). crossed/warm/lead/track work; crossed=NO wasted-prepare rows ARE logged. bytes BLANK (flow logs have no XFERROW; needs a behavior-inert bytes= field on HANDOFFROW from payload_bytes(), pending peer decision (a), before flow-arms runs). drift_m blank on purpose.
+- density: burst+q5 -> frozen1n_density_rows.csv + frozen1n_density_macros.tex (\nBurst{Khonsu,Edgewarp,Cold} + \nDens{arm}{Two,Four,Eight}, "N of M"). Provenance header (MEASURED, tag, logdir, date). Validated: burst final = Khonsu 5/5, Edgewarp 5/5, Cold 0/5.
+- t12lut: per-run sweep + per-decision t12_lut_decisions.csv (built earlier this session).
+
+FLOW-ARMS runner: band widths {5,10,20,40,80,120}; {10,20,40,80,120} at speeds {12,20} (overlap), band5 at 12 only (handoff). trigger {computed,mtr@0.5,oracle}, mtr-theta {0.3,0.5,0.7,0.9}, lookahead {2,3,4}, baseline.
+
+GAP D (fig_capacity ld_ block) DEFERRED, triple-blocked: (1) no variable-platoon scenario (burst_gt is fixed layout, no knob); peer wants an INERT-when-unset PLATOON_N knob on burst_gt (prove inertness with a paired no-knob run vs the landed row) rather than a new scenario; (2) probe needs a free GPU (both busy 15-40h); (3) 200-sample floor per point unsized. Plan: add inert knob, probe platoon 1 and 16 on atlas after regions frees, count samples, size WITH the peer (do not guess; do not start the sweep before the two counts exist). Last block, nothing queues behind it.
+
+OUT-OF-CHAIN (faults/transport/association): each has a matching lander (faults FAULTS_COLS is a superset of the figure schema; transport netem + assoc landers exist). No freeze-1n rerun now (provenance question deferred until measured blocks land; do not spend the compute).
+
+CHAIN-WAIT bug fixed earlier: 14h->48h (t12 would have aborted before flow-arms finished). Chain: capacity(capped 5, q5 running) -> flowarms -> t12 -> corridor, whole-block-per-host, poll armed for the flow-arms first row.
+
 ## 2026-09-10 (code session): host-effect validated; 3 of 5 "missing runners" are flow-block arms, not new sweeps
 
 HOST-EFFECT TEST (freeze-1n, cold_v20_s1, fixed seed, 3 reps/host). atlas episodes 0/0/0 all completed, phantoms 35/39/35; cetus episodes 0/0/0 all completed, phantoms 47/26/45. Collision outcome identical across both hosts and all six reps: no host effect on outcome, no run-to-run non-determinism on outcome for this cell. Phantom count is a nuisance variable only (within-host spread atlas 4 / cetus 21; cross-host medians 36 vs 45) and does not convert to collisions. Whole-blocks-per-host validated: any residual host offset stays within-block and preserves arm-to-arm. Byte-identical models already verified (verify_models.sh + models.manifest). Regions can restart on freeze-1n on atlas.
