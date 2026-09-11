@@ -7,6 +7,23 @@ set +u
 # dangling symlinks). It only verifies the setup then runs the 70 routes.
 WT=$HOME/cetus_1m_wt
 CARLA_ROOT=$HOME/carla-0.9.15
+# Chain: run LAST in the cetus sequence (capacity -> flow-arms -> t12 -> corridor)
+# so the whole campaign shares the single GPU without contention. Idle-wait for
+# the predecessor's _done (default the t12 age sweep; override CHAIN_WAIT; NOWAIT=1
+# skips for standalone use), then for the GPU to be idle, before taking the lock.
+CHAIN_WAIT=${CHAIN_WAIT:-$HOME/cetus_1m_wt/evaluation_outputs/frozen_1n_t12/_done}
+if [ "${NOWAIT:-0}" != "1" ] && [ -n "$CHAIN_WAIT" ]; then
+  echo "[cetus-corridor] waiting for $CHAIN_WAIT ($(date +%H:%M:%S))"
+  for i in $(seq 1 17280); do   # 17280 * 10s = 48h (capacity+flow-arms+t12 ~30h)
+    [ -f "$CHAIN_WAIT" ] && break
+    sleep 10
+  done
+  [ -f "$CHAIN_WAIT" ] || { echo "[cetus-corridor] ABORT predecessor never finished after 48h"; exit 1; }
+  for i in $(seq 1 60); do
+    pgrep -f "ecav.py -t openscenario" >/dev/null 2>&1 || break
+    sleep 10
+  done
+fi
 exec 9>/tmp/cetus_1m.lock
 flock -w 600 9 || { echo "[cetus-corridor] lock busy"; exit 1; }
 echo "[cetus-corridor-run] start $(date +%H:%M:%S)"

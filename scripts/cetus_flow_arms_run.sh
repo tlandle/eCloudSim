@@ -25,11 +25,11 @@ export PYTHONPATH=/tmp/torch_compat_1m:$CARLA_ROOT/PythonAPI/carla:${PYTHONPATH:
 # --- chain: wait for capacity to finish (up to 14h), then require the GPU idle ---
 if [ "${NOWAIT:-0}" != "1" ]; then
   echo "[flow-arms] waiting for capacity _done ($(date +%H:%M:%S))"
-  for i in $(seq 1 5040); do   # 5040 * 10s = 14h
+  for i in $(seq 1 17280); do   # 17280 * 10s = 48h (capacity ~11h, wide margin)
     [ -f "$CAP_DONE" ] && break
     sleep 10
   done
-  [ -f "$CAP_DONE" ] || { echo "[flow-arms] ABORT capacity never finished after 14h"; exit 1; }
+  [ -f "$CAP_DONE" ] || { echo "[flow-arms] ABORT capacity never finished after 48h"; exit 1; }
   echo "[flow-arms] capacity done; waiting for GPU idle ($(date +%H:%M:%S))"
   for i in $(seq 1 60); do
     pgrep -f "ecav.py -t openscenario" >/dev/null 2>&1 || break

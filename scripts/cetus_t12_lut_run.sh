@@ -25,11 +25,11 @@ export PYTHONPATH=/tmp/torch_compat_1m:$CARLA_ROOT/PythonAPI/carla:${PYTHONPATH:
 
 if [ "${NOWAIT:-0}" != "1" ]; then
   echo "[t12] waiting for flow-arms _done ($(date +%H:%M:%S))"
-  for i in $(seq 1 5040); do   # 5040 * 10s = 14h
+  for i in $(seq 1 17280); do   # 17280 * 10s = 48h (capacity+flow-arms ~18h, wide margin)
     [ -f "$FA_DONE" ] && break
     sleep 10
   done
-  [ -f "$FA_DONE" ] || { echo "[t12] ABORT flow-arms never finished after 14h"; exit 1; }
+  [ -f "$FA_DONE" ] || { echo "[t12] ABORT flow-arms never finished after 48h"; exit 1; }
   echo "[t12] flow-arms done; waiting for GPU idle ($(date +%H:%M:%S))"
   for i in $(seq 1 60); do
     pgrep -f "ecav.py -t openscenario" >/dev/null 2>&1 || break
