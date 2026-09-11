@@ -209,6 +209,7 @@ def run_scenario(opt, scenario_params):
     npc_ids = set()            # moving non-hero, non-managed vehicles (Leons)
     npc_locale = {}            # carla_id -> sticky source locale id
     npc_handoff_done = {}
+    npc_handoff_bytes = {}      # nid -> prepare payload bytes (HANDOFFROW, logging only)
     # T19 per-handoff timing: first destination track, first ego use,
     # crossing tick — emitted as [HANDOFFROW] lines at scenario end.
     t19_first_dst = {}     # nid -> tick dst edge first maps a track to nid
@@ -673,6 +674,7 @@ def run_scenario(opt, scenario_params):
                     run_scenario._xfer_ema_s = _cur_s if _prev is None \
                         else 0.3 * _cur_s + 0.7 * _prev
                     npc_handoff_done[nid] = (step, dst_lid)
+                    npc_handoff_bytes[nid] = int(cost.payload_bytes)
                     logger.info(
                         "[SCENB] PREDICTIVE OBSTACLE HANDOFF tick=%d "
                         "carla_id=%d npc=(%.1f,%.1f) %s->%s bytes=%d "
@@ -858,9 +860,10 @@ def run_scenario(opt, scenario_params):
                 logger.info(
                     "[HANDOFFROW] npc=%d prepare_tick=%d crossing_tick=%d "
                     "first_dst_track_tick=%d first_use_tick=%d "
-                    "warm_before_first_use=%s dst=%s",
+                    "warm_before_first_use=%s dst=%s bytes=%d",
                     _nid4, _ht4, _cx, _fd, _fu,
-                    "YES" if _warm else "no", _dl4)
+                    "YES" if _warm else "no", _dl4,
+                    npc_handoff_bytes.get(_nid4, 0))
             import os as _os2
             _dblsum = sum(getattr(run_scenario, '_dbl_publish_ticks',
                                   {}).values())

@@ -9,6 +9,20 @@ ghost-filter fix (location-keyed removal of static unmapped `carla_id=-1`
 phantoms), commit `206192bc`. freeze-1m runs (pre-fix) are abandoned; their rows
 are quarantined out of the paper repo's `mock_data/`.
 
+**MID-CAMPAIGN LOGGING ADDITION (2026-09-10, behavior-inert):** `runner_wired.py`
+gained a `bytes=` field on the `[HANDOFFROW]` line (per-npc prepare
+`payload_bytes`, stored in `npc_handoff_bytes` and emitted at scenario end) so the
+trigger figure's wasted-bytes-per-crossing axis reads measured per-handoff bytes
+instead of blank. This strictly bends one-freeze-one-code-state, allowed because
+the field only reads a value already computed and already summed into `RUNROW by=`,
+is stored in a dict never read during the sim, and is emitted only at scenario
+end, so no running block's result can change (regions does not feed the handoff
+figures and is NOT given this build). Tag does NOT move; still freeze-1n. To be
+applied to the flow-arms host (cetus) only AFTER a paired same-host/same-seed
+before/after inert proof passes (outcome fields identical); if they differ, the
+change is reverted and reported. Proof + commit + apply date recorded here once
+done. Commit: <pending proof>.
+
 Version-controlled snapshot of the settled code fixes so the set is reproducible
 from the repo rather than living only in a scratchpad on one host. These files
 OVERLAY the frozen base (commit `71c9f37e`, freeze-1h) at runtime: the campaign

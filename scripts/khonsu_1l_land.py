@@ -826,7 +826,7 @@ def run_age_sweep(args):
 HANDOFFROW_RE = re.compile(
     r"\[HANDOFFROW\] npc=(\d+) prepare_tick=(-?\d+) crossing_tick=(-?\d+) "
     r"first_dst_track_tick=(-?\d+) first_use_tick=(-?\d+) "
-    r"warm_before_first_use=(\w+)")
+    r"warm_before_first_use=(\w+)(?:[^\n]*?bytes=(\d+))?")
 XFERROW_RE = re.compile(r"\[XFERROW\] actor=(\d+) epoch=\d+ bytes=(\d+)")
 HANDOFFS_COLS = ["arm", "run", "track", "true_lead_s",
                  "warm_before_first_use", "bytes", "crossed", "drift_m"]
@@ -875,11 +875,14 @@ def run_handoffs(args):
             xfer[m.group(1)] = int(m.group(2))
         for m in HANDOFFROW_RE.finditer(text):
             npc, ptk, cx = m.group(1), int(m.group(2)), int(m.group(3))
+            # prefer the HANDOFFROW bytes field (freeze-1n logging addition);
+            # fall back to XFERROW for pre-change logs, else blank.
+            hbytes = m.group(7)
             rows.append({
                 "arm": arm, "run": run, "track": npc,
                 "true_lead_s": round((cx - ptk) * 0.05, 3) if cx >= 0 and ptk >= 0 else "",
                 "warm_before_first_use": m.group(6),
-                "bytes": xfer.get(npc, ""),
+                "bytes": hbytes if hbytes is not None else xfer.get(npc, ""),
                 "crossed": "YES" if cx >= 0 else "NO",
                 "drift_m": "",
             })
