@@ -33,7 +33,9 @@ run () { local tag="$1"; local scn="$2"; shift 2; local log="$R/${tag}.log"
     _degenerate "$log" || break
   done
   grep -q RUNROW "$log" 2>/dev/null || { echo "[HARD FAIL] $tag no RUNROW; STOPPING block"; exit 2; }; }
-SEEDS=${SEEDS:-"1 2 3 4 5 6 7 8 9 10"}
+# 5 seeds: the appendix density table and the burst 5/5 claim are both "of 5"; a
+# finer denominator is an extension, not this block. burst 5x3 + q5 5x3x3 = 60.
+SEEDS=${SEEDS:-"1 2 3 4 5"}
 # burst first (its first cell is what classifies the block)
 for rep in $SEEDS; do for m in warm edgewarp cold; do
   run "burst_${m}_r${rep}" openscenario_1_burst_gt $(_mode_args $m)

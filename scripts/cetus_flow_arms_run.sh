@@ -84,6 +84,10 @@ for s in $SEEDS; do
     run "fb_band${w}_r${s}"      MIGRATION_MODE=warm TRIGGER_MODE=band BAND_W_M=$w KHONSU_SEED=$s
     run "fb_band${w}_v20_r${s}"  MIGRATION_MODE=warm TRIGGER_MODE=band BAND_W_M=$w ONCOMING_SPEED=20 KHONSU_SEED=$s
   done
+  # band5 is handoff-figure only (TRIGGER_ORDER wants fb_band5; overlap does not),
+  # so it runs at the single contract speed and the rows lander excludes it from
+  # the overlap file. The union of the two figures' widths is {5,10,20,40,80,120}.
+  run "fb_band5_r${s}"           MIGRATION_MODE=warm TRIGGER_MODE=band BAND_W_M=5 KHONSU_SEED=$s
   # trigger modes for the trigger figure's rows.csv (predictive = baseline,
   # band = fb_band20; mtr representative arm at the default theta 0.5, the theta
   # sweep below stays separate for the theta curve so rows.csv has one mtr arm).

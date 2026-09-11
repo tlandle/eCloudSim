@@ -1140,6 +1140,11 @@ def run_rows(args):
         stem = name[:-4]
         if THETA_TAG_RE.match(stem):
             continue
+        # band5 is handoff-figure only (the overlap figure's widths are
+        # {10,20,40,80,120}); keep it out of the overlap rows file so it does not
+        # add a point the generated frozengen_rows.csv lacks.
+        if re.match(r"^fb_band5_", stem):
+            continue
         row = _flow_overlap_row(os.path.join(args.logdir, name), stem, args)
         if row is not None:
             rows.append(row)
