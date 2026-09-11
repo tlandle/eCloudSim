@@ -26,7 +26,24 @@ for i in $(seq 1 17280); do [ -f "$CAP_DONE" ] && break; sleep 10; done
 for i in $(seq 1 60); do pgrep -f "ecav.py -t openscenario" >/dev/null 2>&1 || break; sleep 10; done
 
 carla_restart () { pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 6; ( cd "$CARLA_ROOT" && setsid nohup ./CarlaUE4.sh -RenderOffScreen >/dev/null 2>&1 9>&- & ); sleep 55; }
-_outcome () { grep -oE "episodes=[0-9]+ contact_ticks=[0-9]+" "$1" 2>/dev/null | head -1; }
+# Gate on ALL FOUR fields: episodes|contact_ticks|dist_m|time_s (peer). dist_m and
+# time_s are the sensitive trajectory measures, bit-identical per paired seed, so
+# they catch any timing perturbation before the coarse outcome flags do. Parsed via
+# khonsu_design_extract (the same parser the landers use), not bash-grepping the
+# eval dict. Pass = all four identical; any difference, including dist/time only,
+# is a fail.
+_four () {
+  python - "$1" <<'PY'
+import sys
+sys.path.insert(0, "scripts")
+import khonsu_design_extract as kde
+d = kde.parse_log(sys.argv[1])
+if d in (None, "INVALID"):
+    print("INVALID")
+else:
+    print("|".join(str(d.get(k, "?")) for k in ("eps", "ct", "dist_m", "time_s")))
+PY
+}
 _run () { local log="$1"
   echo "[LAUNCHENV] MIGRATION_MODE=warm TRIGGER_MODE=predictive LOOKAHEAD_S=1 ONCOMING_SPEED=12 TRIGGER_DIST=300 KHONSU_SEED=1" > "$log"
   ( env MIGRATION_MODE=warm TRIGGER_MODE=predictive LOOKAHEAD_S=1 ONCOMING_SPEED=12 \
@@ -37,24 +54,24 @@ _run () { local log="$1"
 grep -q "npc_handoff_bytes" "$BASE" && { echo "[proof] ABORT base already has the byte field; nothing to compare"; exit 1; }
 carla_restart; echo "[proof] before-cell (current runner) $(date +%H:%M:%S)"; _run "$R/proof_before.log"
 grep -q RUNROW "$R/proof_before.log" || { echo "[proof] ABORT before-cell no RUNROW"; exit 2; }
-B=$(_outcome "$R/proof_before.log")
+B=$(_four "$R/proof_before.log")
 
 # swap in the new runner, AFTER cell
 cp "$BASE" "$R/_flow_gt.bak"
 cp "$NEW" "$BASE"
 carla_restart; echo "[proof] after-cell (byte-field runner) $(date +%H:%M:%S)"; _run "$R/proof_after.log"
 grep -q RUNROW "$R/proof_after.log" || { cp "$R/_flow_gt.bak" "$BASE"; echo "[proof] ABORT after-cell no RUNROW; reverted"; exit 2; }
-A=$(_outcome "$R/proof_after.log")
+A=$(_four "$R/proof_after.log")
 
-echo "[proof] BEFORE: $B"
-echo "[proof] AFTER : $A"
-if [ "$B" = "$A" ]; then
-  echo "[proof] PASS: outcome identical, byte field inert. New runner APPLIED."
+echo "[proof] BEFORE (eps|ct|dist_m|time_s): $B"
+echo "[proof] AFTER  (eps|ct|dist_m|time_s): $A"
+if [ "$B" = "$A" ] && [ "$B" != "INVALID" ]; then
+  echo "[proof] PASS: all four fields identical, byte field inert. New runner APPLIED."
   grep -m1 "HANDOFFROW" "$R/proof_after.log" | sed "s/\x1b\[[0-9;]*m//g" | grep -oE "HANDOFFROW.*bytes=[0-9]+" | head -1
   echo "PASS before=$B after=$A $(date +%H:%M:%S)" > "$R/_proof_ok"
 else
   cp "$R/_flow_gt.bak" "$BASE"
-  echo "[proof] FAIL: outcome DIFFERS (before=$B after=$A). Reverted runner; flow-arms stays blocked."
+  echo "[proof] FAIL: fields DIFFER (before=$B after=$A). Reverted runner; flow-arms stays blocked."
   echo "FAIL before=$B after=$A $(date +%H:%M:%S)" > "$R/_proof_fail"
 fi
 pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null
