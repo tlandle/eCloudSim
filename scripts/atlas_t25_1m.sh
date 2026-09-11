@@ -19,7 +19,10 @@ MAIN=/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox
 WT=$MAIN/idfix_wt
 SP=/tmp/claude-1000/-home-atlas-TrafficSimulator-eCloud-ecloudsim-distributed-sandbox/88f56d4f-259d-44e9-bdb2-c8ace70b6018/scratchpad
 CARLA_ROOT=/home/atlas/carla-0.9.15
-SPEEDS=${SPEEDS:-"6 8 12 16 20 24"}
+# Sweep floor is 8 m/s: below it the oncoming stream does not clear within the
+# scenario, so 6 m/s measured the scenario (all arms fail) not the method; dropped
+# (peer 2026-09-10). Already-collected v6 rows stay on disk, out of the figure.
+SPEEDS=${SPEEDS:-"8 12 16 20 24"}
 SEEDS=${SEEDS:-"1 2 3 4 5"}
 ARMS=${ARMS:-"cold kf reactive warm oracle"}
 if [ "${SMOKE:-0}" = "1" ]; then SPEEDS="12"; SEEDS="1"; ARMS="warm"; fi

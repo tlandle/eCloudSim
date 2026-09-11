@@ -206,7 +206,17 @@ def build_row(path, machine):
     gid = resolve_gating(d, text, oncoming, lt)
     row["contact_actor"] = kad.resolve_collision_partner(d, kad.identify_ego_cid(d))
 
-    hf = d["handoff"].get(gid, {}) if gid != "" else {}
+    # Pair the crossing and conflict ticks to the CONTACT actor (the vehicle the
+    # ego actually conflicted with), falling back to the gating oncoming when there
+    # is no collision. Both ticks must describe ONE actor's crossing-to-conflict
+    # span; keying crossing off the gating oncoming while the ego hit a different
+    # stream member misplaced the t_avail x axis (visible as the 6 m/s outliers,
+    # where the slow stream held several oncoming vehicles in the window at once).
+    # gid still drives the migration-depth metrics below (the prepared track).
+    _ca = str(row["contact_actor"]).strip()
+    pair_id = int(_ca) if _ca.isdigit() else gid
+
+    hf = d["handoff"].get(pair_id, {}) if pair_id != "" else {}
     migrated = mode in ("warm", "reactive", "kf", "oracle") and "crossing_tick" in hf
 
     # crossing_tick: HANDOFFROW for migration arms, GT x>=240 for cold.
@@ -216,12 +226,13 @@ def build_row(path, machine):
             crossing = int(hf["crossing_tick"])
         except (TypeError, ValueError):
             crossing = ""
-    if crossing == "" and gid != "":
-        crossing = gt_first_frame_ge_x(text, gid, DEST_X)
+    if crossing == "" and pair_id != "":
+        crossing = gt_first_frame_ge_x(text, pair_id, DEST_X)
     row["crossing_tick"] = crossing
 
-    # conflict_tick: first GT frame with the gating oncoming's x >= 278.
-    conflict = gt_first_frame_ge_x(text, gid, CONFLICT_X) if gid != "" else ""
+    # conflict_tick: first GT frame with the CONTACT actor's x >= 278 (same actor
+    # as the crossing above).
+    conflict = gt_first_frame_ge_x(text, pair_id, CONFLICT_X) if pair_id != "" else ""
     row["conflict_tick"] = conflict
 
     row["t_avail_s"] = (round((conflict - crossing) * SIM_DT, 2)
