@@ -62,11 +62,38 @@ run () { local tag="$1"; shift; local log="$R/${tag}.log"
   # (CORRIDORCROSS); stop the block loudly rather than churn out zero-row cells.
   grep -q RUNROW "$log" 2>/dev/null || { echo "[HARD FAIL] $tag no RUNROW after $attempt attempts (timeout/crash); STOPPING block"; exit 2; }
   [ "$(grep -c CORRIDORCROSS "$log" 2>/dev/null)" -gt 0 ] || { echo "[HARD FAIL] $tag RUNROW but 0 CORRIDORCROSS (broken route/no handoff); STOPPING block"; exit 2; }; }
+# The alternatives figure and corridor table iterate ALT_ORDER (plot_figures.py):
+# 13 arms = cold, handover_snapshot, kf, kf_final, edgewarp, reactive, band20,
+# band40, band80, replication, repl_final, warm, oracle. arm_of() resolves them
+# from the logged (mode, trigger, band), so the env per arm must produce those:
+# edgewarp = MIGRATION_MODE=edgewarp_full (arm_of maps it to 'edgewarp'); band{w}
+# = warm + TRIGGER_MODE=band + BAND_W_M=w; oracle = warm + TRIGGER_MODE=oracle;
+# the rest are plain modes. Running fewer draws measured points beside projected
+# ones on the same axes with nothing to tell them apart. 13 x 5 = 65 + khonsu_ef0
+# x5 = 70 routes at n=5 (extend to n=10 later). khonsu_ef0 is the deliberately
+# unfenced control for the fencing rule, NOT in ALT_ORDER; kept, kept out of the
+# figure.
+_arm_env () { case "$1" in
+    cold)              echo "MIGRATION_MODE=cold" ;;
+    handover_snapshot) echo "MIGRATION_MODE=handover_snapshot" ;;
+    kf)                echo "MIGRATION_MODE=kf" ;;
+    kf_final)          echo "MIGRATION_MODE=kf_final" ;;
+    edgewarp)          echo "MIGRATION_MODE=edgewarp_full" ;;
+    reactive)          echo "MIGRATION_MODE=reactive" ;;
+    band20)            echo "MIGRATION_MODE=warm TRIGGER_MODE=band BAND_W_M=20" ;;
+    band40)            echo "MIGRATION_MODE=warm TRIGGER_MODE=band BAND_W_M=40" ;;
+    band80)            echo "MIGRATION_MODE=warm TRIGGER_MODE=band BAND_W_M=80" ;;
+    replication)       echo "MIGRATION_MODE=replication" ;;
+    repl_final)        echo "MIGRATION_MODE=repl_final" ;;
+    warm)              echo "MIGRATION_MODE=warm" ;;
+    oracle)            echo "MIGRATION_MODE=warm TRIGGER_MODE=oracle" ;;
+  esac; }
+ARMS=${ARMS:-"cold handover_snapshot kf kf_final edgewarp reactive band20 band40 band80 replication repl_final warm oracle"}
 SEEDS=${SEEDS:-"1 2 3 4 5"}
 if [ "${SMOKE:-0}" = "1" ]; then run "co_warm_n1_r1" MIGRATION_MODE=warm EPOCH_FENCE=1; echo "smoke $(date +%H:%M:%S)"; pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; exit 0; fi
 for rep in $SEEDS; do
-  for arm in cold reactive warm replication repl_final kf_final; do
-    run "co_${arm}_n1_r${rep}" MIGRATION_MODE=$arm EPOCH_FENCE=1
+  for arm in $ARMS; do
+    run "co_${arm}_n1_r${rep}" $(_arm_env "$arm") EPOCH_FENCE=1
   done
 done
 for rep in $SEEDS; do run "co_khonsu_ef0_r${rep}" MIGRATION_MODE=warm EPOCH_FENCE=0; done
