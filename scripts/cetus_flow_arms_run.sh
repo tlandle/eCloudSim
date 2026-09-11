@@ -17,7 +17,9 @@ set +u
 # residual capacity CARLA/ecav.py before starting, so it never runs concurrently
 # with capacity on the single cetus GPU. Whole-block-per-host preserved.
 WT=$HOME/cetus_1m_wt; CARLA_ROOT=$HOME/carla-0.9.15
-CAP_DONE="$WT/evaluation_outputs/frozen_1n_capacity/_done"
+# Default gate is capacity _done; override with WAIT_FILE to insert the byte-field
+# inert-proof gate (flow-arms waits for _proof_ok, written after the proof passes).
+CAP_DONE="${WAIT_FILE:-$WT/evaluation_outputs/frozen_1n_capacity/_done}"
 cd "$WT" || exit 1
 source $HOME/anaconda3/etc/profile.d/conda.sh && conda activate opencda310
 export PYTHONPATH=/tmp/torch_compat_1m:$CARLA_ROOT/PythonAPI/carla:${PYTHONPATH:-}
