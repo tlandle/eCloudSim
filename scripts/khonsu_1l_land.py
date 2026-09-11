@@ -823,6 +823,70 @@ def run_age_sweep(args):
     return rows
 
 
+HANDOFFROW_RE = re.compile(
+    r"\[HANDOFFROW\] npc=(\d+) prepare_tick=(-?\d+) crossing_tick=(-?\d+) "
+    r"first_dst_track_tick=(-?\d+) first_use_tick=(-?\d+) "
+    r"warm_before_first_use=(\w+)")
+XFERROW_RE = re.compile(r"\[XFERROW\] actor=(\d+) epoch=\d+ bytes=(\d+)")
+HANDOFFS_COLS = ["arm", "run", "track", "true_lead_s",
+                 "warm_before_first_use", "bytes", "crossed", "drift_m"]
+
+
+def _handoff_arm(stem):
+    """Map a flow-arms tag to the trigger figure's arm-column value (TRIGGER_ORDER
+    fb_band5/20/40/80 + tr_computed/tr_mtr/tr_oracle/tr_look2/3/4). Returns None
+    for tags outside that vocabulary (band10/120 and fa_base are not trigger arms;
+    the predictive baseline in that figure is the headline block's hl_warm)."""
+    m = re.match(r"^fb_band(\d+)(_v\d+)?_r\d+$", stem)
+    if m and m.group(1) in ("5", "20", "40", "80"):
+        return f"fb_band{m.group(1)}"
+    m = re.match(r"^fa_trig_(computed|mtr|oracle)_s\d+$", stem)
+    if m:
+        return f"tr_{m.group(1)}"
+    m = re.match(r"^fa_look(\d+)_s\d+$", stem)
+    if m and m.group(1) in ("2", "3", "4"):
+        return f"tr_look{m.group(1)}"
+    return None
+
+
+def run_handoffs(args):
+    """frozen1l_handoffs.csv (trigger_pareto + lead_cdf). One row per [HANDOFFROW]:
+    arm (tag stem), run (seed), track (npc), true_lead_s = (crossing-prepare)*0.05,
+    warm_before_first_use, crossed. bytes from [XFERROW] per actor when present,
+    else blank. drift_m is emitted BLANK on purpose: the flow logs carry no per-
+    handoff forecast-error source and populating it from another quantity would
+    misrepresent it (peer's rule). NOTE: HANDOFFROW is crossed-handoffs only and
+    the flow scenario logs no XFERROW, so the trigger figure's wasted-bytes-per-
+    crossing axis is NOT instrumented here; that needs a flow-runner logging change
+    (flagged to the writing session)."""
+    rows = []
+    for name in sorted(os.listdir(args.logdir)):
+        if not name.endswith(".log"):
+            continue
+        stem = name[:-4]
+        arm = _handoff_arm(stem)
+        if arm is None:
+            continue
+        rm = re.search(r"_[rs](\d+)$", stem)
+        run = rm.group(1) if rm else "1"
+        text = _read(os.path.join(args.logdir, name))
+        xfer = {}
+        for m in XFERROW_RE.finditer(text):
+            xfer[m.group(1)] = int(m.group(2))
+        for m in HANDOFFROW_RE.finditer(text):
+            npc, ptk, cx = m.group(1), int(m.group(2)), int(m.group(3))
+            rows.append({
+                "arm": arm, "run": run, "track": npc,
+                "true_lead_s": round((cx - ptk) * 0.05, 3) if cx >= 0 and ptk >= 0 else "",
+                "warm_before_first_use": m.group(6),
+                "bytes": xfer.get(npc, ""),
+                "crossed": "YES" if cx >= 0 else "NO",
+                "drift_m": "",
+            })
+    _write(rows, HANDOFFS_COLS, args.out)
+    return rows
+
+
 def run_density(args):
     """frozen1l_density_rows.csv: one row per burst/q5 run for the concurrent-
     crossings appendix (tab:scale + nDens{arm}{Two,Four,Eight} = "N of M" success,
@@ -878,8 +942,14 @@ def run_density(args):
             a = agg.setdefault(k, [0, 0])
             a[1] += 1
             a[0] += 1 if _succ(r) else 0
-        lines = ["% measured density/burst macros from khonsu_1l_land.py density",
-                 "% success = completed and not collided"]
+        import datetime as _dt
+        _now = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+        lines = [
+            "% MEASURED density/burst macros (not projected).",
+            f"% provenance: tag={args.tag}  logdir={os.path.abspath(args.logdir)}",
+            f"% landed: {_now}  by: khonsu_1l_land.py density --macros-out",
+            "% success = completed and not collided",
+        ]
         for (block, arm, nveh), (s, t) in sorted(agg.items()):
             nm = NAME.get(arm)
             if nm is None:
@@ -1295,6 +1365,12 @@ def main():
     ags = sub.add_parser("age_sweep", help="freshness AOI sweep lander")
     _common(ags, "frozen1l_age_sweep_rows.csv")
     ags.set_defaults(func=run_age_sweep)
+
+    hd = sub.add_parser("handoffs",
+                        help="flow-arms per-handoff lander (trigger_pareto + "
+                             "lead_cdf); bytes from XFERROW, drift blank")
+    _common(hd, "frozen1l_handoffs.csv")
+    hd.set_defaults(func=run_handoffs)
 
     den = sub.add_parser("density",
                          help="concurrent-crossings density lander (burst + q5 "
