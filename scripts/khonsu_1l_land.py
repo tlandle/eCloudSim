@@ -860,6 +860,37 @@ def run_density(args):
             "eval_tag": row.get("eval_tag", args.tag),
         })
     _write(rows, DENSITY_COLS, args.out)
+    # Emit the appendix macros from data (burst 5/5 + density N-of-M), named
+    # consistently with the existing generated macros so the paper reads measured
+    # values: \nBurst<Name> for the platoon burst, \nDens<Name><Word> for q5. The
+    # writing session wires the appendix to these. arm -> Name, FLOW_N -> Word.
+    if getattr(args, "macros_out", None):
+        NAME = {"warm": "Khonsu", "edgewarp": "Edgewarp",
+                "edgewarp_full": "Edgewarp", "cold": "Cold"}
+        WORD = {2: "Two", 4: "Four", 8: "Eight"}
+
+        def _succ(r):
+            return (str(r["completed"]).upper() == "YES"
+                    and str(r["collided"]).upper() != "YES")
+        agg = {}
+        for r in rows:
+            k = (r["block"], r["arm"], r["n_vehicles"])
+            a = agg.setdefault(k, [0, 0])
+            a[1] += 1
+            a[0] += 1 if _succ(r) else 0
+        lines = ["% measured density/burst macros from khonsu_1l_land.py density",
+                 "% success = completed and not collided"]
+        for (block, arm, nveh), (s, t) in sorted(agg.items()):
+            nm = NAME.get(arm)
+            if nm is None:
+                continue
+            if block == "burst":
+                lines.append(f"\\newcommand{{\\nBurst{nm}}}{{{s} of {t}}}")
+            elif block == "q5" and nveh in WORD:
+                lines.append(f"\\newcommand{{\\nDens{nm}{WORD[nveh]}}}{{{s} of {t}}}")
+        with open(args.macros_out, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        print(f"{len(lines) - 2} macros -> {args.macros_out}", file=sys.stderr)
     return rows
 
 
@@ -1269,6 +1300,9 @@ def main():
                          help="concurrent-crossings density lander (burst + q5 "
                               "success per arm x concurrency)")
     _common(den, "frozen1l_density_rows.csv")
+    den.add_argument("--macros-out", dest="macros_out",
+                     default=f"{_KB}/frozen1l_density_macros.tex",
+                     help="measured appendix macros (nBurst*/nDens*)")
     den.set_defaults(func=run_density)
 
     t12 = sub.add_parser("t12lut",
@@ -1309,7 +1343,7 @@ def main():
     rw.set_defaults(func=run_rows)
 
     args = ap.parse_args()
-    for _attr in ("out", "pdst_out", "decisions_out"):
+    for _attr in ("out", "pdst_out", "decisions_out", "macros_out"):
         _v = getattr(args, _attr, None)
         if _v:
             _d = os.path.dirname(os.path.abspath(_v))
