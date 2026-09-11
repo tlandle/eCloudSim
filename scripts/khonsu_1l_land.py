@@ -97,6 +97,12 @@ T12_SWEEP_EXTRA = ["scenario", "ns3_lut_n", "realized_age_ms",
 T12_DEC_COLS = ["scenario", "ns3_lut_n", "seed", "realized_age_ms",
                 "network_age_ms", "run_collided"]
 T12_TAG_RE = re.compile(r"^t12_(?P<scn>[a-z]+)_n(?P<n>\d+)_s(?P<seed>\d+)$")
+# Density / concurrent-crossings (appendix tab:scale + nDens macros + burst 5/5).
+# burst = fixed platoon (n_vehicles from the scenario, 5); q5 = FLOW_N oncoming.
+BURST_TAG_RE = re.compile(r"^burst_(?P<arm>[a-z_]+)_r(?P<rep>\d+)$")
+Q5_TAG_RE = re.compile(r"^q5_n(?P<fn>\d+)_(?P<arm>[a-z_]+)_r(?P<rep>\d+)$")
+DENSITY_COLS = ["tag", "block", "arm", "n_vehicles", "rep",
+                "collided", "completed", "eps", "eval_tag"]
 AGEROW_FULL_RE = re.compile(
     r"\[AGEROW\] tick=(\d+) edge=\S+ realized_age_ms=(-?[0-9.]+) "
     r"network_age_ms=(-?[0-9.]+)")
@@ -817,6 +823,46 @@ def run_age_sweep(args):
     return rows
 
 
+def run_density(args):
+    """frozen1l_density_rows.csv: one row per burst/q5 run for the concurrent-
+    crossings appendix (tab:scale + nDens{arm}{Two,Four,Eight} = "N of M" success,
+    and the burst platoon 5/5). block = burst | q5; n_vehicles = the platoon size
+    (burst, from the BURSTN log line if present else 5) or FLOW_N (q5). success is
+    the shared rule downstream: completed and not collided. Arms warm/edgewarp/
+    cold. The macro-gen counts N-of-M per (block, arm, n_vehicles) from these."""
+    rows = []
+    for name in sorted(os.listdir(args.logdir)):
+        if not name.endswith(".log"):
+            continue
+        stem = name[:-4]
+        bm = BURST_TAG_RE.match(stem)
+        qm = Q5_TAG_RE.match(stem)
+        if not bm and not qm:
+            continue
+        path = os.path.join(args.logdir, name)
+        row = std_row(path, stem, args.machine, args.oncoming_speed,
+                      args.trigger_dist, args.tag)
+        if row is None or row == "INVALID":
+            print(f"skip ({'no RUNROW' if row is None else 'INVALID'}): {name}",
+                  file=sys.stderr)
+            continue
+        if bm:
+            block, arm, rep = "burst", bm.group("arm"), bm.group("rep")
+            m = re.search(r"\[BURSTN\][^\n]*n=(\d+)", _read(path))
+            nveh = int(m.group(1)) if m else 5
+        else:
+            block, arm, rep = "q5", qm.group("arm"), qm.group("rep")
+            nveh = int(qm.group("fn"))
+        rows.append({
+            "tag": stem, "block": block, "arm": arm, "n_vehicles": nveh,
+            "rep": rep, "collided": row.get("collided", ""),
+            "completed": row.get("completed", ""), "eps": row.get("eps", ""),
+            "eval_tag": row.get("eval_tag", args.tag),
+        })
+    _write(rows, DENSITY_COLS, args.out)
+    return rows
+
+
 def run_t12lut(args):
     """T12 radio-plane age sweep (ns-3 LUT load via NS3_LUT_N). Emits TWO files.
     args.out = per-run sweep (STD_COLS + T12_SWEEP_EXTRA): one row per (scenario,
@@ -1218,6 +1264,12 @@ def main():
     ags = sub.add_parser("age_sweep", help="freshness AOI sweep lander")
     _common(ags, "frozen1l_age_sweep_rows.csv")
     ags.set_defaults(func=run_age_sweep)
+
+    den = sub.add_parser("density",
+                         help="concurrent-crossings density lander (burst + q5 "
+                              "success per arm x concurrency)")
+    _common(den, "frozen1l_density_rows.csv")
+    den.set_defaults(func=run_density)
 
     t12 = sub.add_parser("t12lut",
                          help="T12 radio-plane (ns-3 LUT) age sweep: per-run "
